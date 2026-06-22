@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Auth from './pages/Auth'
 import Dashboard from './pages/Dashboard'
 import Students from './pages/Students'
+import Lessons from './pages/Lessons'
 
 function App() {
   return (
@@ -24,6 +25,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Students />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/lessons"
+            element={
+              <ProtectedRoute>
+                <Lessons />
               </ProtectedRoute>
             }
           />

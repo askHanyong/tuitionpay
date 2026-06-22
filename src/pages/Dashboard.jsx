@@ -64,6 +64,15 @@ export default function Dashboard() {
         </section>
 
         <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900">Lessons</h2>
+            <Link to="/lessons" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
+              Log a lesson →
+            </Link>
+          </div>
+        </section>
+
+        <section>
           <h2 className="mb-3 text-base font-semibold text-gray-900">Payment Cycles</h2>
           {loading ? (
             <p className="text-sm text-gray-500">Loading...</p>
