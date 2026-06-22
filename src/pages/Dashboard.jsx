@@ -8,6 +8,7 @@ export default function Dashboard() {
   const [students, setStudents] = useState([])
   const [paymentCycles, setPaymentCycles] = useState([])
   const [loading, setLoading] = useState(true)
+  const pendingCount = paymentCycles.filter((c) => c.status === 'pending').length
 
   useEffect(() => {
     const load = async () => {
@@ -73,7 +74,12 @@ export default function Dashboard() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-base font-semibold text-gray-900">Payment Cycles</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900">Payment Cycles</h2>
+            <Link to="/payments" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
+              {pendingCount > 0 ? `${pendingCount} notice${pendingCount > 1 ? 's' : ''} due →` : 'View payments →'}
+            </Link>
+          </div>
           {loading ? (
             <p className="text-sm text-gray-500">Loading...</p>
           ) : paymentCycles.length === 0 ? (

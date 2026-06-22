@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { buildPaymentNoticeMessage, formatSGD } from '../lib/paymentNotice'
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -22,6 +23,8 @@ export default function Lessons() {
   const [info, setInfo] = useState(null)
   const [form, setForm] = useState(emptyForm([]))
   const [submitting, setSubmitting] = useState(false)
+  const [newCycle, setNewCycle] = useState(null)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -70,6 +73,7 @@ export default function Lessons() {
     e.preventDefault()
     setError(null)
     setInfo(null)
+    setNewCycle(null)
     setSubmitting(true)
 
     try {
@@ -92,7 +96,15 @@ export default function Lessons() {
       if (error) throw error
 
       if ((beforeCount ?? 0) + 1 >= 4) {
-        setInfo('Lesson logged. 4 lessons have now accumulated — a payment cycle was created.')
+        const { data: cycle } = await supabase
+          .from('payment_cycles')
+          .select('*, students(name)')
+          .eq('student_id', form.student_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+        setNewCycle(cycle ?? null)
+        setInfo('Lesson logged. 4 lessons have now accumulated — a payment notice is ready below.')
       } else {
         setInfo('Lesson logged.')
       }
@@ -104,6 +116,20 @@ export default function Lessons() {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleCopyNotice = async () => {
+    if (!newCycle) return
+    const message = buildPaymentNoticeMessage({
+      studentName: newCycle.students?.name,
+      amountDue: newCycle.amount_due,
+      periodStart: newCycle.period_start,
+      periodEnd: newCycle.period_end,
+      tutorName: user?.user_metadata?.full_name,
+    })
+    await navigator.clipboard.writeText(message)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   const handleDelete = async (id) => {
@@ -222,6 +248,31 @@ export default function Lessons() {
               {submitting ? 'Logging...' : 'Log lesson'}
             </button>
           </form>
+        )}
+
+        {newCycle && (
+          <section className="rounded-md border border-amber-200 bg-amber-50 p-5">
+            <h2 className="mb-2 text-base font-semibold text-gray-900">Payment notice ready</h2>
+            <p className="mb-3 text-sm text-gray-700">
+              {newCycle.students?.name} now owes{' '}
+              <span className="font-semibold">{formatSGD(newCycle.amount_due)}</span> for lessons{' '}
+              {newCycle.period_start} to {newCycle.period_end}.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={handleCopyNotice}
+                className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+              >
+                {copied ? 'Copied!' : 'Copy payment notice'}
+              </button>
+              <Link
+                to="/payments"
+                className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                View all payments
+              </Link>
+            </div>
+          </section>
         )}
 
         <section>

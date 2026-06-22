@@ -5,6 +5,7 @@ import Auth from './pages/Auth'
 import Dashboard from './pages/Dashboard'
 import Students from './pages/Students'
 import Lessons from './pages/Lessons'
+import Payments from './pages/Payments'
 
 function App() {
   return (
@@ -33,6 +34,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Lessons />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/payments"
+            element={
+              <ProtectedRoute>
+                <Payments />
               </ProtectedRoute>
             }
           />
