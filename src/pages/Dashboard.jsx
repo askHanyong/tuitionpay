@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -41,7 +42,12 @@ export default function Dashboard() {
 
       <main className="mx-auto max-w-4xl space-y-8 px-6 py-8">
         <section>
-          <h2 className="mb-3 text-base font-semibold text-gray-900">Students</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900">Students</h2>
+            <Link to="/students" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
+              Manage students →
+            </Link>
+          </div>
           {loading ? (
             <p className="text-sm text-gray-500">Loading...</p>
           ) : students.length === 0 ? (

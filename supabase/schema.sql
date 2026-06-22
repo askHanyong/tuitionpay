@@ -16,9 +16,11 @@ create table if not exists students (
   id uuid primary key default gen_random_uuid(),
   tutor_id uuid not null references tutors (id) on delete cascade,
   name text not null,
+  subject text,
+  hourly_rate numeric(10, 2),
+  lesson_duration_hours numeric(4, 2),
   guardian_name text,
   guardian_contact text,
-  hourly_rate numeric(10, 2),
   notes text,
   created_at timestamptz not null default now()
 );
