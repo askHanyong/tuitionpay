@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
@@ -8,9 +8,9 @@ import AppShell from "../components/AppShell";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-const emptyForm = (students) => ({
+const emptyForm = (students, prefillDate) => ({
   student_id: students[0]?.id ?? "",
-  lesson_date: today(),
+  lesson_date: prefillDate ?? today(),
   duration_hours: students[0]?.lesson_duration_hours ?? "",
   rate: students[0]?.hourly_rate ?? "",
   notes: "",
@@ -19,12 +19,14 @@ const emptyForm = (students) => ({
 export default function Lessons() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const location = useLocation();
+  const prefillDate = location.state?.lessonDate;
   const [students, setStudents] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [info, setInfo] = useState(null);
-  const [form, setForm] = useState(emptyForm([]));
+  const [form, setForm] = useState(emptyForm([], prefillDate));
   const [submitting, setSubmitting] = useState(false);
   const [newCycle, setNewCycle] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -47,7 +49,7 @@ export default function Lessons() {
       if (lessonsError) setError(lessonsError.message);
       setStudents(studentsData ?? []);
       setLessons(lessonsData ?? []);
-      setForm(emptyForm(studentsData ?? []));
+      setForm((f) => emptyForm(studentsData ?? [], f.lesson_date));
       setLoading(false);
     };
     load();

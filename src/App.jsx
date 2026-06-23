@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import Students from "./pages/Students";
 import Lessons from "./pages/Lessons";
 import Payments from "./pages/Payments";
+import Calendar from "./pages/Calendar";
 
 function App() {
   return (
@@ -44,6 +45,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Payments />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/calendar"
+              element={
+                <ProtectedRoute>
+                  <Calendar />
                 </ProtectedRoute>
               }
             />
