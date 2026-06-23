@@ -80,10 +80,14 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
--- Whenever a completed lesson is logged, recompute the student's pending
--- billing groups from scratch, strictly by lesson_date (not insertion
--- order), so backfilling history out of order can't strand a lesson in
--- the wrong group. Cycles already marked 'paid' are never touched.
+-- Whenever a completed lesson is logged, edited, reassigned, or deleted,
+-- recompute the student's billing groups from scratch, strictly by
+-- lesson_date (not insertion order), so backfilling history out of order
+-- can't strand a lesson in the wrong group. A cycle's amount_due is always
+-- 4 * hourly_rate * lesson_duration_hours, independent of which specific 4
+-- lessons it covers, so this can safely realign lesson membership and
+-- period dates even for already-'paid' cycles without ever touching
+-- amount_due, status, or paid_at.
 create or replace function public.recompute_payment_cycles(p_student_id uuid, p_tutor_id uuid)
 returns void
 language plpgsql
@@ -92,62 +96,69 @@ as $$
 declare
   v_hourly_rate numeric(10, 2);
   v_duration_hours numeric(4, 2);
-  total_unbilled integer;
+  total_completed integer;
   num_complete_groups integer;
   i integer;
-  new_cycle_id uuid;
+  cycle_ids uuid[];
+  cycle_id uuid;
+  chunk_lesson_ids uuid[];
   v_period_start date;
   v_period_end date;
 begin
-  delete from payment_cycles
-  where student_id = p_student_id and status = 'pending';
-
   select hourly_rate, lesson_duration_hours into v_hourly_rate, v_duration_hours
   from students
   where id = p_student_id;
 
-  select count(*) into total_unbilled
-  from lessons
-  where student_id = p_student_id
-    and status = 'completed'
-    and payment_cycle_id is null;
+  update lessons
+  set payment_cycle_id = null
+  where student_id = p_student_id and status = 'completed';
 
-  num_complete_groups := total_unbilled / 4;
+  select count(*) into total_completed
+  from lessons
+  where student_id = p_student_id and status = 'completed';
+
+  num_complete_groups := total_completed / 4;
+
+  select array_agg(id order by period_start, created_at) into cycle_ids
+  from payment_cycles
+  where student_id = p_student_id;
 
   for i in 1..num_complete_groups loop
-    select min(lesson_date), max(lesson_date) into v_period_start, v_period_end
+    select array_agg(id order by lesson_date, created_at) into chunk_lesson_ids
     from (
-      select lesson_date
+      select id, lesson_date, created_at
       from lessons
-      where student_id = p_student_id
-        and status = 'completed'
-        and payment_cycle_id is null
+      where student_id = p_student_id and status = 'completed'
       order by lesson_date, created_at
+      offset (i - 1) * 4
       limit 4
-    ) batch;
+    ) chunk;
 
-    insert into payment_cycles (tutor_id, student_id, period_start, period_end, amount_due, status)
-    values (
-      p_tutor_id,
-      p_student_id,
-      v_period_start,
-      v_period_end,
-      4 * coalesce(v_hourly_rate, 0) * coalesce(v_duration_hours, 0),
-      'pending'
-    )
-    returning id into new_cycle_id;
+    select min(lesson_date), max(lesson_date) into v_period_start, v_period_end
+    from lessons
+    where id = any (chunk_lesson_ids);
+
+    if cycle_ids is not null and array_length(cycle_ids, 1) >= i then
+      cycle_id := cycle_ids[i];
+      update payment_cycles
+      set period_start = v_period_start, period_end = v_period_end
+      where id = cycle_id;
+    else
+      insert into payment_cycles (tutor_id, student_id, period_start, period_end, amount_due, status)
+      values (
+        p_tutor_id,
+        p_student_id,
+        v_period_start,
+        v_period_end,
+        4 * coalesce(v_hourly_rate, 0) * coalesce(v_duration_hours, 0),
+        'pending'
+      )
+      returning id into cycle_id;
+    end if;
 
     update lessons
-    set payment_cycle_id = new_cycle_id
-    where id in (
-      select id
-      from lessons
-      where student_id = p_student_id
-        and status = 'completed'
-        and payment_cycle_id is null
-      order by lesson_date, created_at
-      limit 4
-    );
+    set payment_cycle_id = cycle_id
+    where id = any (chunk_lesson_ids);
   end loop;
 end;
 $$;
