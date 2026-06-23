@@ -79,6 +79,14 @@ export default function Payments() {
         </h2>
         {loading ? (
           <p className="text-sm text-gray-500">Loading...</p>
+        ) : pending.length === 0 && settled.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-white px-6 py-12 text-center shadow-sm">
+            <p className="mb-4 text-5xl">💰</p>
+            <p className="max-w-sm text-sm text-gray-600">
+              No payments yet. Payments appear automatically after every 4
+              lessons.
+            </p>
+          </div>
         ) : pending.length === 0 ? (
           <p className="text-sm text-gray-500">
             No payments due. A notice appears here automatically once a student
@@ -108,13 +116,13 @@ export default function Payments() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleCopy(c)}
-                    className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+                    className="min-h-11 rounded-md bg-green-600 px-3 text-sm font-medium text-white hover:bg-green-700"
                   >
                     {copiedId === c.id ? "Copied!" : "Copy payment notice"}
                   </button>
                   <button
                     onClick={() => handleMarkPaid(c.id)}
-                    className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                    className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-100"
                   >
                     Mark as paid
                   </button>

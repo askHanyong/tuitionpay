@@ -132,7 +132,7 @@ export default function Students() {
               required
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             />
           </div>
 
@@ -144,7 +144,7 @@ export default function Students() {
               type="text"
               value={form.subject}
               onChange={(e) => setForm({ ...form, subject: e.target.value })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             />
           </div>
 
@@ -160,7 +160,7 @@ export default function Students() {
               onChange={(e) =>
                 setForm({ ...form, hourly_rate: e.target.value })
               }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             />
           </div>
 
@@ -176,7 +176,7 @@ export default function Students() {
               onChange={(e) =>
                 setForm({ ...form, lesson_duration_hours: e.target.value })
               }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             />
           </div>
         </div>
@@ -187,7 +187,7 @@ export default function Students() {
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
           >
             {submitting
               ? "Saving..."
@@ -237,7 +237,7 @@ export default function Students() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => handleEdit(s)}
-                      className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                      className="text-sm font-medium text-green-600 hover:text-green-700"
                     >
                       Edit
                     </button>
@@ -278,7 +278,7 @@ export default function Students() {
                       <td className="px-4 py-3 text-right">
                         <button
                           onClick={() => handleEdit(s)}
-                          className="mr-3 font-medium text-indigo-600 hover:text-indigo-700"
+                          className="mr-3 font-medium text-green-600 hover:text-green-700"
                         >
                           Edit
                         </button>

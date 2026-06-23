@@ -7,12 +7,12 @@ import AppShell from "../components/AppShell";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const PALETTE = [
-  "bg-indigo-100 text-indigo-700",
+  "bg-green-100 text-green-700",
   "bg-green-100 text-green-700",
   "bg-amber-100 text-amber-700",
   "bg-pink-100 text-pink-700",
   "bg-blue-100 text-blue-700",
-  "bg-purple-100 text-purple-700",
+  "bg-rose-100 text-rose-700",
   "bg-teal-100 text-teal-700",
 ];
 
@@ -117,6 +117,16 @@ export default function Calendar() {
   }, [lessons]);
 
   const cells = useMemo(() => buildMonthGrid(monthDate), [monthDate]);
+  const hasLessonsThisMonth = useMemo(
+    () =>
+      lessons.some(
+        (l) =>
+          l.lesson_date &&
+          new Date(l.lesson_date).getFullYear() === monthDate.getFullYear() &&
+          new Date(l.lesson_date).getMonth() === monthDate.getMonth(),
+      ),
+    [lessons, monthDate],
+  );
   const todayKey = toDateKey(new Date());
   const selectedLessons = selectedKey
     ? (lessonsByDate.get(selectedKey) ?? [])
@@ -161,20 +171,20 @@ export default function Calendar() {
               <button
                 onClick={() => goToMonth(-1)}
                 aria-label="Previous month"
-                className="rounded-md border border-gray-300 px-2.5 py-1 text-sm text-gray-600 hover:bg-gray-100"
+                className="min-h-11 rounded-md border border-gray-300 px-2.5 text-sm text-gray-600 hover:bg-gray-100"
               >
                 ←
               </button>
               <button
                 onClick={() => setMonthDate(startOfMonth(new Date()))}
-                className="rounded-md border border-gray-300 px-2.5 py-1 text-sm text-gray-600 hover:bg-gray-100"
+                className="min-h-11 rounded-md border border-gray-300 px-2.5 text-sm text-gray-600 hover:bg-gray-100"
               >
                 Today
               </button>
               <button
                 onClick={() => goToMonth(1)}
                 aria-label="Next month"
-                className="rounded-md border border-gray-300 px-2.5 py-1 text-sm text-gray-600 hover:bg-gray-100"
+                className="min-h-11 rounded-md border border-gray-300 px-2.5 text-sm text-gray-600 hover:bg-gray-100"
               >
                 →
               </button>
@@ -183,58 +193,68 @@ export default function Calendar() {
 
           {loading ? (
             <p className="text-sm text-gray-500">Loading...</p>
+          ) : !hasLessonsThisMonth ? (
+            <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+              <p className="mb-4 text-5xl">📅</p>
+              <p className="max-w-sm text-sm text-gray-600">
+                No lessons this month. Log a lesson to see it here.
+              </p>
+            </div>
           ) : (
-            <div className="grid grid-cols-7 gap-1 text-xs">
-              {WEEKDAYS.map((d) => (
-                <div
-                  key={d}
-                  className="px-1 py-1 text-center font-medium text-gray-500"
-                >
-                  {d}
-                </div>
-              ))}
-              {cells.map((cell) => {
-                const dayLessons = lessonsByDate.get(cell.key) ?? [];
-                const isToday = cell.key === todayKey;
-                const isSelected = cell.key === selectedKey;
-                return (
-                  <button
-                    key={cell.key}
-                    onClick={() => setSelectedKey(cell.key)}
-                    className={`flex min-h-16 flex-col items-stretch gap-0.5 rounded-md border p-1 text-left transition sm:min-h-20 ${
-                      isSelected
-                        ? "border-indigo-400 bg-indigo-50"
-                        : "border-gray-100 hover:bg-gray-50"
-                    } ${cell.isCurrentMonth ? "" : "opacity-40"}`}
+            <div className="overflow-x-auto">
+              <div className="grid min-w-[560px] grid-cols-7 gap-1 text-xs sm:min-w-0">
+                {WEEKDAYS.map((d) => (
+                  <div
+                    key={d}
+                    className="px-1 py-1 text-center font-medium text-gray-500"
                   >
-                    <span
-                      className={`text-xs font-medium ${
-                        isToday
-                          ? "flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-white"
-                          : "text-gray-700"
-                      }`}
+                    {d}
+                  </div>
+                ))}
+                {cells.map((cell) => {
+                  const dayLessons = lessonsByDate.get(cell.key) ?? [];
+                  const isToday = cell.key === todayKey;
+                  const isSelected = cell.key === selectedKey;
+                  return (
+                    <button
+                      key={cell.key}
+                      onClick={() => setSelectedKey(cell.key)}
+                      className={`flex min-h-16 flex-col items-stretch gap-0.5 rounded-md border p-1 text-left transition sm:min-h-20 ${
+                        isSelected
+                          ? "border-green-400 bg-green-50"
+                          : "border-gray-100 hover:bg-gray-50"
+                      } ${cell.isCurrentMonth ? "" : "opacity-40"}`}
                     >
-                      {cell.date.getDate()}
-                    </span>
-                    <div className="flex flex-col gap-0.5">
-                      {dayLessons.slice(0, 2).map((l) => (
-                        <span
-                          key={l.id}
-                          className={`truncate rounded px-1 py-0.5 text-[10px] font-medium ${studentColor.get(l.student_id) ?? "bg-gray-100 text-gray-700"}`}
-                        >
-                          {l.students?.name} ({lessonPosition.get(l.id) ?? "?"}
-                          /4)
-                        </span>
-                      ))}
-                      {dayLessons.length > 2 && (
-                        <span className="text-[10px] font-medium text-gray-400">
-                          +{dayLessons.length - 2} more
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
+                      <span
+                        className={`text-xs font-medium ${
+                          isToday
+                            ? "flex h-5 w-5 items-center justify-center rounded-full bg-green-600 text-white"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        {cell.date.getDate()}
+                      </span>
+                      <div className="flex flex-col gap-0.5">
+                        {dayLessons.slice(0, 2).map((l) => (
+                          <span
+                            key={l.id}
+                            className={`truncate rounded px-1 py-0.5 text-[10px] font-medium ${studentColor.get(l.student_id) ?? "bg-gray-100 text-gray-700"}`}
+                          >
+                            {l.students?.name} (
+                            {lessonPosition.get(l.id) ?? "?"}
+                            /4)
+                          </span>
+                        ))}
+                        {dayLessons.length > 2 && (
+                          <span className="text-[10px] font-medium text-gray-400">
+                            +{dayLessons.length - 2} more
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </section>
@@ -252,7 +272,7 @@ export default function Calendar() {
             </h2>
             <button
               onClick={handleLogLesson}
-              className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+              className="min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white hover:bg-green-700"
             >
               + Log Lesson
             </button>
@@ -281,7 +301,7 @@ export default function Calendar() {
                   </p>
                   <button
                     onClick={() => handleAddToCalendar(l)}
-                    className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                    className="text-xs font-medium text-green-600 hover:text-green-700"
                   >
                     📅 Add to Calendar
                   </button>

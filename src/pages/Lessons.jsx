@@ -202,7 +202,7 @@ export default function Lessons() {
           Add a student first before logging lessons.{" "}
           <Link
             to="/students"
-            className="font-medium text-indigo-600 hover:text-indigo-700"
+            className="font-medium text-green-600 hover:text-green-700"
           >
             Add a student →
           </Link>
@@ -225,7 +225,7 @@ export default function Lessons() {
                 required
                 value={form.student_id}
                 onChange={(e) => handleStudentChange(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
               >
                 {students.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -246,7 +246,7 @@ export default function Lessons() {
                 onChange={(e) =>
                   setForm({ ...form, lesson_date: e.target.value })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
               />
             </div>
 
@@ -261,7 +261,7 @@ export default function Lessons() {
                 onChange={(e) =>
                   setForm({ ...form, lesson_time: e.target.value })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
               />
             </div>
 
@@ -278,7 +278,7 @@ export default function Lessons() {
                 onChange={(e) =>
                   setForm({ ...form, duration_hours: e.target.value })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
               />
             </div>
 
@@ -292,7 +292,7 @@ export default function Lessons() {
                 step="0.01"
                 value={form.rate}
                 onChange={(e) => setForm({ ...form, rate: e.target.value })}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
               />
             </div>
 
@@ -304,7 +304,7 @@ export default function Lessons() {
                 type="text"
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
               />
             </div>
           </div>
@@ -315,7 +315,8 @@ export default function Lessons() {
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            id="log-lesson-form-submit"
           >
             {submitting ? "Logging..." : "Log lesson"}
           </button>
@@ -337,13 +338,13 @@ export default function Lessons() {
           <div className="flex gap-2">
             <button
               onClick={handleCopyNotice}
-              className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+              className="min-h-11 rounded-md bg-green-600 px-3 text-sm font-medium text-white hover:bg-green-700"
             >
               {copied ? "Copied!" : "Copy payment notice"}
             </button>
             <Link
               to="/payments"
-              className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-100"
             >
               View all payments
             </Link>
@@ -358,7 +359,25 @@ export default function Lessons() {
         {loading ? (
           <p className="text-sm text-gray-500">Loading...</p>
         ) : lessons.length === 0 ? (
-          <p className="text-sm text-gray-500">No lessons logged yet.</p>
+          <div className="flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-white px-6 py-12 text-center shadow-sm">
+            <p className="mb-4 text-5xl">📚</p>
+            <p className="mb-6 max-w-sm text-sm text-gray-600">
+              No lessons logged yet. Start by logging your first lesson!
+            </p>
+            <a
+              href="#log-lesson-form-submit"
+              onClick={(e) => {
+                e.preventDefault();
+                document
+                  .querySelector('select, input[type="date"]')
+                  ?.closest("form")
+                  ?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}
+              className="flex min-h-11 items-center rounded-md bg-green-600 px-5 text-sm font-medium text-white hover:bg-green-700"
+            >
+              Log Lesson
+            </a>
+          </div>
         ) : (
           <>
             <ul className="space-y-3 sm:hidden">
@@ -383,7 +402,7 @@ export default function Lessons() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => handleAddToCalendar(l)}
-                      className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                      className="text-sm font-medium text-green-600 hover:text-green-700"
                     >
                       📅 Add to Calendar
                     </button>
@@ -430,7 +449,7 @@ export default function Lessons() {
                       <td className="px-4 py-3 text-right">
                         <button
                           onClick={() => handleAddToCalendar(l)}
-                          className="mr-3 font-medium text-indigo-600 hover:text-indigo-700"
+                          className="mr-3 font-medium text-green-600 hover:text-green-700"
                         >
                           📅 Add to Calendar
                         </button>

@@ -5,6 +5,7 @@ import { formatSGD } from "../lib/paymentNotice";
 import { useToast } from "../contexts/ToastContext";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
+import Onboarding from "../components/Onboarding";
 
 export default function Dashboard() {
   const { showToast } = useToast();
@@ -12,35 +13,44 @@ export default function Dashboard() {
   const [lessons, setLessons] = useState([]);
   const [paymentCycles, setPaymentCycles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(
+    () => localStorage.getItem("tuitionpay_onboarding_dismissed") === "true",
+  );
   const pendingCount = paymentCycles.filter(
     (c) => c.status === "pending",
   ).length;
+  const showOnboarding =
+    !loading && students.length === 0 && !onboardingDismissed;
+
+  const loadAll = async () => {
+    const [
+      { data: studentsData },
+      { data: lessonsData },
+      { data: cyclesData },
+    ] = await Promise.all([
+      supabase
+        .from("students")
+        .select("*")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("lessons")
+        .select("*, students(name)")
+        .eq("status", "completed")
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("payment_cycles")
+        .select("*, students(name)")
+        .order("period_end", { ascending: false }),
+    ]);
+    setStudents(studentsData ?? []);
+    setLessons(lessonsData ?? []);
+    setPaymentCycles(cyclesData ?? []);
+    setLoading(false);
+  };
 
   useEffect(() => {
     const load = async () => {
-      const [
-        { data: studentsData },
-        { data: lessonsData },
-        { data: cyclesData },
-      ] = await Promise.all([
-        supabase
-          .from("students")
-          .select("*")
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("lessons")
-          .select("*, students(name)")
-          .eq("status", "completed")
-          .order("created_at", { ascending: true }),
-        supabase
-          .from("payment_cycles")
-          .select("*, students(name)")
-          .order("period_end", { ascending: false }),
-      ]);
-      setStudents(studentsData ?? []);
-      setLessons(lessonsData ?? []);
-      setPaymentCycles(cyclesData ?? []);
-      setLoading(false);
+      await loadAll();
     };
     load();
   }, []);
@@ -128,6 +138,31 @@ export default function Dashboard() {
     showToast("Marked as paid.");
   };
 
+  if (!loading && students.length === 0) {
+    return (
+      <AppShell>
+        {showOnboarding && (
+          <Onboarding
+            onDismiss={() => setOnboardingDismissed(true)}
+            onDone={loadAll}
+          />
+        )}
+        <div className="flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-white px-6 py-16 text-center shadow-sm">
+          <p className="mb-4 text-5xl">🎓</p>
+          <p className="mb-6 max-w-sm text-sm text-gray-600">
+            Welcome! Add your first student to get started.
+          </p>
+          <Link
+            to="/students"
+            className="flex min-h-11 items-center rounded-md bg-green-600 px-5 text-sm font-medium text-white hover:bg-green-700"
+          >
+            Add Student
+          </Link>
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       {!loading && pendingCycleByStudent.size > 0 && (
@@ -168,7 +203,7 @@ export default function Dashboard() {
           </h2>
           <Link
             to="/students"
-            className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+            className="text-sm font-medium text-green-600 hover:text-green-700"
           >
             Manage students →
           </Link>
@@ -191,7 +226,7 @@ export default function Dashboard() {
               return (
                 <li
                   key={s.id}
-                  className="flex flex-wrap items-center justify-between gap-3 py-3"
+                  className="flex flex-col gap-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
                 >
                   <div>
                     <div className="flex items-center gap-2">
@@ -215,11 +250,11 @@ export default function Dashboard() {
                         : "No lessons yet"}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <div className="flex items-center gap-3">
-                      <div className="h-2 w-24 overflow-hidden rounded-full bg-gray-100">
+                      <div className="h-2 w-full max-w-40 flex-1 overflow-hidden rounded-full bg-gray-100 sm:w-24 sm:flex-none">
                         <div
-                          className={`h-full rounded-full ${paymentDue ? "bg-red-500" : "bg-indigo-500"}`}
+                          className={`h-full rounded-full ${paymentDue ? "bg-red-500" : "bg-green-500"}`}
                           style={{
                             width: `${Math.min(completed, 4) * 25}%`,
                           }}
@@ -234,7 +269,7 @@ export default function Dashboard() {
                     {paymentDue && (
                       <button
                         onClick={() => handleCollectPayment(pendingCycle.id)}
-                        className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                        className="min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white hover:bg-green-700"
                       >
                         Collect Payment
                       </button>
@@ -254,7 +289,7 @@ export default function Dashboard() {
           </h2>
           <Link
             to="/lessons"
-            className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+            className="text-sm font-medium text-green-600 hover:text-green-700"
           >
             Log a lesson →
           </Link>
@@ -273,7 +308,7 @@ export default function Dashboard() {
                   </p>
                   <p className="text-xs text-gray-500">{l.lesson_date}</p>
                 </div>
-                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700">
+                <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
                   Lesson {lessonPosition.get(l.id) ?? "?"} of 4
                 </span>
               </li>
@@ -289,7 +324,7 @@ export default function Dashboard() {
           </h2>
           <Link
             to="/payments"
-            className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+            className="text-sm font-medium text-green-600 hover:text-green-700"
           >
             {pendingCount > 0
               ? `${pendingCount} notice${pendingCount > 1 ? "s" : ""} due →`
