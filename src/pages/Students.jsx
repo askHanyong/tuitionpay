@@ -210,7 +210,7 @@ export default function Students() {
           <button
             type="submit"
             disabled={submitting}
-            className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow disabled:opacity-50"
           >
             {submitting
               ? "Saving..."
@@ -300,7 +300,7 @@ export default function Students() {
                 <tbody className="divide-y divide-gray-200">
                   {students.map((s) => (
                     <Fragment key={s.id}>
-                      <tr>
+                      <tr className="transition hover:bg-gray-50">
                         <td className="px-4 py-3 text-gray-900">{s.name}</td>
                         <td className="px-4 py-3 text-gray-700">
                           {s.subject || "—"}

@@ -180,151 +180,158 @@ export default function Dashboard() {
         </div>
       )}
 
-      {!loading && (
-        <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-          <h2 className="mb-3 text-base font-semibold text-gray-900">
-            {monthLabel} earnings
-          </h2>
-          <p className="text-sm text-gray-700">
-            <span className="font-medium text-green-700">
-              ✅ Collected: {formatSGD(collectedThisMonth)}
-            </span>
-            {" · "}
-            <span className="font-medium text-amber-700">
-              ⏳ Pending: {formatSGD(pendingThisMonth)}
-            </span>
-            {" · "}
-            <span className="font-semibold text-gray-900">
-              Total: {formatSGD(collectedThisMonth + pendingThisMonth)}
-            </span>
-          </p>
-        </section>
-      )}
-
-      <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">
-            Student payment progress
-          </h2>
-          <Link
-            to="/students"
-            className="text-sm font-medium text-green-600 hover:text-green-700"
-          >
-            Manage students →
-          </Link>
-        </div>
-        {loading ? (
-          <p className="text-sm text-gray-500">Loading...</p>
-        ) : students.length === 0 ? (
-          <p className="text-sm text-gray-500">No students yet.</p>
-        ) : (
-          <ul className="divide-y divide-gray-100">
-            {students.map((s) => {
-              const completed = openCountByStudent.get(s.id) ?? 0;
-              const pendingCycle = pendingCycleByStudent.get(s.id);
-              const paymentDue = Boolean(pendingCycle);
-              const expectedAmount =
-                s.hourly_rate != null && s.lesson_duration_hours != null
-                  ? s.hourly_rate * s.lesson_duration_hours * 4
-                  : null;
-              const lastLessonDate = lastLessonByStudent.get(s.id);
-              return (
-                <li
-                  key={s.id}
-                  className="flex flex-col gap-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-900">
-                        {s.name}
-                      </span>
-                      {s.subject && (
-                        <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                          {s.subject}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md lg:col-span-7">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900">
+              Student payment progress
+            </h2>
+            <Link
+              to="/students"
+              className="text-sm font-medium text-green-600 hover:text-green-700"
+            >
+              Manage students →
+            </Link>
+          </div>
+          {loading ? (
+            <p className="text-sm text-gray-500">Loading...</p>
+          ) : students.length === 0 ? (
+            <p className="text-sm text-gray-500">No students yet.</p>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {students.map((s) => {
+                const completed = openCountByStudent.get(s.id) ?? 0;
+                const pendingCycle = pendingCycleByStudent.get(s.id);
+                const paymentDue = Boolean(pendingCycle);
+                const expectedAmount =
+                  s.hourly_rate != null && s.lesson_duration_hours != null
+                    ? s.hourly_rate * s.lesson_duration_hours * 4
+                    : null;
+                const lastLessonDate = lastLessonByStudent.get(s.id);
+                return (
+                  <li
+                    key={s.id}
+                    className="flex flex-col gap-3 rounded-lg px-2 py-3 transition hover:bg-gray-50 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-900">
+                          {s.name}
                         </span>
-                      )}
-                      {paymentDue && (
-                        <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
-                          Payment Due{" "}
-                          {pendingCycle.period_end &&
-                            `(${new Date(pendingCycle.period_end).toLocaleDateString("en-SG", { day: "numeric", month: "short" })})`}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-0.5 text-xs text-gray-400">
-                      {lastLessonDate
-                        ? `Last lesson: ${new Date(lastLessonDate).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })}`
-                        : "No lessons yet"}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <div className="flex items-center gap-3">
-                      <div className="h-2 w-full max-w-40 flex-1 overflow-hidden rounded-full bg-gray-100 sm:w-24 sm:flex-none">
-                        <div
-                          className={`h-full rounded-full ${paymentDue ? "bg-red-500" : "bg-green-500"}`}
-                          style={{
-                            width: `${Math.min(completed, 4) * 25}%`,
-                          }}
-                        />
+                        {s.subject && (
+                          <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                            {s.subject}
+                          </span>
+                        )}
+                        {paymentDue && (
+                          <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                            Payment Due{" "}
+                            {pendingCycle.period_end &&
+                              `(${new Date(pendingCycle.period_end).toLocaleDateString("en-SG", { day: "numeric", month: "short" })})`}
+                          </span>
+                        )}
                       </div>
-                      <span className="text-xs font-medium text-gray-500">
-                        {completed}/4 lessons
-                        {expectedAmount != null &&
-                          ` · ${formatSGD(expectedAmount)} due at completion`}
-                      </span>
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {lastLessonDate
+                          ? `Last lesson: ${new Date(lastLessonDate).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })}`
+                          : "No lessons yet"}
+                      </p>
                     </div>
-                    {paymentDue && (
-                      <button
-                        onClick={() => handleCollectPayment(pendingCycle.id)}
-                        className="min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white hover:bg-green-700"
-                      >
-                        Collect Payment
-                      </button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 w-full max-w-40 flex-1 overflow-hidden rounded-full bg-gray-100 sm:w-24 sm:flex-none">
+                          <div
+                            className={`h-full rounded-full ${paymentDue ? "bg-red-500" : "bg-green-500"}`}
+                            style={{
+                              width: `${Math.min(completed, 4) * 25}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="text-xs font-medium text-gray-500">
+                          {completed}/4 lessons
+                          {expectedAmount != null &&
+                            ` · ${formatSGD(expectedAmount)} due at completion`}
+                        </span>
+                      </div>
+                      {paymentDue && (
+                        <button
+                          onClick={() => handleCollectPayment(pendingCycle.id)}
+                          className="min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 hover:shadow"
+                        >
+                          Collect Payment
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
-      <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">
-            Recent lessons
-          </h2>
-          <Link
-            to="/lessons"
-            className="text-sm font-medium text-green-600 hover:text-green-700"
-          >
-            Log a lesson →
-          </Link>
-        </div>
-        {loading ? (
-          <p className="text-sm text-gray-500">Loading...</p>
-        ) : recentLessons.length === 0 ? (
-          <p className="text-sm text-gray-500">No lessons logged yet.</p>
-        ) : (
-          <ul className="divide-y divide-gray-100">
-            {recentLessons.map((l) => (
-              <li key={l.id} className="flex items-center justify-between py-3">
-                <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {l.students?.name}
-                  </p>
-                  <p className="text-xs text-gray-500">{l.lesson_date}</p>
-                </div>
-                <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                  Lesson {lessonPosition.get(l.id) ?? "?"} of 4
+        <div className="grid grid-cols-1 gap-6 lg:col-span-5 xl:grid-cols-2">
+          {!loading && (
+            <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md xl:order-2">
+              <h2 className="mb-3 text-base font-semibold text-gray-900">
+                {monthLabel} earnings
+              </h2>
+              <p className="text-sm text-gray-700">
+                <span className="font-medium text-green-700">
+                  ✅ Collected: {formatSGD(collectedThisMonth)}
                 </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                {" · "}
+                <span className="font-medium text-amber-700">
+                  ⏳ Pending: {formatSGD(pendingThisMonth)}
+                </span>
+                {" · "}
+                <span className="font-semibold text-gray-900">
+                  Total: {formatSGD(collectedThisMonth + pendingThisMonth)}
+                </span>
+              </p>
+            </section>
+          )}
 
-      <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md xl:order-1">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">
+                Recent lessons
+              </h2>
+              <Link
+                to="/lessons"
+                className="text-sm font-medium text-green-600 hover:text-green-700"
+              >
+                Log a lesson →
+              </Link>
+            </div>
+            {loading ? (
+              <p className="text-sm text-gray-500">Loading...</p>
+            ) : recentLessons.length === 0 ? (
+              <p className="text-sm text-gray-500">No lessons logged yet.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {recentLessons.map((l) => (
+                  <li
+                    key={l.id}
+                    className="flex items-center justify-between rounded-lg px-2 py-3 transition hover:bg-gray-50"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {l.students?.name}
+                      </p>
+                      <p className="text-xs text-gray-500">{l.lesson_date}</p>
+                    </div>
+                    <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                      Lesson {lessonPosition.get(l.id) ?? "?"} of 4
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
+
+      <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-gray-900">
             Payment cycles
@@ -347,7 +354,7 @@ export default function Dashboard() {
             {paymentCycles.map((c) => (
               <li
                 key={c.id}
-                className="flex items-center justify-between gap-3 py-3"
+                className="flex items-center justify-between gap-3 rounded-lg px-2 py-3 transition hover:bg-gray-50"
               >
                 <span className="text-sm text-gray-700">
                   {c.students?.name}

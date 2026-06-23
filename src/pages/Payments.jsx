@@ -97,7 +97,7 @@ export default function Payments() {
             {pending.map((c) => (
               <li
                 key={c.id}
-                className="rounded-md border border-amber-200 bg-amber-50 p-4"
+                className="rounded-md border border-amber-200 bg-amber-50 p-4 transition hover:shadow-md"
               >
                 <div className="mb-2 flex items-center justify-between">
                   <span className="flex items-center gap-2 font-medium text-gray-900">
@@ -116,13 +116,13 @@ export default function Payments() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleCopy(c)}
-                    className="min-h-11 rounded-md bg-green-600 px-3 text-sm font-medium text-white hover:bg-green-700"
+                    className="min-h-11 rounded-md bg-green-600 px-3 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
                   >
                     {copiedId === c.id ? "Copied!" : "Copy payment notice"}
                   </button>
                   <button
                     onClick={() => handleMarkPaid(c.id)}
-                    className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                    className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
                   >
                     Mark as paid
                   </button>
@@ -174,7 +174,7 @@ export default function Payments() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {settled.map((c) => (
-                    <tr key={c.id}>
+                    <tr key={c.id} className="transition hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-900">
                         {c.students?.name}
                       </td>

@@ -216,11 +216,11 @@ export default function Calendar() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <div className="grid min-w-[560px] grid-cols-7 gap-1 text-xs sm:min-w-0">
+              <div className="grid min-w-[560px] grid-cols-7 gap-1 text-xs sm:min-w-0 lg:gap-2 lg:text-sm">
                 {WEEKDAYS.map((d) => (
                   <div
                     key={d}
-                    className="px-1 py-1 text-center font-medium text-gray-500"
+                    className="px-1 py-1 text-center font-medium text-gray-500 lg:py-2"
                   >
                     {d}
                   </div>
@@ -233,34 +233,40 @@ export default function Calendar() {
                     <button
                       key={cell.key}
                       onClick={() => setSelectedKey(cell.key)}
-                      className={`flex min-h-16 flex-col items-stretch gap-0.5 rounded-md border p-1 text-left transition sm:min-h-20 ${
+                      className={`flex min-h-16 flex-col items-stretch gap-0.5 rounded-md border p-1 text-left transition sm:min-h-20 lg:min-h-32 lg:gap-1 lg:rounded-lg lg:p-2 ${
                         isSelected
                           ? "border-green-400 bg-green-50"
-                          : "border-gray-100 hover:bg-gray-50"
+                          : "border-gray-100 hover:border-gray-200 hover:bg-gray-50 hover:shadow-sm"
                       } ${cell.isCurrentMonth ? "" : "opacity-40"}`}
                     >
                       <span
-                        className={`text-xs font-medium ${
+                        className={`text-xs font-medium lg:text-sm ${
                           isToday
-                            ? "flex h-5 w-5 items-center justify-center rounded-full bg-green-600 text-white"
+                            ? "flex h-5 w-5 items-center justify-center rounded-full bg-green-600 text-white lg:h-6 lg:w-6"
                             : "text-gray-700"
                         }`}
                       >
                         {cell.date.getDate()}
                       </span>
-                      <div className="flex flex-col gap-0.5">
+                      <div className="flex flex-col gap-0.5 lg:gap-1">
                         {dayLessons.slice(0, 2).map((l) => (
                           <span
                             key={l.id}
-                            className={`truncate rounded px-1 py-0.5 text-[10px] font-medium ${studentColor.get(l.student_id) ?? "bg-gray-100 text-gray-700"}`}
+                            className={`truncate rounded px-1 py-0.5 text-[10px] font-medium lg:rounded-md lg:px-1.5 lg:py-1 lg:text-xs ${studentColor.get(l.student_id) ?? "bg-gray-100 text-gray-700"}`}
                           >
                             {l.students?.name} (
                             {lessonPosition.get(l.id) ?? "?"}
                             /4)
+                            {l.lesson_time && (
+                              <span className="hidden lg:inline">
+                                {" "}
+                                · {l.lesson_time.slice(0, 5)}
+                              </span>
+                            )}
                           </span>
                         ))}
                         {dayLessons.length > 2 && (
-                          <span className="text-[10px] font-medium text-gray-400">
+                          <span className="text-[10px] font-medium text-gray-400 lg:text-xs">
                             +{dayLessons.length - 2} more
                           </span>
                         )}
@@ -303,7 +309,7 @@ export default function Calendar() {
               {selectedLessons.map((l) => (
                 <li
                   key={l.id}
-                  className="rounded-md border border-gray-100 bg-gray-50 p-3"
+                  className="rounded-md border border-gray-100 bg-gray-50 p-3 transition hover:border-gray-200 hover:shadow-sm"
                 >
                   <p className="text-sm font-medium text-gray-900">
                     {l.students?.name}
