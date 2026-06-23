@@ -58,13 +58,17 @@ export default function Calendar() {
   const [loading, setLoading] = useState(true);
   const [selectedKey, setSelectedKey] = useState(null);
 
+  const reloadLessons = async () => {
+    const { data } = await supabase
+      .from("lessons")
+      .select("*, students(name, subject, hourly_rate)")
+      .order("created_at", { ascending: true });
+    setLessons(data ?? []);
+  };
+
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase
-        .from("lessons")
-        .select("*, students(name, subject, hourly_rate)")
-        .order("created_at", { ascending: true });
-      setLessons(data ?? []);
+      await reloadLessons();
       setLoading(false);
     };
     load();
@@ -154,6 +158,16 @@ export default function Calendar() {
       `${lesson.students?.name ?? "lesson"}-${lesson.lesson_date}.ics`,
       ics,
     );
+  };
+
+  const handleEditLesson = (lesson) => {
+    navigate("/lessons", { state: { editLessonId: lesson.id } });
+  };
+
+  const handleDeleteLesson = async (lesson) => {
+    if (!window.confirm("Delete this lesson? This cannot be undone.")) return;
+    await supabase.from("lessons").delete().eq("id", lesson.id);
+    await reloadLessons();
   };
 
   return (
@@ -299,12 +313,26 @@ export default function Calendar() {
                     {lessonPosition.get(l.id) ?? "?"} of 4 ·{" "}
                     {(l.duration_minutes / 60).toFixed(2)}h
                   </p>
-                  <button
-                    onClick={() => handleAddToCalendar(l)}
-                    className="text-xs font-medium text-green-600 hover:text-green-700"
-                  >
-                    📅 Add to Calendar
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleAddToCalendar(l)}
+                      className="text-xs font-medium text-green-600 hover:text-green-700"
+                    >
+                      📅 Add to Calendar
+                    </button>
+                    <button
+                      onClick={() => handleEditLesson(l)}
+                      className="text-xs font-medium text-gray-700 hover:text-gray-900"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDeleteLesson(l)}
+                      className="text-xs font-medium text-red-600 hover:text-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

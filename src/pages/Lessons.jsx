@@ -24,6 +24,7 @@ export default function Lessons() {
   const { showToast } = useToast();
   const location = useLocation();
   const prefillDate = location.state?.lessonDate;
+  const editLessonId = location.state?.editLessonId;
   const [students, setStudents] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +34,7 @@ export default function Lessons() {
   const [submitting, setSubmitting] = useState(false);
   const [newCycle, setNewCycle] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -54,10 +56,24 @@ export default function Lessons() {
       setStudents(studentsData ?? []);
       setLessons(lessonsData ?? []);
       setForm((f) => emptyForm(studentsData ?? [], f.lesson_date));
+      if (editLessonId) {
+        const lesson = (lessonsData ?? []).find((l) => l.id === editLessonId);
+        if (lesson) {
+          setEditingId(lesson.id);
+          setForm({
+            student_id: lesson.student_id,
+            lesson_date: lesson.lesson_date,
+            lesson_time: lesson.lesson_time ?? "09:00",
+            duration_hours: lesson.duration_minutes / 60,
+            rate: lesson.rate ?? "",
+            notes: lesson.notes ?? "",
+          });
+        }
+      }
       setLoading(false);
     };
     load();
-  }, []);
+  }, [editLessonId]);
 
   const reloadLessons = async () => {
     const { data, error } = await supabase
@@ -117,6 +133,29 @@ export default function Lessons() {
     });
   };
 
+  const resetForm = () => {
+    setEditingId(null);
+    setForm((f) => emptyForm(students, f.lesson_date));
+  };
+
+  const handleEditLesson = (lesson) => {
+    setEditingId(lesson.id);
+    setNewCycle(null);
+    setInfo(null);
+    setForm({
+      student_id: lesson.student_id,
+      lesson_date: lesson.lesson_date,
+      lesson_time: lesson.lesson_time ?? "09:00",
+      duration_hours: lesson.duration_minutes / 60,
+      rate: lesson.rate ?? "",
+      notes: lesson.notes ?? "",
+    });
+    document
+      .getElementById("log-lesson-form-submit")
+      ?.closest("form")
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -128,6 +167,27 @@ export default function Lessons() {
       const durationHours = Number(form.duration_hours);
       const isFuture = form.lesson_date > today();
       const status = isFuture ? "scheduled" : "completed";
+
+      if (editingId) {
+        const { error } = await supabase
+          .from("lessons")
+          .update({
+            student_id: form.student_id,
+            lesson_date: form.lesson_date,
+            lesson_time: form.lesson_time || null,
+            duration_minutes: Math.round(durationHours * 60),
+            rate: form.rate === "" ? null : Number(form.rate),
+            notes: form.notes.trim() || null,
+            status,
+          })
+          .eq("id", editingId);
+        if (error) throw error;
+        setInfo("Lesson updated.");
+        resetForm();
+        await reloadLessons();
+        return;
+      }
+
       const { count: beforeCount } = await supabase
         .from("lessons")
         .select("id", { count: "exact", head: true })
@@ -200,6 +260,7 @@ export default function Lessons() {
       showToast(error.message, "error");
       return;
     }
+    if (editingId === id) resetForm();
     await reloadLessons();
     showToast("Lesson deleted.");
   };
@@ -222,7 +283,7 @@ export default function Lessons() {
           className="space-y-4 rounded-md border border-gray-200 bg-white p-5"
         >
           <h2 className="text-base font-semibold text-gray-900">
-            Log a lesson
+            {editingId ? "Edit lesson" : "Log a lesson"}
           </h2>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -321,14 +382,31 @@ export default function Lessons() {
           {error && <p className="text-sm text-red-600">{error}</p>}
           {info && <p className="text-sm text-green-600">{info}</p>}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-            id="log-lesson-form-submit"
-          >
-            {submitting ? "Logging..." : "Log lesson"}
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              id="log-lesson-form-submit"
+            >
+              {submitting
+                ? editingId
+                  ? "Saving..."
+                  : "Logging..."
+                : editingId
+                  ? "Save changes"
+                  : "Log lesson"}
+            </button>
+            {editingId && (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
         </form>
       )}
 
@@ -421,6 +499,12 @@ export default function Lessons() {
                       📅 Add to Calendar
                     </button>
                     <button
+                      onClick={() => handleEditLesson(l)}
+                      className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                    >
+                      Edit
+                    </button>
+                    <button
                       onClick={() => handleDelete(l.id)}
                       className="text-sm font-medium text-red-600 hover:text-red-700"
                     >
@@ -473,6 +557,12 @@ export default function Lessons() {
                           className="mr-3 font-medium text-green-600 hover:text-green-700"
                         >
                           📅 Add to Calendar
+                        </button>
+                        <button
+                          onClick={() => handleEditLesson(l)}
+                          className="mr-3 font-medium text-gray-700 hover:text-gray-900"
+                        >
+                          Edit
                         </button>
                         <button
                           onClick={() => handleDelete(l.id)}

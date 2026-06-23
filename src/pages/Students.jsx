@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
@@ -11,6 +11,8 @@ const emptyForm = {
   lesson_duration_hours: "",
 };
 
+const todayStr = () => new Date().toISOString().slice(0, 10);
+
 export default function Students() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -20,6 +22,27 @@ export default function Students() {
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+  const [lessonsByStudent, setLessonsByStudent] = useState({});
+  const [lessonsLoading, setLessonsLoading] = useState(false);
+
+  const toggleLessons = async (studentId) => {
+    if (expandedId === studentId) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(studentId);
+    if (!lessonsByStudent[studentId]) {
+      setLessonsLoading(true);
+      const { data } = await supabase
+        .from("lessons")
+        .select("*")
+        .eq("student_id", studentId)
+        .order("lesson_date", { ascending: false });
+      setLessonsByStudent((prev) => ({ ...prev, [studentId]: data ?? [] }));
+      setLessonsLoading(false);
+    }
+  };
 
   const loadStudents = async () => {
     const { data, error } = await supabase
@@ -234,7 +257,13 @@ export default function Students() {
                     {s.lesson_duration_hours != null &&
                       ` · ${s.lesson_duration_hours}h lessons`}
                   </p>
-                  <div className="flex gap-3">
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      onClick={() => toggleLessons(s.id)}
+                      className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                    >
+                      {expandedId === s.id ? "Hide lessons" : "View lessons"}
+                    </button>
                     <button
                       onClick={() => handleEdit(s)}
                       className="text-sm font-medium text-green-600 hover:text-green-700"
@@ -248,6 +277,12 @@ export default function Students() {
                       Delete
                     </button>
                   </div>
+                  {expandedId === s.id && (
+                    <StudentLessonsPanel
+                      loading={lessonsLoading}
+                      lessons={lessonsByStudent[s.id] ?? []}
+                    />
+                  )}
                 </li>
               ))}
             </ul>
@@ -264,32 +299,52 @@ export default function Students() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {students.map((s) => (
-                    <tr key={s.id}>
-                      <td className="px-4 py-3 text-gray-900">{s.name}</td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {s.subject || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {s.hourly_rate != null ? `$${s.hourly_rate}` : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {s.lesson_duration_hours ?? "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleEdit(s)}
-                          className="mr-3 font-medium text-green-600 hover:text-green-700"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(s.id)}
-                          className="font-medium text-red-600 hover:text-red-700"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
+                    <Fragment key={s.id}>
+                      <tr>
+                        <td className="px-4 py-3 text-gray-900">{s.name}</td>
+                        <td className="px-4 py-3 text-gray-700">
+                          {s.subject || "—"}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">
+                          {s.hourly_rate != null ? `$${s.hourly_rate}` : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">
+                          {s.lesson_duration_hours ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => toggleLessons(s.id)}
+                            className="mr-3 font-medium text-gray-700 hover:text-gray-900"
+                          >
+                            {expandedId === s.id
+                              ? "Hide lessons"
+                              : "View lessons"}
+                          </button>
+                          <button
+                            onClick={() => handleEdit(s)}
+                            className="mr-3 font-medium text-green-600 hover:text-green-700"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(s.id)}
+                            className="font-medium text-red-600 hover:text-red-700"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                      {expandedId === s.id && (
+                        <tr>
+                          <td colSpan={5} className="bg-gray-50 px-4 py-3">
+                            <StudentLessonsPanel
+                              loading={lessonsLoading}
+                              lessons={lessonsByStudent[s.id] ?? []}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -298,5 +353,60 @@ export default function Students() {
         )}
       </section>
     </AppShell>
+  );
+}
+
+function StudentLessonsPanel({ loading, lessons }) {
+  if (loading) {
+    return <p className="text-sm text-gray-500">Loading lessons...</p>;
+  }
+
+  const upcoming = lessons
+    .filter((l) => l.status === "scheduled" || l.lesson_date > todayStr())
+    .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1));
+  const past = lessons
+    .filter((l) => l.status !== "scheduled" && l.lesson_date <= todayStr())
+    .sort((a, b) => (a.lesson_date > b.lesson_date ? -1 : 1));
+
+  if (lessons.length === 0) {
+    return <p className="text-sm text-gray-500">No lessons logged yet.</p>;
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div>
+        <h3 className="mb-2 text-sm font-semibold text-gray-900">
+          Upcoming ({upcoming.length})
+        </h3>
+        {upcoming.length === 0 ? (
+          <p className="text-sm text-gray-500">No upcoming lessons.</p>
+        ) : (
+          <ul className="space-y-1">
+            {upcoming.map((l) => (
+              <li key={l.id} className="text-sm text-gray-700">
+                {l.lesson_date} · {(l.duration_minutes / 60).toFixed(2)}h
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div>
+        <h3 className="mb-2 text-sm font-semibold text-gray-900">
+          Past ({past.length})
+        </h3>
+        {past.length === 0 ? (
+          <p className="text-sm text-gray-500">No past lessons.</p>
+        ) : (
+          <ul className="space-y-1">
+            {past.map((l) => (
+              <li key={l.id} className="text-sm text-gray-700">
+                {l.lesson_date} · {(l.duration_minutes / 60).toFixed(2)}h
+                {l.payment_cycle_id ? " · Billed" : ""}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }
