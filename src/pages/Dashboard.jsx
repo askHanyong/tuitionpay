@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatSGD } from "../lib/paymentNotice";
+import { formatDate } from "../lib/date";
 import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import { useToast } from "../contexts/ToastContext";
 import StatusBadge from "../components/StatusBadge";
@@ -173,7 +174,7 @@ export default function Dashboard() {
           {[...pendingCycleByStudent.values()]
             .map(
               (c) =>
-                `${c.students?.name} (${formatSGD(c.amount_due)}, due ${new Date(c.period_end).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })})`,
+                `${c.students?.name} (${formatSGD(c.amount_due)}, due ${formatDate(c.period_end)})`,
             )
             .join(", ")}{" "}
           — 4 lessons completed.
@@ -230,13 +231,13 @@ export default function Dashboard() {
                           <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
                             Payment Due{" "}
                             {pendingCycle.period_end &&
-                              `(${new Date(pendingCycle.period_end).toLocaleDateString("en-SG", { day: "numeric", month: "short" })})`}
+                              `(${formatDate(pendingCycle.period_end)})`}
                           </span>
                         )}
                       </div>
                       <p className="mt-0.5 text-xs text-gray-400">
                         {lastLessonDate
-                          ? `Last lesson: ${new Date(lastLessonDate).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })}`
+                          ? `Last lesson: ${formatDate(lastLessonDate)}`
                           : "No lessons yet"}
                       </p>
                     </div>
@@ -321,7 +322,9 @@ export default function Dashboard() {
                       <p className="text-sm font-medium text-gray-900">
                         {l.students?.name}
                       </p>
-                      <p className="text-xs text-gray-500">{l.lesson_date}</p>
+                      <p className="text-xs text-gray-500">
+                        {formatDate(l.lesson_date)}
+                      </p>
                     </div>
                     <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
                       Lesson {lessonPosition.get(l.id) ?? "?"} of 4

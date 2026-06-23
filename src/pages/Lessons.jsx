@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
+import { formatDate } from "../lib/date";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
 import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import AppShell from "../components/AppShell";
@@ -420,7 +421,8 @@ export default function Lessons() {
             <span className="font-semibold">
               {formatSGD(newCycle.amount_due)}
             </span>{" "}
-            for lessons {newCycle.period_start} to {newCycle.period_end}.
+            for lessons {formatDate(newCycle.period_start)} to{" "}
+            {formatDate(newCycle.period_end)}.
           </p>
           <div className="flex gap-2">
             <button
@@ -488,7 +490,7 @@ export default function Lessons() {
                       )}
                     </span>
                     <span className="text-sm text-gray-500">
-                      {l.lesson_date}
+                      {formatDate(l.lesson_date)}
                     </span>
                   </div>
                   <p className="mb-3 text-sm text-gray-600">
@@ -535,7 +537,7 @@ export default function Lessons() {
                   {lessons.map((l) => (
                     <tr key={l.id} className="transition hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-900">
-                        {l.lesson_date}
+                        {formatDate(l.lesson_date)}
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         <span className="flex items-center gap-2">

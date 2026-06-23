@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
+import { formatDate } from "../lib/date";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
 
@@ -109,7 +110,7 @@ export default function Payments() {
                   </span>
                 </div>
                 <p className="mb-3 text-sm text-gray-600">
-                  {c.period_start} to {c.period_end}
+                  {formatDate(c.period_start)} to {formatDate(c.period_end)}
                   {c.students?.guardian_contact &&
                     ` · Contact: ${c.students.guardian_contact}`}
                 </p>
@@ -156,7 +157,7 @@ export default function Payments() {
                     <StatusBadge status={c.status} />
                   </div>
                   <p className="text-sm text-gray-600">
-                    {c.period_start} – {c.period_end} ·{" "}
+                    {formatDate(c.period_start)} – {formatDate(c.period_end)} ·{" "}
                     {formatSGD(c.amount_due)}
                   </p>
                 </li>
@@ -179,7 +180,8 @@ export default function Payments() {
                         {c.students?.name}
                       </td>
                       <td className="px-4 py-3 text-gray-700">
-                        {c.period_start} – {c.period_end}
+                        {formatDate(c.period_start)} –{" "}
+                        {formatDate(c.period_end)}
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         {formatSGD(c.amount_due)}

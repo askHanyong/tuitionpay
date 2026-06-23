@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import AppShell from "../components/AppShell";
+import { formatDate } from "../lib/date";
 
 const emptyForm = {
   name: "",
@@ -406,7 +407,8 @@ function StudentLessonsPanel({ loading, lessons }) {
           <ul className="space-y-1">
             {upcoming.map((l) => (
               <li key={l.id} className="text-sm text-gray-700">
-                {l.lesson_date} · {(l.duration_minutes / 60).toFixed(2)}h
+                {formatDate(l.lesson_date)} ·{" "}
+                {(l.duration_minutes / 60).toFixed(2)}h
               </li>
             ))}
           </ul>
@@ -422,7 +424,8 @@ function StudentLessonsPanel({ loading, lessons }) {
           <ul className="space-y-1">
             {past.map((l) => (
               <li key={l.id} className="text-sm text-gray-700">
-                {l.lesson_date} · {(l.duration_minutes / 60).toFixed(2)}h
+                {formatDate(l.lesson_date)} ·{" "}
+                {(l.duration_minutes / 60).toFixed(2)}h
                 {l.payment_cycle_id ? " · Billed" : ""}
               </li>
             ))}

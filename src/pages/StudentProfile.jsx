@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatSGD } from "../lib/paymentNotice";
+import { formatDate } from "../lib/date";
 import { useToast } from "../contexts/ToastContext";
 import AppShell from "../components/AppShell";
 import StatusBadge from "../components/StatusBadge";
@@ -198,7 +199,7 @@ export default function StudentProfile() {
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-900">
-                      {l.lesson_date}
+                      {formatDate(l.lesson_date)}
                     </span>
                     {l.status === "scheduled" && (
                       <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
@@ -258,7 +259,7 @@ export default function StudentProfile() {
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm text-gray-700">
-                    {c.period_start} – {c.period_end}
+                    {formatDate(c.period_start)} – {formatDate(c.period_end)}
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-gray-900">
@@ -269,12 +270,7 @@ export default function StudentProfile() {
                 </div>
                 {c.paid_at && (
                   <p className="mt-0.5 text-xs text-gray-400">
-                    Paid on{" "}
-                    {new Date(c.paid_at).toLocaleDateString("en-SG", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
+                    Paid on {formatDate(c.paid_at)}
                   </p>
                 )}
               </li>

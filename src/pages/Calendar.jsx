@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
+import { formatDate } from "../lib/date";
 import AppShell from "../components/AppShell";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -290,13 +291,7 @@ export default function Calendar() {
         <section className="w-full rounded-xl border border-gray-100 bg-white p-5 shadow-sm lg:w-80">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-900">
-              {selectedKey
-                ? new Date(selectedKey).toLocaleDateString("en-SG", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })
-                : "Select a date"}
+              {selectedKey ? formatDate(selectedKey) : "Select a date"}
             </h2>
             <button
               onClick={handleLogLesson}
