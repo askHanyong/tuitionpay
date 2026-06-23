@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
+import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import AppShell from "../components/AppShell";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -35,6 +36,7 @@ export default function Lessons() {
 
   useEffect(() => {
     const load = async () => {
+      await autoCompletePastLessons();
       const [
         { data: studentsData, error: studentsError },
         { data: lessonsData, error: lessonsError },
@@ -124,6 +126,8 @@ export default function Lessons() {
 
     try {
       const durationHours = Number(form.duration_hours);
+      const isFuture = form.lesson_date > today();
+      const status = isFuture ? "scheduled" : "completed";
       const { count: beforeCount } = await supabase
         .from("lessons")
         .select("id", { count: "exact", head: true })
@@ -139,10 +143,15 @@ export default function Lessons() {
         duration_minutes: Math.round(durationHours * 60),
         rate: form.rate === "" ? null : Number(form.rate),
         notes: form.notes.trim() || null,
+        status,
       });
       if (error) throw error;
 
-      if ((beforeCount ?? 0) + 1 >= 4) {
+      if (isFuture) {
+        setInfo(
+          "Lesson scheduled. It'll count toward billing once its date arrives.",
+        );
+      } else if ((beforeCount ?? 0) + 1 >= 4) {
         const { data: cycle } = await supabase
           .from("payment_cycles")
           .select("*, students(name)")
@@ -387,8 +396,13 @@ export default function Lessons() {
                   className="rounded-md border border-gray-200 bg-white p-4"
                 >
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="font-medium text-gray-900">
+                    <span className="flex items-center gap-2 font-medium text-gray-900">
                       {l.students?.name}
+                      {l.status === "scheduled" && (
+                        <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                          Scheduled
+                        </span>
+                      )}
                     </span>
                     <span className="text-sm text-gray-500">
                       {l.lesson_date}
@@ -435,7 +449,14 @@ export default function Lessons() {
                         {l.lesson_date}
                       </td>
                       <td className="px-4 py-3 text-gray-700">
-                        {l.students?.name}
+                        <span className="flex items-center gap-2">
+                          {l.students?.name}
+                          {l.status === "scheduled" && (
+                            <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                              Scheduled
+                            </span>
+                          )}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         {(l.duration_minutes / 60).toFixed(2)}h

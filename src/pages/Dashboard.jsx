@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatSGD } from "../lib/paymentNotice";
+import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import { useToast } from "../contexts/ToastContext";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
@@ -23,6 +24,7 @@ export default function Dashboard() {
     !loading && students.length === 0 && !onboardingDismissed;
 
   const loadAll = async () => {
+    await autoCompletePastLessons();
     const [
       { data: studentsData },
       { data: lessonsData },
@@ -169,7 +171,10 @@ export default function Dashboard() {
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-sm">
           <span className="font-semibold">⚠️ Payment due:</span>{" "}
           {[...pendingCycleByStudent.values()]
-            .map((c) => `${c.students?.name} (${formatSGD(c.amount_due)})`)
+            .map(
+              (c) =>
+                `${c.students?.name} (${formatSGD(c.amount_due)}, due ${new Date(c.period_end).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })})`,
+            )
             .join(", ")}{" "}
           — 4 lessons completed.
         </div>
@@ -240,7 +245,9 @@ export default function Dashboard() {
                       )}
                       {paymentDue && (
                         <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
-                          Payment Due
+                          Payment Due{" "}
+                          {pendingCycle.period_end &&
+                            `(${new Date(pendingCycle.period_end).toLocaleDateString("en-SG", { day: "numeric", month: "short" })})`}
                         </span>
                       )}
                     </div>
