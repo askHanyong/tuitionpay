@@ -2,10 +2,12 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatSGD } from "../lib/paymentNotice";
+import { useToast } from "../contexts/ToastContext";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
 
 export default function Dashboard() {
+  const { showToast } = useToast();
   const [students, setStudents] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [paymentCycles, setPaymentCycles] = useState([]);
@@ -60,8 +62,42 @@ export default function Dashboard() {
 
   const recentLessons = [...lessons].slice(-3).reverse();
 
+  const pendingCycleByStudent = new Map();
+  for (const c of paymentCycles) {
+    if (c.status === "pending") pendingCycleByStudent.set(c.student_id, c);
+  }
+
+  const handleCollectPayment = async (cycleId) => {
+    const { error } = await supabase
+      .from("payment_cycles")
+      .update({ status: "paid", paid_at: new Date().toISOString() })
+      .eq("id", cycleId);
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    setPaymentCycles((prev) =>
+      prev.map((c) =>
+        c.id === cycleId
+          ? { ...c, status: "paid", paid_at: new Date().toISOString() }
+          : c,
+      ),
+    );
+    showToast("Marked as paid.");
+  };
+
   return (
     <AppShell>
+      {!loading && pendingCycleByStudent.size > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-sm">
+          <span className="font-semibold">⚠️ Payment due:</span>{" "}
+          {[...pendingCycleByStudent.values()]
+            .map((c) => `${c.students?.name} (${formatSGD(c.amount_due)})`)
+            .join(", ")}{" "}
+          — 4 lessons completed.
+        </div>
+      )}
+
       <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-gray-900">
@@ -82,11 +118,16 @@ export default function Dashboard() {
           <ul className="divide-y divide-gray-100">
             {students.map((s) => {
               const completed = openCountByStudent.get(s.id) ?? 0;
-              const paymentDue = completed >= 4;
+              const pendingCycle = pendingCycleByStudent.get(s.id);
+              const paymentDue = Boolean(pendingCycle);
+              const expectedAmount =
+                s.hourly_rate != null && s.lesson_duration_hours != null
+                  ? s.hourly_rate * s.lesson_duration_hours * 4
+                  : null;
               return (
                 <li
                   key={s.id}
-                  className="flex items-center justify-between gap-4 py-3"
+                  className="flex flex-wrap items-center justify-between gap-3 py-3"
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-gray-900">
@@ -98,16 +139,30 @@ export default function Dashboard() {
                       </span>
                     )}
                   </div>
-                  <div className="flex w-40 items-center gap-3">
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-100">
-                      <div
-                        className={`h-full rounded-full ${paymentDue ? "bg-red-500" : "bg-indigo-500"}`}
-                        style={{ width: `${Math.min(completed, 4) * 25}%` }}
-                      />
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-2 w-24 overflow-hidden rounded-full bg-gray-100">
+                        <div
+                          className={`h-full rounded-full ${paymentDue ? "bg-red-500" : "bg-indigo-500"}`}
+                          style={{
+                            width: `${Math.min(completed, 4) * 25}%`,
+                          }}
+                        />
+                      </div>
+                      <span className="text-xs font-medium text-gray-500">
+                        {completed}/4 lessons
+                        {expectedAmount != null &&
+                          ` · ${formatSGD(expectedAmount)} due at completion`}
+                      </span>
                     </div>
-                    <span className="text-xs font-medium text-gray-500">
-                      {completed}/4 lessons
-                    </span>
+                    {paymentDue && (
+                      <button
+                        onClick={() => handleCollectPayment(pendingCycle.id)}
+                        className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                      >
+                        Collect Payment
+                      </button>
+                    )}
                   </div>
                 </li>
               );
