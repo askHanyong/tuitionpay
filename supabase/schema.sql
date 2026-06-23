@@ -170,6 +170,45 @@ create trigger on_lesson_insert
   after insert on lessons
   for each row execute procedure public.handle_lesson_insert();
 
+-- Editing a lesson's date/status, reassigning it to a different student, or
+-- deleting it also needs to recompute billing, not just inserts.
+create or replace function public.handle_lesson_change()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if tg_op = 'DELETE' then
+    if old.status = 'completed' then
+      perform public.recompute_payment_cycles(old.student_id, old.tutor_id);
+    end if;
+    return old;
+  end if;
+
+  if tg_op = 'UPDATE' then
+    if old.status = 'completed' or new.status = 'completed' then
+      perform public.recompute_payment_cycles(old.student_id, old.tutor_id);
+      if new.student_id <> old.student_id then
+        perform public.recompute_payment_cycles(new.student_id, new.tutor_id);
+      end if;
+    end if;
+    return new;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_lesson_update on lessons;
+create trigger on_lesson_update
+  after update on lessons
+  for each row execute procedure public.handle_lesson_change();
+
+drop trigger if exists on_lesson_delete on lessons;
+create trigger on_lesson_delete
+  after delete on lessons
+  for each row execute procedure public.handle_lesson_change();
+
 -- Row Level Security: tutors only ever see their own data.
 alter table tutors enable row level security;
 alter table students enable row level security;
