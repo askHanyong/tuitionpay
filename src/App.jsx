@@ -8,6 +8,7 @@ import Students from "./pages/Students";
 import Lessons from "./pages/Lessons";
 import Payments from "./pages/Payments";
 import Calendar from "./pages/Calendar";
+import StudentProfile from "./pages/StudentProfile";
 
 function App() {
   return (
@@ -29,6 +30,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Students />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/students/:id"
+              element={
+                <ProtectedRoute>
+                  <StudentProfile />
                 </ProtectedRoute>
               }
             />

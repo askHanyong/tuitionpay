@@ -475,7 +475,12 @@ export default function Lessons() {
                 >
                   <div className="mb-2 flex items-center justify-between">
                     <span className="flex items-center gap-2 font-medium text-gray-900">
-                      {l.students?.name}
+                      <Link
+                        to={`/students/${l.student_id}`}
+                        className="hover:text-green-700"
+                      >
+                        {l.students?.name}
+                      </Link>
                       {l.status === "scheduled" && (
                         <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                           Scheduled
@@ -534,7 +539,12 @@ export default function Lessons() {
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         <span className="flex items-center gap-2">
-                          {l.students?.name}
+                          <Link
+                            to={`/students/${l.student_id}`}
+                            className="hover:text-green-700"
+                          >
+                            {l.students?.name}
+                          </Link>
                           {l.status === "scheduled" && (
                             <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                               Scheduled

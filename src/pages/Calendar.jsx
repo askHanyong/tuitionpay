@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
 import AppShell from "../components/AppShell";
@@ -230,9 +230,15 @@ export default function Calendar() {
                   const isToday = cell.key === todayKey;
                   const isSelected = cell.key === selectedKey;
                   return (
-                    <button
+                    <div
                       key={cell.key}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setSelectedKey(cell.key)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ")
+                          setSelectedKey(cell.key);
+                      }}
                       className={`flex min-h-16 flex-col items-stretch gap-0.5 rounded-md border p-1 text-left transition sm:min-h-20 lg:min-h-32 lg:gap-1 lg:rounded-lg lg:p-2 ${
                         isSelected
                           ? "border-green-400 bg-green-50"
@@ -250,8 +256,10 @@ export default function Calendar() {
                       </span>
                       <div className="flex flex-col gap-0.5 lg:gap-1">
                         {dayLessons.slice(0, 2).map((l) => (
-                          <span
+                          <Link
                             key={l.id}
+                            to={`/students/${l.student_id}`}
+                            onClick={(e) => e.stopPropagation()}
                             className={`truncate rounded px-1 py-0.5 text-[10px] font-medium lg:rounded-md lg:px-1.5 lg:py-1 lg:text-xs ${studentColor.get(l.student_id) ?? "bg-gray-100 text-gray-700"}`}
                           >
                             {l.students?.name} (
@@ -263,7 +271,7 @@ export default function Calendar() {
                                 · {l.lesson_time.slice(0, 5)}
                               </span>
                             )}
-                          </span>
+                          </Link>
                         ))}
                         {dayLessons.length > 2 && (
                           <span className="text-[10px] font-medium text-gray-400 lg:text-xs">
@@ -271,7 +279,7 @@ export default function Calendar() {
                           </span>
                         )}
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -311,9 +319,12 @@ export default function Calendar() {
                   key={l.id}
                   className="rounded-md border border-gray-100 bg-gray-50 p-3 transition hover:border-gray-200 hover:shadow-sm"
                 >
-                  <p className="text-sm font-medium text-gray-900">
+                  <Link
+                    to={`/students/${l.student_id}`}
+                    className="text-sm font-medium text-gray-900 hover:text-green-700"
+                  >
                     {l.students?.name}
-                  </p>
+                  </Link>
                   <p className="mb-2 text-xs text-gray-500">
                     {l.students?.subject || "—"} · Lesson{" "}
                     {lessonPosition.get(l.id) ?? "?"} of 4 ·{" "}

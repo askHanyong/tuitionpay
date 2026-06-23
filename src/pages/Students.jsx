@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
@@ -16,6 +17,8 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
 export default function Students() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -54,6 +57,16 @@ export default function Students() {
     setLoading(false);
   };
 
+  const handleEdit = (student) => {
+    setEditingId(student.id);
+    setForm({
+      name: student.name ?? "",
+      subject: student.subject ?? "",
+      hourly_rate: student.hourly_rate ?? "",
+      lesson_duration_hours: student.lesson_duration_hours ?? "",
+    });
+  };
+
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase
@@ -63,8 +76,15 @@ export default function Students() {
       if (error) setError(error.message);
       setStudents(data ?? []);
       setLoading(false);
+      const editStudentId = location.state?.editStudentId;
+      if (editStudentId) {
+        const target = (data ?? []).find((s) => s.id === editStudentId);
+        if (target) handleEdit(target);
+        navigate(location.pathname, { replace: true, state: {} });
+      }
     };
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const resetForm = () => {
@@ -109,16 +129,6 @@ export default function Students() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleEdit = (student) => {
-    setEditingId(student.id);
-    setForm({
-      name: student.name ?? "",
-      subject: student.subject ?? "",
-      hourly_rate: student.hourly_rate ?? "",
-      lesson_duration_hours: student.lesson_duration_hours ?? "",
-    });
   };
 
   const handleDelete = async (id) => {
@@ -247,7 +257,12 @@ export default function Students() {
                   className="rounded-md border border-gray-200 bg-white p-4"
                 >
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="font-medium text-gray-900">{s.name}</span>
+                    <Link
+                      to={`/students/${s.id}`}
+                      className="font-medium text-gray-900 hover:text-green-700"
+                    >
+                      {s.name}
+                    </Link>
                     <span className="text-sm text-gray-700">
                       {s.hourly_rate != null ? `$${s.hourly_rate}/hr` : "—"}
                     </span>
@@ -301,7 +316,14 @@ export default function Students() {
                   {students.map((s) => (
                     <Fragment key={s.id}>
                       <tr className="transition hover:bg-gray-50">
-                        <td className="px-4 py-3 text-gray-900">{s.name}</td>
+                        <td className="px-4 py-3 text-gray-900">
+                          <Link
+                            to={`/students/${s.id}`}
+                            className="hover:text-green-700"
+                          >
+                            {s.name}
+                          </Link>
+                        </td>
                         <td className="px-4 py-3 text-gray-700">
                           {s.subject || "—"}
                         </td>

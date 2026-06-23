@@ -215,9 +215,12 @@ export default function Dashboard() {
                   >
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900">
+                        <Link
+                          to={`/students/${s.id}`}
+                          className="text-sm font-medium text-gray-900 hover:text-green-700"
+                        >
                           {s.name}
-                        </span>
+                        </Link>
                         {s.subject && (
                           <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
                             {s.subject}
