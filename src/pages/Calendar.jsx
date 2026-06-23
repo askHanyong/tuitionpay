@@ -69,17 +69,18 @@ export default function Calendar() {
     load();
   }, []);
 
-  // Position each lesson within its 4-lesson billing group (cycled or still open),
-  // matching the grouping logic used on the dashboard.
+  // Position each lesson within its running 4-lesson billing sequence, based
+  // purely on chronological lesson_date (not insertion order or which
+  // payment_cycle_id it was actually billed under).
   const lessonPosition = useMemo(() => {
-    const groups = new Map();
+    const lessonsByStudent = new Map();
     for (const lesson of lessons) {
-      const key = `${lesson.student_id}|${lesson.payment_cycle_id ?? "open"}`;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(lesson);
+      if (!lessonsByStudent.has(lesson.student_id))
+        lessonsByStudent.set(lesson.student_id, []);
+      lessonsByStudent.get(lesson.student_id).push(lesson);
     }
     const positions = new Map();
-    for (const group of groups.values()) {
+    for (const group of lessonsByStudent.values()) {
       const sorted = [...group].sort((a, b) =>
         a.lesson_date < b.lesson_date
           ? -1
@@ -87,7 +88,7 @@ export default function Calendar() {
             ? 1
             : 0,
       );
-      sorted.forEach((lesson, i) => positions.set(lesson.id, i + 1));
+      sorted.forEach((lesson, i) => positions.set(lesson.id, (i % 4) + 1));
     }
     return positions;
   }, [lessons]);

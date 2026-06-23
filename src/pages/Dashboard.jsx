@@ -45,16 +45,17 @@ export default function Dashboard() {
     load();
   }, []);
 
-  // Position each lesson within its 4-lesson billing group (cycled or still open).
-  const groups = new Map();
+  // Position each lesson within its running 4-lesson billing sequence, based
+  // purely on chronological lesson_date (not insertion order or which
+  // payment_cycle_id it was actually billed under).
+  const lessonsByStudent = new Map();
   for (const lesson of lessons) {
-    const key = `${lesson.student_id}|${lesson.payment_cycle_id ?? "open"}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(lesson);
+    if (!lessonsByStudent.has(lesson.student_id))
+      lessonsByStudent.set(lesson.student_id, []);
+    lessonsByStudent.get(lesson.student_id).push(lesson);
   }
   const lessonPosition = new Map();
-  const openCountByStudent = new Map();
-  for (const [key, group] of groups) {
+  for (const group of lessonsByStudent.values()) {
     const sorted = [...group].sort((a, b) =>
       a.lesson_date < b.lesson_date
         ? -1
@@ -62,9 +63,16 @@ export default function Dashboard() {
           ? 1
           : 0,
     );
-    sorted.forEach((lesson, i) => lessonPosition.set(lesson.id, i + 1));
-    const [studentId, cycleKey] = key.split("|");
-    if (cycleKey === "open") openCountByStudent.set(studentId, group.length);
+    sorted.forEach((lesson, i) => lessonPosition.set(lesson.id, (i % 4) + 1));
+  }
+
+  const openCountByStudent = new Map();
+  for (const lesson of lessons) {
+    if (lesson.payment_cycle_id) continue;
+    openCountByStudent.set(
+      lesson.student_id,
+      (openCountByStudent.get(lesson.student_id) ?? 0) + 1,
+    );
   }
 
   const recentLessons = [...lessons].slice(-3).reverse();
