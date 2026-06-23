@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
+import { useToast } from "../contexts/ToastContext";
 import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
 import AppShell from "../components/AppShell";
 
@@ -17,6 +18,7 @@ const emptyForm = (students) => ({
 
 export default function Lessons() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [students, setStudents] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +120,7 @@ export default function Lessons() {
       await reloadLessons();
     } catch (err) {
       setError(err.message);
+      showToast(err.message, "error");
     } finally {
       setSubmitting(false);
     }
@@ -143,9 +146,11 @@ export default function Lessons() {
     const { error } = await supabase.from("lessons").delete().eq("id", id);
     if (error) {
       setError(error.message);
+      showToast(error.message, "error");
       return;
     }
     await reloadLessons();
+    showToast("Lesson deleted.");
   };
 
   return (

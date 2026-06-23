@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
+import { useToast } from "../contexts/ToastContext";
 import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
 
 export default function Payments() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [cycles, setCycles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -45,6 +47,7 @@ export default function Payments() {
     });
     await navigator.clipboard.writeText(message);
     setCopiedId(cycle.id);
+    showToast("Payment notice copied to clipboard.");
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -56,9 +59,11 @@ export default function Payments() {
       .eq("id", id);
     if (error) {
       setError(error.message);
+      showToast(error.message, "error");
       return;
     }
     await load();
+    showToast("Marked as paid.");
   };
 
   const pending = cycles.filter((c) => c.status === "pending");

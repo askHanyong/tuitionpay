@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
+import { useToast } from "../contexts/ToastContext";
 import AppShell from "../components/AppShell";
 
 const emptyForm = {
@@ -12,6 +13,7 @@ const emptyForm = {
 
 export default function Students() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -77,8 +79,10 @@ export default function Students() {
       }
       resetForm();
       await loadStudents();
+      showToast(editingId ? "Student updated." : "Student added.");
     } catch (err) {
       setError(err.message);
+      showToast(err.message, "error");
     } finally {
       setSubmitting(false);
     }
@@ -100,10 +104,12 @@ export default function Students() {
     const { error } = await supabase.from("students").delete().eq("id", id);
     if (error) {
       setError(error.message);
+      showToast(error.message, "error");
       return;
     }
     if (editingId === id) resetForm();
     await loadStudents();
+    showToast("Student deleted.");
   };
 
   return (
