@@ -80,51 +80,56 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
--- Whenever a completed lesson is logged, bill the student once 4 unbilled
--- lessons have accumulated: amount_due = 4 * hourly_rate * lesson_duration_hours.
-create or replace function public.handle_lesson_insert()
-returns trigger
+-- Whenever a completed lesson is logged, recompute the student's pending
+-- billing groups from scratch, strictly by lesson_date (not insertion
+-- order), so backfilling history out of order can't strand a lesson in
+-- the wrong group. Cycles already marked 'paid' are never touched.
+create or replace function public.recompute_payment_cycles(p_student_id uuid, p_tutor_id uuid)
+returns void
 language plpgsql
 security definer set search_path = public
 as $$
 declare
-  uncycled_count integer;
-  new_cycle_id uuid;
   v_hourly_rate numeric(10, 2);
   v_duration_hours numeric(4, 2);
+  total_unbilled integer;
+  num_complete_groups integer;
+  i integer;
+  new_cycle_id uuid;
   v_period_start date;
   v_period_end date;
 begin
-  if new.status <> 'completed' then
-    return new;
-  end if;
+  delete from payment_cycles
+  where student_id = p_student_id and status = 'pending';
 
-  select count(*) into uncycled_count
+  select hourly_rate, lesson_duration_hours into v_hourly_rate, v_duration_hours
+  from students
+  where id = p_student_id;
+
+  select count(*) into total_unbilled
   from lessons
-  where student_id = new.student_id
-    and payment_cycle_id is null
-    and status = 'completed';
+  where student_id = p_student_id
+    and status = 'completed'
+    and payment_cycle_id is null;
 
-  if uncycled_count >= 4 then
-    select hourly_rate, lesson_duration_hours into v_hourly_rate, v_duration_hours
-    from students
-    where id = new.student_id;
+  num_complete_groups := total_unbilled / 4;
 
+  for i in 1..num_complete_groups loop
     select min(lesson_date), max(lesson_date) into v_period_start, v_period_end
     from (
       select lesson_date
       from lessons
-      where student_id = new.student_id
-        and payment_cycle_id is null
+      where student_id = p_student_id
         and status = 'completed'
+        and payment_cycle_id is null
       order by lesson_date, created_at
       limit 4
-    ) billed_lessons;
+    ) batch;
 
     insert into payment_cycles (tutor_id, student_id, period_start, period_end, amount_due, status)
     values (
-      new.tutor_id,
-      new.student_id,
+      p_tutor_id,
+      p_student_id,
       v_period_start,
       v_period_end,
       4 * coalesce(v_hourly_rate, 0) * coalesce(v_duration_hours, 0),
@@ -137,14 +142,25 @@ begin
     where id in (
       select id
       from lessons
-      where student_id = new.student_id
-        and payment_cycle_id is null
+      where student_id = p_student_id
         and status = 'completed'
+        and payment_cycle_id is null
       order by lesson_date, created_at
       limit 4
     );
-  end if;
+  end loop;
+end;
+$$;
 
+create or replace function public.handle_lesson_insert()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if new.status = 'completed' then
+    perform public.recompute_payment_cycles(new.student_id, new.tutor_id);
+  end if;
   return new;
 end;
 $$;
