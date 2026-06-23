@@ -31,6 +31,7 @@ create table if not exists lessons (
   tutor_id uuid not null references tutors (id) on delete cascade,
   student_id uuid not null references students (id) on delete cascade,
   lesson_date date not null,
+  lesson_time time,
   duration_minutes integer not null,
   rate numeric(10, 2),
   status text not null default 'completed' check (status in ('scheduled', 'completed', 'cancelled')),

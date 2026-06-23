@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
+import { buildLessonIcs, downloadIcs } from "../lib/ics";
 import AppShell from "../components/AppShell";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -11,6 +12,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 const emptyForm = (students, prefillDate) => ({
   student_id: students[0]?.id ?? "",
   lesson_date: prefillDate ?? today(),
+  lesson_time: "09:00",
   duration_hours: students[0]?.lesson_duration_hours ?? "",
   rate: students[0]?.hourly_rate ?? "",
   notes: "",
@@ -40,7 +42,7 @@ export default function Lessons() {
         supabase.from("students").select("*").order("name"),
         supabase
           .from("lessons")
-          .select("*, students(name)")
+          .select("*, students(name, subject, hourly_rate)")
           .order("lesson_date", { ascending: false })
           .order("created_at", { ascending: false })
           .limit(50),
@@ -58,12 +60,49 @@ export default function Lessons() {
   const reloadLessons = async () => {
     const { data, error } = await supabase
       .from("lessons")
-      .select("*, students(name)")
+      .select("*, students(name, subject, hourly_rate)")
       .order("lesson_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(50);
     if (error) setError(error.message);
     setLessons(data ?? []);
+  };
+
+  // Position each lesson within its running 4-lesson billing sequence, based
+  // on chronological lesson_date (not insertion order or DB cycle membership).
+  const lessonPosition = useMemo(() => {
+    const lessonsByStudent = new Map();
+    for (const lesson of lessons) {
+      if (!lessonsByStudent.has(lesson.student_id))
+        lessonsByStudent.set(lesson.student_id, []);
+      lessonsByStudent.get(lesson.student_id).push(lesson);
+    }
+    const positions = new Map();
+    for (const group of lessonsByStudent.values()) {
+      const sorted = [...group].sort((a, b) =>
+        a.lesson_date < b.lesson_date
+          ? -1
+          : a.lesson_date > b.lesson_date
+            ? 1
+            : 0,
+      );
+      sorted.forEach((lesson, i) => positions.set(lesson.id, (i % 4) + 1));
+    }
+    return positions;
+  }, [lessons]);
+
+  const handleAddToCalendar = (lesson) => {
+    const ics = buildLessonIcs({
+      lesson,
+      studentName: lesson.students?.name ?? "Lesson",
+      subject: lesson.students?.subject,
+      lessonNumber: lessonPosition.get(lesson.id) ?? 1,
+      rate: lesson.rate ?? lesson.students?.hourly_rate ?? null,
+    });
+    downloadIcs(
+      `${lesson.students?.name ?? "lesson"}-${lesson.lesson_date}.ics`,
+      ics,
+    );
   };
 
   const handleStudentChange = (studentId) => {
@@ -96,6 +135,7 @@ export default function Lessons() {
         tutor_id: user.id,
         student_id: form.student_id,
         lesson_date: form.lesson_date,
+        lesson_time: form.lesson_time || null,
         duration_minutes: Math.round(durationHours * 60),
         rate: form.rate === "" ? null : Number(form.rate),
         notes: form.notes.trim() || null,
@@ -205,6 +245,21 @@ export default function Lessons() {
                 value={form.lesson_date}
                 onChange={(e) =>
                   setForm({ ...form, lesson_date: e.target.value })
+                }
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Time
+              </label>
+              <input
+                type="time"
+                required
+                value={form.lesson_time}
+                onChange={(e) =>
+                  setForm({ ...form, lesson_time: e.target.value })
                 }
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               />
@@ -325,12 +380,20 @@ export default function Lessons() {
                     {l.rate != null && ` · $${l.rate}/hr`}
                     {` · Billed: ${l.payment_cycle_id ? "Yes" : "No"}`}
                   </p>
-                  <button
-                    onClick={() => handleDelete(l.id)}
-                    className="text-sm font-medium text-red-600 hover:text-red-700"
-                  >
-                    Delete
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleAddToCalendar(l)}
+                      className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                    >
+                      📅 Add to Calendar
+                    </button>
+                    <button
+                      onClick={() => handleDelete(l.id)}
+                      className="text-sm font-medium text-red-600 hover:text-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -365,6 +428,12 @@ export default function Lessons() {
                         {l.payment_cycle_id ? "Yes" : "No"}
                       </td>
                       <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => handleAddToCalendar(l)}
+                          className="mr-3 font-medium text-indigo-600 hover:text-indigo-700"
+                        >
+                          📅 Add to Calendar
+                        </button>
                         <button
                           onClick={() => handleDelete(l.id)}
                           className="font-medium text-red-600 hover:text-red-700"

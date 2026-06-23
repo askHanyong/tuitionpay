@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { buildLessonIcs, downloadIcs } from "../lib/ics";
 import AppShell from "../components/AppShell";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -61,7 +62,7 @@ export default function Calendar() {
     const load = async () => {
       const { data } = await supabase
         .from("lessons")
-        .select("*, students(name, subject)")
+        .select("*, students(name, subject, hourly_rate)")
         .order("created_at", { ascending: true });
       setLessons(data ?? []);
       setLoading(false);
@@ -129,6 +130,20 @@ export default function Calendar() {
 
   const handleLogLesson = () => {
     navigate("/lessons", { state: { lessonDate: selectedKey ?? todayKey } });
+  };
+
+  const handleAddToCalendar = (lesson) => {
+    const ics = buildLessonIcs({
+      lesson,
+      studentName: lesson.students?.name ?? "Lesson",
+      subject: lesson.students?.subject,
+      lessonNumber: lessonPosition.get(lesson.id) ?? 1,
+      rate: lesson.rate ?? lesson.students?.hourly_rate ?? null,
+    });
+    downloadIcs(
+      `${lesson.students?.name ?? "lesson"}-${lesson.lesson_date}.ics`,
+      ics,
+    );
   };
 
   return (
@@ -259,11 +274,17 @@ export default function Calendar() {
                   <p className="text-sm font-medium text-gray-900">
                     {l.students?.name}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="mb-2 text-xs text-gray-500">
                     {l.students?.subject || "—"} · Lesson{" "}
                     {lessonPosition.get(l.id) ?? "?"} of 4 ·{" "}
                     {(l.duration_minutes / 60).toFixed(2)}h
                   </p>
+                  <button
+                    onClick={() => handleAddToCalendar(l)}
+                    className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                  >
+                    📅 Add to Calendar
+                  </button>
                 </li>
               ))}
             </ul>
