@@ -216,49 +216,85 @@ export default function Students() {
         ) : students.length === 0 ? (
           <p className="text-sm text-gray-500">No students yet.</p>
         ) : (
-          <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-500">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Name</th>
-                  <th className="px-4 py-2 font-medium">Subject</th>
-                  <th className="px-4 py-2 font-medium">Rate (SGD/hr)</th>
-                  <th className="px-4 py-2 font-medium">Duration (hrs)</th>
-                  <th className="px-4 py-2 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {students.map((s) => (
-                  <tr key={s.id}>
-                    <td className="px-4 py-3 text-gray-900">{s.name}</td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {s.subject || "—"}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {s.hourly_rate != null ? `$${s.hourly_rate}` : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {s.lesson_duration_hours ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => handleEdit(s)}
-                        className="mr-3 font-medium text-indigo-600 hover:text-indigo-700"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(s.id)}
-                        className="font-medium text-red-600 hover:text-red-700"
-                      >
-                        Delete
-                      </button>
-                    </td>
+          <>
+            <ul className="space-y-3 sm:hidden">
+              {students.map((s) => (
+                <li
+                  key={s.id}
+                  className="rounded-md border border-gray-200 bg-white p-4"
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="font-medium text-gray-900">{s.name}</span>
+                    <span className="text-sm text-gray-700">
+                      {s.hourly_rate != null ? `$${s.hourly_rate}/hr` : "—"}
+                    </span>
+                  </div>
+                  <p className="mb-3 text-sm text-gray-500">
+                    {s.subject || "—"}
+                    {s.lesson_duration_hours != null &&
+                      ` · ${s.lesson_duration_hours}h lessons`}
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleEdit(s)}
+                      className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleDelete(s.id)}
+                      className="text-sm font-medium text-red-600 hover:text-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-hidden rounded-md border border-gray-200 bg-white sm:block">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 text-gray-500">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Name</th>
+                    <th className="px-4 py-2 font-medium">Subject</th>
+                    <th className="px-4 py-2 font-medium">Rate (SGD/hr)</th>
+                    <th className="px-4 py-2 font-medium">Duration (hrs)</th>
+                    <th className="px-4 py-2 font-medium"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {students.map((s) => (
+                    <tr key={s.id}>
+                      <td className="px-4 py-3 text-gray-900">{s.name}</td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {s.subject || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {s.hourly_rate != null ? `$${s.hourly_rate}` : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {s.lesson_duration_hours ?? "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => handleEdit(s)}
+                          className="mr-3 font-medium text-indigo-600 hover:text-indigo-700"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(s.id)}
+                          className="font-medium text-red-600 hover:text-red-700"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
     </AppShell>

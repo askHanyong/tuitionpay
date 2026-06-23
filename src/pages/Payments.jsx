@@ -134,36 +134,57 @@ export default function Payments() {
             No settled payment cycles yet.
           </p>
         ) : (
-          <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-500">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Student</th>
-                  <th className="px-4 py-2 font-medium">Period</th>
-                  <th className="px-4 py-2 font-medium">Amount</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {settled.map((c) => (
-                  <tr key={c.id}>
-                    <td className="px-4 py-3 text-gray-900">
+          <>
+            <ul className="space-y-3 sm:hidden">
+              {settled.map((c) => (
+                <li
+                  key={c.id}
+                  className="rounded-md border border-gray-200 bg-white p-4"
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="font-medium text-gray-900">
                       {c.students?.name}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {c.period_start} – {c.period_end}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {formatSGD(c.amount_due)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={c.status} />
-                    </td>
+                    </span>
+                    <StatusBadge status={c.status} />
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    {c.period_start} – {c.period_end} ·{" "}
+                    {formatSGD(c.amount_due)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-hidden rounded-md border border-gray-200 bg-white sm:block">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 text-gray-500">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Student</th>
+                    <th className="px-4 py-2 font-medium">Period</th>
+                    <th className="px-4 py-2 font-medium">Amount</th>
+                    <th className="px-4 py-2 font-medium">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {settled.map((c) => (
+                    <tr key={c.id}>
+                      <td className="px-4 py-3 text-gray-900">
+                        {c.students?.name}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {c.period_start} – {c.period_end}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {formatSGD(c.amount_due)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={c.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
     </AppShell>

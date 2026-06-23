@@ -303,47 +303,79 @@ export default function Lessons() {
         ) : lessons.length === 0 ? (
           <p className="text-sm text-gray-500">No lessons logged yet.</p>
         ) : (
-          <div className="overflow-hidden rounded-md border border-gray-200 bg-white">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-500">
-                <tr>
-                  <th className="px-4 py-2 font-medium">Date</th>
-                  <th className="px-4 py-2 font-medium">Student</th>
-                  <th className="px-4 py-2 font-medium">Duration</th>
-                  <th className="px-4 py-2 font-medium">Rate</th>
-                  <th className="px-4 py-2 font-medium">Billed</th>
-                  <th className="px-4 py-2 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {lessons.map((l) => (
-                  <tr key={l.id}>
-                    <td className="px-4 py-3 text-gray-900">{l.lesson_date}</td>
-                    <td className="px-4 py-3 text-gray-700">
+          <>
+            <ul className="space-y-3 sm:hidden">
+              {lessons.map((l) => (
+                <li
+                  key={l.id}
+                  className="rounded-md border border-gray-200 bg-white p-4"
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="font-medium text-gray-900">
                       {l.students?.name}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {(l.duration_minutes / 60).toFixed(2)}h
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {l.rate != null ? `$${l.rate}` : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {l.payment_cycle_id ? "Yes" : "No"}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => handleDelete(l.id)}
-                        className="font-medium text-red-600 hover:text-red-700"
-                      >
-                        Delete
-                      </button>
-                    </td>
+                    </span>
+                    <span className="text-sm text-gray-500">
+                      {l.lesson_date}
+                    </span>
+                  </div>
+                  <p className="mb-3 text-sm text-gray-600">
+                    {(l.duration_minutes / 60).toFixed(2)}h
+                    {l.rate != null && ` · $${l.rate}/hr`}
+                    {` · Billed: ${l.payment_cycle_id ? "Yes" : "No"}`}
+                  </p>
+                  <button
+                    onClick={() => handleDelete(l.id)}
+                    className="text-sm font-medium text-red-600 hover:text-red-700"
+                  >
+                    Delete
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden overflow-hidden rounded-md border border-gray-200 bg-white sm:block">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 text-gray-500">
+                  <tr>
+                    <th className="px-4 py-2 font-medium">Date</th>
+                    <th className="px-4 py-2 font-medium">Student</th>
+                    <th className="px-4 py-2 font-medium">Duration</th>
+                    <th className="px-4 py-2 font-medium">Rate</th>
+                    <th className="px-4 py-2 font-medium">Billed</th>
+                    <th className="px-4 py-2 font-medium"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {lessons.map((l) => (
+                    <tr key={l.id}>
+                      <td className="px-4 py-3 text-gray-900">
+                        {l.lesson_date}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {l.students?.name}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {(l.duration_minutes / 60).toFixed(2)}h
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {l.rate != null ? `$${l.rate}` : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700">
+                        {l.payment_cycle_id ? "Yes" : "No"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          onClick={() => handleDelete(l.id)}
+                          className="font-medium text-red-600 hover:text-red-700"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
     </AppShell>
