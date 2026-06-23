@@ -207,7 +207,8 @@ export default function Calendar() {
                           key={l.id}
                           className={`truncate rounded px-1 py-0.5 text-[10px] font-medium ${studentColor.get(l.student_id) ?? "bg-gray-100 text-gray-700"}`}
                         >
-                          {l.students?.name}
+                          {l.students?.name} ({lessonPosition.get(l.id) ?? "?"}
+                          /4)
                         </span>
                       ))}
                       {dayLessons.length > 2 && (
@@ -260,7 +261,8 @@ export default function Calendar() {
                   </p>
                   <p className="text-xs text-gray-500">
                     {l.students?.subject || "—"} · Lesson{" "}
-                    {lessonPosition.get(l.id) ?? "?"} of 4
+                    {lessonPosition.get(l.id) ?? "?"} of 4 ·{" "}
+                    {(l.duration_minutes / 60).toFixed(2)}h
                   </p>
                 </li>
               ))}
