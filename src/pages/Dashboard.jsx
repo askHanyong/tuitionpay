@@ -67,6 +67,33 @@ export default function Dashboard() {
     if (c.status === "pending") pendingCycleByStudent.set(c.student_id, c);
   }
 
+  const lastLessonByStudent = new Map();
+  for (const lesson of lessons) {
+    const existing = lastLessonByStudent.get(lesson.student_id);
+    if (!existing || lesson.lesson_date > existing) {
+      lastLessonByStudent.set(lesson.student_id, lesson.lesson_date);
+    }
+  }
+
+  const now = new Date();
+  const monthLabel = now.toLocaleDateString("en-SG", {
+    month: "long",
+    year: "numeric",
+  });
+  const isThisMonth = (dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    return (
+      d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+    );
+  };
+  const collectedThisMonth = paymentCycles
+    .filter((c) => c.status === "paid" && isThisMonth(c.paid_at))
+    .reduce((sum, c) => sum + Number(c.amount_due), 0);
+  const pendingThisMonth = paymentCycles
+    .filter((c) => c.status === "pending" && isThisMonth(c.created_at))
+    .reduce((sum, c) => sum + Number(c.amount_due), 0);
+
   const handleCollectPayment = async (cycleId) => {
     const { error } = await supabase
       .from("payment_cycles")
@@ -98,6 +125,27 @@ export default function Dashboard() {
         </div>
       )}
 
+      {!loading && (
+        <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-base font-semibold text-gray-900">
+            {monthLabel} earnings
+          </h2>
+          <p className="text-sm text-gray-700">
+            <span className="font-medium text-green-700">
+              ✅ Collected: {formatSGD(collectedThisMonth)}
+            </span>
+            {" · "}
+            <span className="font-medium text-amber-700">
+              ⏳ Pending: {formatSGD(pendingThisMonth)}
+            </span>
+            {" · "}
+            <span className="font-semibold text-gray-900">
+              Total: {formatSGD(collectedThisMonth + pendingThisMonth)}
+            </span>
+          </p>
+        </section>
+      )}
+
       <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-gray-900">
@@ -124,20 +172,33 @@ export default function Dashboard() {
                 s.hourly_rate != null && s.lesson_duration_hours != null
                   ? s.hourly_rate * s.lesson_duration_hours * 4
                   : null;
+              const lastLessonDate = lastLessonByStudent.get(s.id);
               return (
                 <li
                   key={s.id}
                   className="flex flex-wrap items-center justify-between gap-3 py-3"
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-900">
-                      {s.name}
-                    </span>
-                    {paymentDue && (
-                      <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
-                        Payment Due
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-900">
+                        {s.name}
                       </span>
-                    )}
+                      {s.subject && (
+                        <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                          {s.subject}
+                        </span>
+                      )}
+                      {paymentDue && (
+                        <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                          Payment Due
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-gray-400">
+                      {lastLessonDate
+                        ? `Last lesson: ${new Date(lastLessonDate).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })}`
+                        : "No lessons yet"}
+                    </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-3">
