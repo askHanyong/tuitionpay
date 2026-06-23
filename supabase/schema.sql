@@ -197,10 +197,15 @@ begin
   end if;
 
   if tg_op = 'UPDATE' then
-    if old.status = 'completed' or new.status = 'completed' then
-      perform public.recompute_payment_cycles(old.student_id, old.tutor_id);
-      if new.student_id <> old.student_id then
-        perform public.recompute_payment_cycles(new.student_id, new.tutor_id);
+    if new.lesson_date is distinct from old.lesson_date
+      or new.status is distinct from old.status
+      or new.student_id is distinct from old.student_id
+    then
+      if old.status = 'completed' or new.status = 'completed' then
+        perform public.recompute_payment_cycles(old.student_id, old.tutor_id);
+        if new.student_id <> old.student_id then
+          perform public.recompute_payment_cycles(new.student_id, new.tutor_id);
+        end if;
       end if;
     end if;
     return new;
