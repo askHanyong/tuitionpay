@@ -80,7 +80,14 @@ export default function Calendar() {
     }
     const positions = new Map();
     for (const group of groups.values()) {
-      group.forEach((lesson, i) => positions.set(lesson.id, i + 1));
+      const sorted = [...group].sort((a, b) =>
+        a.lesson_date < b.lesson_date
+          ? -1
+          : a.lesson_date > b.lesson_date
+            ? 1
+            : 0,
+      );
+      sorted.forEach((lesson, i) => positions.set(lesson.id, i + 1));
     }
     return positions;
   }, [lessons]);

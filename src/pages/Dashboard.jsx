@@ -55,7 +55,14 @@ export default function Dashboard() {
   const lessonPosition = new Map();
   const openCountByStudent = new Map();
   for (const [key, group] of groups) {
-    group.forEach((lesson, i) => lessonPosition.set(lesson.id, i + 1));
+    const sorted = [...group].sort((a, b) =>
+      a.lesson_date < b.lesson_date
+        ? -1
+        : a.lesson_date > b.lesson_date
+          ? 1
+          : 0,
+    );
+    sorted.forEach((lesson, i) => lessonPosition.set(lesson.id, i + 1));
     const [studentId, cycleKey] = key.split("|");
     if (cycleKey === "open") openCountByStudent.set(studentId, group.length);
   }
