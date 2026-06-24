@@ -3,6 +3,11 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import AppShell from "../components/AppShell";
+import {
+  isGoogleTokenValid,
+  requestGoogleCalendarAccess,
+  revokeGoogleCalendarAccess,
+} from "../lib/googleCalendar";
 
 export default function Settings() {
   const { user } = useAuth();
@@ -11,20 +16,69 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [googleTutor, setGoogleTutor] = useState(null);
+  const [connecting, setConnecting] = useState(false);
+
+  const loadGoogleStatus = async () => {
+    const { data } = await supabase
+      .from("tutors")
+      .select("google_access_token, google_token_expiry")
+      .eq("id", user.id)
+      .single();
+    setGoogleTutor(data ?? null);
+  };
 
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase
         .from("tutors")
-        .select("paynow_number")
+        .select("paynow_number, google_access_token, google_token_expiry")
         .eq("id", user.id)
         .single();
       if (error) setError(error.message);
       setPaynowNumber(data?.paynow_number ?? "");
+      setGoogleTutor(data ?? null);
       setLoading(false);
     };
     load();
   }, [user.id]);
+
+  const handleConnectGoogle = async () => {
+    setConnecting(true);
+    try {
+      const { accessToken, expiresAt } = await requestGoogleCalendarAccess();
+      const { error } = await supabase
+        .from("tutors")
+        .update({
+          google_access_token: accessToken,
+          google_token_expiry: expiresAt,
+        })
+        .eq("id", user.id);
+      if (error) throw error;
+      await loadGoogleStatus();
+      showToast("Google Calendar connected.");
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    revokeGoogleCalendarAccess(googleTutor?.google_access_token);
+    const { error } = await supabase
+      .from("tutors")
+      .update({ google_access_token: null, google_token_expiry: null })
+      .eq("id", user.id);
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    await loadGoogleStatus();
+    showToast("Google Calendar disconnected.");
+  };
+
+  const googleConnected = isGoogleTokenValid(googleTutor);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -80,6 +134,38 @@ export default function Settings() {
           {saving ? "Saving..." : "Save"}
         </button>
       </form>
+
+      <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
+        <h2 className="text-base font-semibold text-gray-900">
+          Google Calendar
+        </h2>
+        <p className="text-sm text-gray-600">
+          {googleConnected
+            ? "Connected. Lessons you log will automatically be added to your Google Calendar."
+            : "Connect your Google Calendar so every lesson you log is added automatically."}
+        </p>
+        {googleConnected ? (
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+              ✓ Connected
+            </span>
+            <button
+              onClick={handleDisconnectGoogle}
+              className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+            >
+              Disconnect
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleConnectGoogle}
+            disabled={connecting}
+            className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow disabled:opacity-50"
+          >
+            {connecting ? "Connecting..." : "Connect Google Calendar"}
+          </button>
+        )}
+      </section>
     </AppShell>
   );
 }

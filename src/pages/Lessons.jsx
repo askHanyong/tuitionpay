@@ -7,6 +7,7 @@ import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
 import { formatDate } from "../lib/date";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
 import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
+import { createCalendarEvent, isGoogleTokenValid } from "../lib/googleCalendar";
 import AppShell from "../components/AppShell";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -124,6 +125,38 @@ export default function Lessons() {
     );
   };
 
+  const addLessonToGoogleCalendar = async ({
+    studentId,
+    lessonDate,
+    lessonTime,
+    durationMinutes,
+    lessonNumber,
+  }) => {
+    const { data: tutor } = await supabase
+      .from("tutors")
+      .select("google_access_token, google_token_expiry")
+      .eq("id", user.id)
+      .single();
+    if (!isGoogleTokenValid(tutor)) return;
+
+    const student = students.find((s) => s.id === studentId);
+    const start = new Date(`${lessonDate}T${lessonTime || "09:00"}:00`);
+    const end = new Date(start.getTime() + durationMinutes * 60000);
+    try {
+      await createCalendarEvent(tutor.google_access_token, {
+        summary: `${student?.name ?? "Lesson"} - ${student?.subject || "Lesson"} (Lesson ${lessonNumber} of 4)`,
+        description: `Lesson ${lessonNumber} of 4 for ${student?.name ?? "student"}`,
+        start: start.toISOString(),
+        end: end.toISOString(),
+      });
+    } catch (err) {
+      showToast(
+        `Lesson logged, but Google Calendar event failed: ${err.message}`,
+        "error",
+      );
+    }
+  };
+
   const handleStudentChange = (studentId) => {
     const student = students.find((s) => s.id === studentId);
     setForm({
@@ -207,6 +240,14 @@ export default function Lessons() {
         status,
       });
       if (error) throw error;
+
+      await addLessonToGoogleCalendar({
+        studentId: form.student_id,
+        lessonDate: form.lesson_date,
+        lessonTime: form.lesson_time,
+        durationMinutes: Math.round(durationHours * 60),
+        lessonNumber: ((beforeCount ?? 0) % 4) + 1,
+      });
 
       if (isFuture) {
         setInfo(
