@@ -28,15 +28,16 @@ export default function Terms() {
 
         <Section title="Introduction">
           <p>
-            By using TuitionPayLah, you agree to these terms. TuitionPayLah is a
-            free web application operated by Hanyong Lim (Singapore).
+            By using ChopeAndPay (chopeandpay.com), you agree to these terms.
+            ChopeAndPay is a free web application operated by Hanyong Lim
+            (Singapore).
           </p>
         </Section>
 
         <Section title="Eligibility">
           <p>
-            You must be 18 or older to use TuitionPayLah. The app is intended
-            for private tutors and education freelancers.
+            You must be 18 or older to use ChopeAndPay. The app is intended for
+            private tutors and education freelancers.
           </p>
         </Section>
 
@@ -52,13 +53,13 @@ export default function Terms() {
         </Section>
 
         <Section title="Acceptable use">
-          <p>You may use TuitionPayLah to:</p>
+          <p>You may use ChopeAndPay to:</p>
           <ul className="list-inside list-disc space-y-1">
             <li>Track your own tutoring lessons and payments</li>
             <li>Manage your own student information</li>
             <li>Generate reports for your own use</li>
           </ul>
-          <p>You may NOT use TuitionPayLah to:</p>
+          <p>You may NOT use ChopeAndPay to:</p>
           <ul className="list-inside list-disc space-y-1">
             <li>Enter false or misleading information</li>
             <li>Attempt to access other tutors' data</li>
@@ -70,15 +71,15 @@ export default function Terms() {
         <Section title="Student data responsibility">
           <p>
             Tutors are solely responsible for ensuring they have appropriate
-            consent to store student personal data in the app. TuitionPayLah is
-            a tool — the tutor is the data controller for their students'
+            consent to store student personal data in the app. ChopeAndPay is a
+            tool — the tutor is the data controller for their students'
             information under PDPA.
           </p>
         </Section>
 
         <Section title="Free service">
           <p>
-            TuitionPayLah is currently free. We reserve the right to introduce
+            ChopeAndPay is currently free. We reserve the right to introduce
             paid features in the future with reasonable notice. Core features
             will remain free.
           </p>
@@ -86,14 +87,14 @@ export default function Terms() {
 
         <Section title="No financial advice">
           <p>
-            TuitionPayLah provides earnings tracking tools only. It does not
+            ChopeAndPay provides earnings tracking tools only. It does not
             constitute financial, tax or legal advice.
           </p>
         </Section>
 
         <Section title="Disclaimer of warranties">
           <p>
-            TuitionPayLah is provided "as is". We do not guarantee uninterrupted
+            ChopeAndPay is provided "as is". We do not guarantee uninterrupted
             or error-free service. We are not liable for any loss of data or
             income arising from use of the app.
           </p>
@@ -103,7 +104,7 @@ export default function Terms() {
           <p>
             To the maximum extent permitted by Singapore law, Hanyong Lim shall
             not be liable for any indirect, incidental or consequential damages
-            arising from use of TuitionPayLah.
+            arising from use of ChopeAndPay.
           </p>
         </Section>
 

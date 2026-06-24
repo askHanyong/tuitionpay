@@ -32,7 +32,7 @@ export default function Dashboard() {
     notify_weekly_summary: true,
   });
   const [onboardingDismissed, setOnboardingDismissed] = useState(
-    () => localStorage.getItem("tuitionpay_onboarding_dismissed") === "true",
+    () => localStorage.getItem("chopeandpay_onboarding_dismissed") === "true",
   );
   const pendingCount = paymentCycles.filter(
     (c) => c.status === "pending",

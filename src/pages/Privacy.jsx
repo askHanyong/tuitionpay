@@ -28,10 +28,10 @@ export default function Privacy() {
 
         <Section title="Introduction">
           <p>
-            TuitionPayLah is operated by Hanyong Lim, a private individual based
-            in Singapore. This policy explains how we collect, use and protect
-            your personal data in accordance with Singapore's Personal Data
-            Protection Act 2012 (PDPA).
+            ChopeAndPay (chopeandpay.com) is operated by Hanyong Lim, a private
+            individual based in Singapore. This policy explains how we collect,
+            use and protect your personal data in accordance with Singapore's
+            Personal Data Protection Act 2012 (PDPA).
           </p>
         </Section>
 
@@ -57,7 +57,7 @@ export default function Privacy() {
 
         <Section title="How we use your data">
           <ul className="list-inside list-disc space-y-1">
-            <li>To provide the TuitionPayLah service</li>
+            <li>To provide the ChopeAndPay service</li>
             <li>
               To show anonymised rate benchmarks to tutors (no individual data
               is ever shown)

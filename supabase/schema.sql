@@ -1,4 +1,4 @@
--- TuitionPay schema
+-- ChopeAndPay schema
 -- Run this in the Supabase SQL editor.
 
 create extension if not exists "pgcrypto";

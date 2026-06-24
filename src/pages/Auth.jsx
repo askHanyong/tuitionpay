@@ -51,7 +51,7 @@ export default function Auth() {
       <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow">
         <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-gray-900">
           <span aria-hidden="true">🌿</span>
-          TuitionPay
+          ChopeAndPay
         </h1>
         <p className="mb-6 text-sm text-gray-500">
           {mode === "login"

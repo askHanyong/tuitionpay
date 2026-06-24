@@ -93,12 +93,12 @@ export default function Onboarding({ onDismiss, onDone }) {
   };
 
   const handleSkip = () => {
-    localStorage.setItem("tuitionpay_onboarding_dismissed", "true");
+    localStorage.setItem("chopeandpay_onboarding_dismissed", "true");
     onDismiss?.();
   };
 
   const handleFinish = () => {
-    localStorage.setItem("tuitionpay_onboarding_dismissed", "true");
+    localStorage.setItem("chopeandpay_onboarding_dismissed", "true");
     onDone?.();
     navigate("/dashboard");
   };

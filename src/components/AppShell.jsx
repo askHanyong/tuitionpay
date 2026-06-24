@@ -162,7 +162,7 @@ export default function AppShell({ children }) {
           className="flex items-center gap-2 px-6 py-5 text-lg text-gray-900"
         >
           <CloverLogo className="h-9 w-9 flex-none" />
-          <span className="font-medium">TuitionPayLah</span>
+          <span className="font-medium">ChopeAndPay</span>
         </Link>
         <nav className="flex flex-1 flex-col gap-1 px-3">
           {NAV_ITEMS.map((item) => {
@@ -202,7 +202,7 @@ export default function AppShell({ children }) {
               className="flex items-center gap-2 text-lg text-gray-900"
             >
               <CloverLogo className="h-9 w-9 flex-none" />
-              <span className="font-medium">TuitionPayLah</span>
+              <span className="font-medium">ChopeAndPay</span>
             </Link>
             <button
               onClick={() => setMenuOpen((open) => !open)}

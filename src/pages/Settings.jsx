@@ -286,7 +286,7 @@ export default function Settings() {
           Refer a Friend
         </h2>
         <p className="text-sm text-gray-600">
-          Invite other tutors to TuitionPayLah and help us grow!
+          Invite other tutors to ChopeAndPay and help us grow!
         </p>
 
         {referralCode && (

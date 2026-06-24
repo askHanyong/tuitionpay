@@ -19,7 +19,7 @@ export default function About() {
             className="flex items-center gap-2 text-lg font-semibold text-gray-900"
           >
             <span aria-hidden="true">🍀</span>
-            TuitionPayLah
+            ChopeAndPay
           </Link>
           <Link
             to="/"
@@ -58,11 +58,8 @@ export default function About() {
             IB in Singapore schools.
           </p>
           <p>
-            As an active private tutor myself, I felt the pain of tracking
-            lesson payments and schedules manually, often juggling WhatsApp
-            messages, Excel sheets, Google calendar, and mental notes.
-            TuitionPayLah was born out of that frustration. I wanted a simple,
-            free tool built specifically for how Singapore private tutors work.
+            I built ChopeAndPay because I was tired of tracking lesson payments
+            in WhatsApp and Excel.
           </p>
           <p>
             I personally read every piece of feedback and respond to every
@@ -112,10 +109,10 @@ export default function About() {
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 py-8 text-sm text-gray-500 sm:flex-row sm:justify-between sm:px-6">
           <span className="flex items-center gap-2 font-medium text-gray-700">
             <span aria-hidden="true">🍀</span>
-            TuitionPayLah
+            ChopeAndPay
           </span>
           <span>
-            © {new Date().getFullYear()} TuitionPayLah. All rights reserved.
+            © {new Date().getFullYear()} ChopeAndPay. All rights reserved.
           </span>
         </div>
       </footer>

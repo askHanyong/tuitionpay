@@ -19,7 +19,8 @@ export default function FeedbackModal({ onClose }) {
               We'd love your feedback! 🙏
             </h2>
             <p className="mt-1 text-sm text-gray-600">
-              Help us make TuitionPayLah better for Singapore tutors.
+              Help us make ChopeAndPay better for Singapore tutors and
+              freelancers.
             </p>
           </div>
           <button

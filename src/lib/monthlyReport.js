@@ -79,5 +79,5 @@ export function buildMonthlyReport(
 export function reportFilenameBase(monthDate, extension) {
   const month = monthDate.toLocaleDateString("en-SG", { month: "long" });
   const year = monthDate.getFullYear();
-  return `TuitionPayLah_${month}_${year}_Report.${extension}`;
+  return `ChopeAndPay_${month}_${year}_Report.${extension}`;
 }

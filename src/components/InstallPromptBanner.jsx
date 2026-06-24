@@ -44,7 +44,7 @@ export default function InstallPromptBanner() {
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-between gap-3 border-t border-gray-200 bg-white px-4 py-3 shadow-lg sm:px-6">
       <p className="text-sm font-medium text-gray-800">
-        Add TuitionPayLah to your home screen for quick access 📲
+        Add ChopeAndPay to your home screen for quick access 📲
       </p>
       <div className="flex flex-none items-center gap-2">
         <button

@@ -37,10 +37,10 @@ export function buildLessonIcs({
   const lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//TuitionPay//Lesson Export//EN",
+    "PRODID:-//ChopeAndPay//Lesson Export//EN",
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
-    `UID:lesson-${lesson.id}@tuitionpay`,
+    `UID:lesson-${lesson.id}@chopeandpay`,
     `DTSTAMP:${toIcsDateTime(new Date())}`,
     `DTSTART:${toIcsDateTime(start)}`,
     `DTEND:${toIcsDateTime(end)}`,

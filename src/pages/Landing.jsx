@@ -54,7 +54,9 @@ function PhoneMockup() {
       <div className="w-72 rounded-[2.5rem] border-8 border-gray-900 bg-gray-900 p-2 shadow-2xl">
         <div className="overflow-hidden rounded-[2rem] bg-gray-50">
           <div className="bg-white px-4 py-3">
-            <p className="text-xs font-semibold text-gray-900">🌿 TuitionPay</p>
+            <p className="text-xs font-semibold text-gray-900">
+              🌿 ChopeAndPay
+            </p>
           </div>
           <div className="space-y-3 p-4">
             <div className="rounded-lg bg-green-50 p-3">
@@ -119,7 +121,7 @@ export default function Landing() {
             className="flex items-center gap-2 text-lg font-semibold text-gray-900"
           >
             <span aria-hidden="true">🍀</span>
-            TuitionPayLah
+            ChopeAndPay
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
@@ -148,12 +150,11 @@ export default function Landing() {
         <div className="flex flex-col items-center gap-12 lg:flex-row lg:justify-between">
           <div className="max-w-xl text-center lg:text-left">
             <h1 className="text-3xl font-bold leading-tight text-gray-900 sm:text-5xl">
-              Stop tracking tuition payments in WhatsApp. Start using
-              TuitionPayLah.
+              Stop tracking payments in WhatsApp. Start using ChopeAndPay.
             </h1>
             <p className="mt-5 text-lg text-gray-600">
-              The free app for Singapore private tutors to schedule lessons,
-              track payments and get paid on time.
+              The free app for Singapore tutors and freelancers to chope their
+              slots, track lessons and get paid on time.
             </p>
             <div className="mt-8 flex justify-center lg:justify-start">
               <Link
@@ -267,9 +268,9 @@ export default function Landing() {
           </p>
           <p className="mt-6 text-base leading-relaxed text-gray-700">
             I'm a Singapore maths tutor with 20+ years of teaching experience
-            across O-Levels, A-Levels, and IB. I built TuitionPayLah because I
-            was tired of tracking lesson payments in WhatsApp, Google Calendar,
-            and Excel, and I knew other tutors felt the same.
+            across O-Levels, A-Levels, and IB. I built ChopeAndPay because I was
+            tired of tracking lesson payments in WhatsApp and Excel, and I knew
+            other tutors felt the same.
           </p>
           <p className="mt-4 text-base italic leading-relaxed text-gray-600">
             I personally read every piece of feedback. This app is built for
@@ -316,7 +317,7 @@ export default function Landing() {
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
             <span className="flex items-center gap-2 font-medium text-gray-700">
               <span aria-hidden="true">🍀</span>
-              TuitionPayLah
+              ChopeAndPay
             </span>
             <div className="flex flex-wrap items-center justify-center gap-4">
               <Link to="/about" className="hover:text-gray-700">
@@ -350,7 +351,7 @@ export default function Landing() {
               </a>
             </span>
             <span>
-              Built by{" "}
+              ChopeAndPay · Built by{" "}
               <Link to="/about" className="font-medium hover:text-gray-700">
                 Hanyong Lim
               </Link>{" "}
@@ -358,7 +359,7 @@ export default function Landing() {
             </span>
           </div>
           <p className="text-center text-xs text-gray-400">
-            © {new Date().getFullYear()} TuitionPayLah. All rights reserved.
+            © {new Date().getFullYear()} ChopeAndPay. All rights reserved.
           </p>
         </div>
       </footer>

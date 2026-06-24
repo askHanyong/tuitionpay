@@ -1,4 +1,4 @@
-# TuitionPay
+# ChopeAndPay
 
 React + Vite app for tutors to track students, lessons, and payment cycles, backed by Supabase (auth + Postgres) and styled with Tailwind CSS.
 
