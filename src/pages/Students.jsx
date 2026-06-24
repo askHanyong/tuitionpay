@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import AppShell from "../components/AppShell";
+import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
 import { formatDate } from "../lib/date";
 
 const emptyForm = {
@@ -29,6 +30,16 @@ export default function Students() {
   const [expandedId, setExpandedId] = useState(null);
   const [lessonsByStudent, setLessonsByStudent] = useState({});
   const [lessonsLoading, setLessonsLoading] = useState(false);
+  const [scheduleStudent, setScheduleStudent] = useState(null);
+
+  const refreshLessonsFor = async (studentId) => {
+    const { data } = await supabase
+      .from("lessons")
+      .select("*")
+      .eq("student_id", studentId)
+      .order("lesson_date", { ascending: false });
+    setLessonsByStudent((prev) => ({ ...prev, [studentId]: data ?? [] }));
+  };
 
   const toggleLessons = async (studentId) => {
     if (expandedId === studentId) {
@@ -281,6 +292,12 @@ export default function Students() {
                       {expandedId === s.id ? "Hide lessons" : "View lessons"}
                     </button>
                     <button
+                      onClick={() => setScheduleStudent(s)}
+                      className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                    >
+                      Schedule Lessons
+                    </button>
+                    <button
                       onClick={() => handleEdit(s)}
                       className="text-sm font-medium text-green-600 hover:text-green-700"
                     >
@@ -344,6 +361,12 @@ export default function Students() {
                               : "View lessons"}
                           </button>
                           <button
+                            onClick={() => setScheduleStudent(s)}
+                            className="mr-3 font-medium text-gray-700 hover:text-gray-900"
+                          >
+                            Schedule Lessons
+                          </button>
+                          <button
                             onClick={() => handleEdit(s)}
                             className="mr-3 font-medium text-green-600 hover:text-green-700"
                           >
@@ -375,6 +398,14 @@ export default function Students() {
           </>
         )}
       </section>
+
+      {scheduleStudent && (
+        <ScheduleLessonsModal
+          student={scheduleStudent}
+          onClose={() => setScheduleStudent(null)}
+          onScheduled={() => refreshLessonsFor(scheduleStudent.id)}
+        />
+      )}
     </AppShell>
   );
 }

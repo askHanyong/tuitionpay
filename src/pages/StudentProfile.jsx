@@ -6,6 +6,7 @@ import { formatDate } from "../lib/date";
 import { useToast } from "../contexts/ToastContext";
 import AppShell from "../components/AppShell";
 import StatusBadge from "../components/StatusBadge";
+import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
 
 export default function StudentProfile() {
   const { id } = useParams();
@@ -18,6 +19,7 @@ export default function StudentProfile() {
   const [error, setError] = useState(null);
   const [noteDrafts, setNoteDrafts] = useState({});
   const [savingNoteId, setSavingNoteId] = useState(null);
+  const [scheduling, setScheduling] = useState(false);
 
   const load = async () => {
     const [
@@ -150,14 +152,22 @@ export default function StudentProfile() {
                 ` · ${student.lesson_duration_hours}h lessons`}
             </p>
           </div>
-          <button
-            onClick={() =>
-              navigate("/students", { state: { editStudentId: student.id } })
-            }
-            className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
-          >
-            Edit Student
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setScheduling(true)}
+              className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+            >
+              Schedule Lessons
+            </button>
+            <button
+              onClick={() =>
+                navigate("/students", { state: { editStudentId: student.id } })
+              }
+              className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+            >
+              Edit Student
+            </button>
+          </div>
         </div>
       </section>
 
@@ -278,6 +288,14 @@ export default function StudentProfile() {
           </ol>
         )}
       </section>
+
+      {scheduling && (
+        <ScheduleLessonsModal
+          student={student}
+          onClose={() => setScheduling(false)}
+          onScheduled={load}
+        />
+      )}
     </AppShell>
   );
 }
