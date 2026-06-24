@@ -7,12 +7,12 @@ import { useToast } from "../contexts/ToastContext";
 import {
   buildPaidReceiptMessage,
   buildPaymentRequestMessage,
-  buildWhatsAppLink,
 } from "../lib/whatsapp";
 import { useAuth } from "../contexts/AuthContext";
 import AppShell from "../components/AppShell";
 import StatusBadge from "../components/StatusBadge";
 import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
+import MessagePreviewModal from "../components/MessagePreviewModal";
 
 export default function StudentProfile() {
   const { id } = useParams();
@@ -29,6 +29,7 @@ export default function StudentProfile() {
   const [savingNoteId, setSavingNoteId] = useState(null);
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [scheduling, setScheduling] = useState(false);
+  const [preview, setPreview] = useState(null);
 
   const load = async () => {
     const [
@@ -97,14 +98,22 @@ export default function StudentProfile() {
 
   const lessonDatesByCycle = useMemo(() => {
     const map = new Map();
-    for (const l of lessons) {
-      if (!l.payment_cycle_id) continue;
-      if (!map.has(l.payment_cycle_id)) map.set(l.payment_cycle_id, []);
-      map.get(l.payment_cycle_id).push(l.lesson_date);
+    for (const c of cycles) {
+      map.set(
+        c.id,
+        lessons
+          .filter(
+            (l) =>
+              l.status === "completed" &&
+              l.lesson_date >= c.period_start &&
+              l.lesson_date <= c.period_end,
+          )
+          .map((l) => l.lesson_date)
+          .sort(),
+      );
     }
-    for (const dates of map.values()) dates.sort();
     return map;
-  }, [lessons]);
+  }, [lessons, cycles]);
 
   const handleRequestPayment = (cycle) => {
     const message = buildPaymentRequestMessage({
@@ -115,7 +124,7 @@ export default function StudentProfile() {
       tutorName: tutorProfile.full_name,
       paynowNumber: tutorProfile.paynow_number,
     });
-    window.open(buildWhatsAppLink(message), "_blank");
+    setPreview({ title: "Payment request", message, mode: "whatsapp" });
   };
 
   const handleSendReceipt = (cycle) => {
@@ -126,7 +135,7 @@ export default function StudentProfile() {
       amountDue: cycle.amount_due,
       tutorName: tutorProfile.full_name,
     });
-    window.open(buildWhatsAppLink(message), "_blank");
+    setPreview({ title: "Payment receipt", message, mode: "whatsapp" });
   };
 
   const handleSaveNote = async (lessonId) => {
@@ -378,6 +387,15 @@ export default function StudentProfile() {
           student={student}
           onClose={() => setScheduling(false)}
           onScheduled={load}
+        />
+      )}
+
+      {preview && (
+        <MessagePreviewModal
+          title={preview.title}
+          initialMessage={preview.message}
+          mode={preview.mode}
+          onClose={() => setPreview(null)}
         />
       )}
     </AppShell>

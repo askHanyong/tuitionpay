@@ -7,10 +7,10 @@ import { formatDate } from "../lib/date";
 import {
   buildPaidReceiptMessage,
   buildPaymentRequestMessage,
-  buildWhatsAppLink,
 } from "../lib/whatsapp";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
+import MessagePreviewModal from "../components/MessagePreviewModal";
 
 export default function Payments() {
   const { user } = useAuth();
@@ -20,7 +20,7 @@ export default function Payments() {
   const [tutorProfile, setTutorProfile] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [copiedId, setCopiedId] = useState(null);
+  const [preview, setPreview] = useState(null);
 
   const load = async () => {
     const [{ data, error }, { data: tutorData }] = await Promise.all([
@@ -38,17 +38,24 @@ export default function Payments() {
     setCycles(data ?? []);
     setTutorProfile(tutorData ?? {});
 
-    const cycleIds = (data ?? []).map((c) => c.id);
-    if (cycleIds.length > 0) {
+    const studentIds = [...new Set((data ?? []).map((c) => c.student_id))];
+    if (studentIds.length > 0) {
       const { data: lessonsData } = await supabase
         .from("lessons")
-        .select("payment_cycle_id, lesson_date")
-        .in("payment_cycle_id", cycleIds)
+        .select("student_id, lesson_date")
+        .in("student_id", studentIds)
+        .eq("status", "completed")
         .order("lesson_date", { ascending: true });
       const map = {};
-      for (const l of lessonsData ?? []) {
-        if (!map[l.payment_cycle_id]) map[l.payment_cycle_id] = [];
-        map[l.payment_cycle_id].push(l.lesson_date);
+      for (const c of data ?? []) {
+        map[c.id] = (lessonsData ?? [])
+          .filter(
+            (l) =>
+              l.student_id === c.student_id &&
+              l.lesson_date >= c.period_start &&
+              l.lesson_date <= c.period_end,
+          )
+          .map((l) => l.lesson_date);
       }
       setLessonDatesByCycle(map);
     }
@@ -63,7 +70,7 @@ export default function Payments() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleCopy = async (cycle) => {
+  const handleCopy = (cycle) => {
     const message = buildPaymentNoticeMessage({
       studentName: cycle.students?.name,
       lessonDates: lessonDatesByCycle[cycle.id] ?? [],
@@ -71,10 +78,11 @@ export default function Payments() {
       paynowNumber: tutorProfile.paynow_number,
       tutorName: tutorProfile.full_name,
     });
-    await navigator.clipboard.writeText(message);
-    setCopiedId(cycle.id);
-    showToast("Payment notice copied to clipboard.");
-    setTimeout(() => setCopiedId(null), 2000);
+    setPreview({
+      title: "Payment notice",
+      message,
+      mode: "copy",
+    });
   };
 
   const handleMarkPaid = async (id) => {
@@ -101,7 +109,11 @@ export default function Payments() {
       tutorName: tutorProfile.full_name,
       paynowNumber: tutorProfile.paynow_number,
     });
-    window.open(buildWhatsAppLink(message), "_blank");
+    setPreview({
+      title: "Payment request",
+      message,
+      mode: "whatsapp",
+    });
   };
 
   const handleSendReceipt = (cycle) => {
@@ -112,7 +124,11 @@ export default function Payments() {
       amountDue: cycle.amount_due,
       tutorName: tutorProfile.full_name,
     });
-    window.open(buildWhatsAppLink(message), "_blank");
+    setPreview({
+      title: "Payment receipt",
+      message,
+      mode: "whatsapp",
+    });
   };
 
   const pending = cycles.filter((c) => c.status === "pending");
@@ -167,7 +183,7 @@ export default function Payments() {
                     onClick={() => handleCopy(c)}
                     className="min-h-11 rounded-md bg-green-600 px-3 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
                   >
-                    {copiedId === c.id ? "Copied!" : "Copy payment notice"}
+                    Copy payment notice
                   </button>
                   <button
                     onClick={() => handleMarkPaid(c.id)}
@@ -270,6 +286,15 @@ export default function Payments() {
           </>
         )}
       </section>
+
+      {preview && (
+        <MessagePreviewModal
+          title={preview.title}
+          initialMessage={preview.message}
+          mode={preview.mode}
+          onClose={() => setPreview(null)}
+        />
+      )}
     </AppShell>
   );
 }
