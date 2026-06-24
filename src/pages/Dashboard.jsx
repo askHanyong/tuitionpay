@@ -360,7 +360,12 @@ export default function Dashboard() {
         )}
       </section>
 
-      <MonthlyRecapCard lessons={lessons} paymentCycles={paymentCycles} />
+      <MonthlyRecapCard
+        lessons={lessons}
+        paymentCycles={paymentCycles}
+        students={students}
+        tutorName={user?.user_metadata?.full_name}
+      />
 
       {!loading && pendingCycleByStudent.size > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-sm">

@@ -1,5 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { formatSGD } from "../lib/paymentNotice";
+import { buildMonthlyReport } from "../lib/monthlyReport";
+import { downloadMonthlyReportPdf } from "../lib/pdfReport";
+import { downloadMonthlyReportImage } from "../lib/imageReport";
+import MonthlyReportTemplate from "./MonthlyReportTemplate";
 
 function isSameMonth(dateStr, monthDate) {
   if (!dateStr) return false;
@@ -31,10 +35,17 @@ function computeForMonth(monthDate, lessons, paymentCycles) {
   };
 }
 
-export default function MonthlyRecapCard({ lessons, paymentCycles }) {
+export default function MonthlyRecapCard({
+  lessons,
+  paymentCycles,
+  students = [],
+  tutorName,
+}) {
   const [monthDate, setMonthDate] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
+  const [generating, setGenerating] = useState(false);
+  const reportRef = useRef(null);
 
   const prevMonthDate = useMemo(
     () => new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1),
@@ -74,6 +85,24 @@ export default function MonthlyRecapCard({ lessons, paymentCycles }) {
     setMonthDate(
       (prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1),
     );
+  };
+
+  const report = useMemo(
+    () => buildMonthlyReport(monthDate, students, lessons, paymentCycles),
+    [monthDate, students, lessons, paymentCycles],
+  );
+
+  const handleDownloadPdf = () => {
+    downloadMonthlyReportPdf(monthDate, tutorName, report);
+  };
+
+  const handleSaveImage = async () => {
+    setGenerating(true);
+    try {
+      await downloadMonthlyReportImage(reportRef.current, monthDate);
+    } finally {
+      setGenerating(false);
+    }
   };
 
   return (
@@ -144,6 +173,29 @@ export default function MonthlyRecapCard({ lessons, paymentCycles }) {
       <p className="mt-4 text-center text-sm font-medium text-gray-700">
         {message}
       </p>
+
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
+        <button
+          onClick={handleDownloadPdf}
+          className="min-h-11 rounded-md border border-green-300 bg-white px-4 text-sm font-medium text-green-700 transition hover:bg-green-100"
+        >
+          📄 Download Report
+        </button>
+        <button
+          onClick={handleSaveImage}
+          disabled={generating}
+          className="min-h-11 rounded-md border border-green-300 bg-white px-4 text-sm font-medium text-green-700 transition hover:bg-green-100 disabled:opacity-50"
+        >
+          {generating ? "Generating..." : "🖼️ Save as Image"}
+        </button>
+      </div>
+
+      <MonthlyReportTemplate
+        ref={reportRef}
+        tutorName={tutorName}
+        monthLabel={monthLabel}
+        report={report}
+      />
     </section>
   );
 }
