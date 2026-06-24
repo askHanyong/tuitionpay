@@ -22,3 +22,12 @@ function formatLessonDateShort(dateStr) {
 export function formatLessonDates(lessonDates) {
   return lessonDates.map(formatLessonDateShort).join(", ");
 }
+
+export function formatLessonTime(timeStr) {
+  if (!timeStr) return "";
+  const [hStr, mStr] = timeStr.split(":");
+  let hour = Number(hStr);
+  const period = hour >= 12 ? "pm" : "am";
+  hour = hour % 12 || 12;
+  return `${hour}:${mStr ?? "00"}${period}`;
+}

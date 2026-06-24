@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatSGD } from "../lib/paymentNotice";
-import { formatDate } from "../lib/date";
+import { formatDate, formatLessonTime, toDateKey } from "../lib/date";
 import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import { useToast } from "../contexts/ToastContext";
 import StatusBadge from "../components/StatusBadge";
@@ -10,11 +10,16 @@ import AppShell from "../components/AppShell";
 import Onboarding from "../components/Onboarding";
 import MonthlyRecapCard from "../components/MonthlyRecapCard";
 
+const todayKey = () => toDateKey(new Date());
+const tomorrowKey = () => toDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
+
 export default function Dashboard() {
   const { showToast } = useToast();
   const [students, setStudents] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [paymentCycles, setPaymentCycles] = useState([]);
+  const [todayLessons, setTodayLessons] = useState([]);
+  const [tomorrowLessons, setTomorrowLessons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [onboardingDismissed, setOnboardingDismissed] = useState(
     () => localStorage.getItem("tuitionpay_onboarding_dismissed") === "true",
@@ -31,6 +36,8 @@ export default function Dashboard() {
       { data: studentsData },
       { data: lessonsData },
       { data: cyclesData },
+      { data: todayData },
+      { data: tomorrowData },
     ] = await Promise.all([
       supabase
         .from("students")
@@ -45,10 +52,22 @@ export default function Dashboard() {
         .from("payment_cycles")
         .select("*, students(name)")
         .order("period_end", { ascending: false }),
+      supabase
+        .from("lessons")
+        .select("*, students(name, subject)")
+        .eq("lesson_date", todayKey())
+        .order("lesson_time", { ascending: true }),
+      supabase
+        .from("lessons")
+        .select("*, students(name)")
+        .eq("lesson_date", tomorrowKey())
+        .order("lesson_time", { ascending: true }),
     ]);
     setStudents(studentsData ?? []);
     setLessons(lessonsData ?? []);
     setPaymentCycles(cyclesData ?? []);
+    setTodayLessons(todayData ?? []);
+    setTomorrowLessons(tomorrowData ?? []);
     setLoading(false);
   };
 
@@ -123,6 +142,32 @@ export default function Dashboard() {
     .filter((c) => c.status === "pending" && isThisMonth(c.created_at))
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
 
+  const todayLessonNumber = (lesson) =>
+    lesson.status === "completed"
+      ? (lessonPosition.get(lesson.id) ?? "?")
+      : ((openCountByStudent.get(lesson.student_id) ?? 0) % 4) + 1;
+
+  const handleMarkDone = async (lessonId) => {
+    setTodayLessons((prev) =>
+      prev.map((l) => (l.id === lessonId ? { ...l, status: "completed" } : l)),
+    );
+    const { error } = await supabase
+      .from("lessons")
+      .update({ status: "completed" })
+      .eq("id", lessonId);
+    if (error) {
+      setTodayLessons((prev) =>
+        prev.map((l) =>
+          l.id === lessonId ? { ...l, status: "scheduled" } : l,
+        ),
+      );
+      showToast(error.message, "error");
+      return;
+    }
+    showToast("Lesson marked as done.");
+    await loadAll();
+  };
+
   const handleCollectPayment = async (cycleId) => {
     const { error } = await supabase
       .from("payment_cycles")
@@ -169,6 +214,69 @@ export default function Dashboard() {
 
   return (
     <AppShell>
+      <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+        <h2 className="mb-4 text-base font-semibold text-gray-900">
+          Today&apos;s lessons
+        </h2>
+        {loading ? (
+          <p className="text-sm text-gray-500">Loading...</p>
+        ) : todayLessons.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            🎉 No lessons today — enjoy your day off!
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {todayLessons.map((l) => {
+              const done = l.status === "completed";
+              return (
+                <li
+                  key={l.id}
+                  className="flex flex-col gap-3 rounded-lg border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">
+                      {l.students?.name}
+                      {l.students?.subject && (
+                        <span className="ml-2 inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                          {l.students.subject}
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      {formatLessonTime(l.lesson_time)} · Lesson{" "}
+                      {todayLessonNumber(l)} of 4
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => !done && handleMarkDone(l.id)}
+                    disabled={done}
+                    className={
+                      done
+                        ? "min-h-11 w-full rounded-md bg-gray-100 px-4 text-sm font-medium text-gray-500 sm:w-auto"
+                        : "min-h-11 w-full rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow sm:w-auto"
+                    }
+                  >
+                    {done ? "✓ Done" : "✅ Mark as Done"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {!loading && tomorrowLessons.length > 0 && (
+          <p className="mt-4 text-xs text-gray-400">
+            Tomorrow:{" "}
+            {tomorrowLessons
+              .map(
+                (l) =>
+                  `${l.students?.name} at ${formatLessonTime(l.lesson_time)}`,
+              )
+              .join(" · ")}
+          </p>
+        )}
+      </section>
+
       <MonthlyRecapCard lessons={lessons} paymentCycles={paymentCycles} />
 
       {!loading && pendingCycleByStudent.size > 0 && (
