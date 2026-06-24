@@ -13,6 +13,7 @@ import AppShell from "../components/AppShell";
 import StatusBadge from "../components/StatusBadge";
 import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
 import MessagePreviewModal from "../components/MessagePreviewModal";
+import ProgressReportModal from "../components/ProgressReportModal";
 
 export default function StudentProfile() {
   const { id } = useParams();
@@ -30,6 +31,7 @@ export default function StudentProfile() {
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [scheduling, setScheduling] = useState(false);
   const [preview, setPreview] = useState(null);
+  const [reporting, setReporting] = useState(false);
 
   const load = async () => {
     const [
@@ -95,6 +97,16 @@ export default function StudentProfile() {
     .filter((c) => c.status === "paid")
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   const openCount = completedLessons.filter((l) => !l.payment_cycle_id).length;
+  const currentCycleProgress = `Lesson ${Math.min(openCount, 4)} of 4`;
+  const lessonsThisMonth = useMemo(() => {
+    const now = new Date();
+    return lessons.filter((l) => {
+      const d = new Date(`${l.lesson_date}T00:00:00`);
+      return (
+        d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      );
+    }).length;
+  }, [lessons]);
 
   const lessonDatesByCycle = useMemo(() => {
     const map = new Map();
@@ -231,6 +243,12 @@ export default function StudentProfile() {
               className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
             >
               Edit Student
+            </button>
+            <button
+              onClick={() => setReporting(true)}
+              className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+            >
+              📄 Progress Report
             </button>
           </div>
         </div>
@@ -401,6 +419,19 @@ export default function StudentProfile() {
           initialMessage={preview.message}
           mode={preview.mode}
           onClose={() => setPreview(null)}
+        />
+      )}
+
+      {reporting && (
+        <ProgressReportModal
+          student={student}
+          lessons={lessons}
+          cycles={cycles}
+          tutorName={tutorProfile.full_name}
+          lessonPosition={lessonPosition}
+          currentCycleProgress={currentCycleProgress}
+          lessonsThisMonth={lessonsThisMonth}
+          onClose={() => setReporting(false)}
         />
       )}
     </AppShell>

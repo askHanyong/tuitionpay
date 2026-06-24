@@ -45,6 +45,14 @@ export function buildPaymentRequestMessage({
   return lines.join("\n");
 }
 
+export function buildProgressReportMessage({
+  studentName,
+  monthLabel,
+  tutorName,
+}) {
+  return `Hi! Please find attached ${studentName}'s progress report for ${monthLabel}. Feel free to reach out if you have any questions! 😊 — ${tutorName || "Your tutor"}`;
+}
+
 export function buildWhatsAppLink(message) {
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
