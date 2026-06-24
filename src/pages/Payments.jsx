@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
-import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
+import { formatSGD } from "../lib/paymentNotice";
 import { formatDate } from "../lib/date";
 import {
   buildPaidReceiptMessage,
@@ -69,21 +69,6 @@ export default function Payments() {
     run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const handleCopy = (cycle) => {
-    const message = buildPaymentNoticeMessage({
-      studentName: cycle.students?.name,
-      lessonDates: lessonDatesByCycle[cycle.id] ?? [],
-      amountDue: cycle.amount_due,
-      paynowNumber: tutorProfile.paynow_number,
-      tutorName: tutorProfile.full_name,
-    });
-    setPreview({
-      title: "Payment notice",
-      message,
-      mode: "copy",
-    });
-  };
 
   const handleMarkPaid = async (id) => {
     setError(null);
@@ -179,12 +164,6 @@ export default function Payments() {
                     ` · Contact: ${c.students.guardian_contact}`}
                 </p>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => handleCopy(c)}
-                    className="min-h-11 rounded-md bg-green-600 px-3 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
-                  >
-                    Copy payment notice
-                  </button>
                   <button
                     onClick={() => handleMarkPaid(c.id)}
                     className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
