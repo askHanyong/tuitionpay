@@ -369,12 +369,13 @@ export default function Lessons() {
 
             <div className="sm:col-span-2">
               <label className="mb-1 block text-sm font-medium text-gray-700">
-                Notes
+                Lesson notes (optional)
               </label>
-              <input
-                type="text"
+              <textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                placeholder="e.g. Covered algebra chapter 3, struggling with fractions..."
+                rows={3}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
               />
             </div>

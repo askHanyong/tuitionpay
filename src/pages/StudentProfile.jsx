@@ -19,6 +19,7 @@ export default function StudentProfile() {
   const [error, setError] = useState(null);
   const [noteDrafts, setNoteDrafts] = useState({});
   const [savingNoteId, setSavingNoteId] = useState(null);
+  const [editingNoteId, setEditingNoteId] = useState(null);
   const [scheduling, setScheduling] = useState(false);
 
   const load = async () => {
@@ -97,6 +98,7 @@ export default function StudentProfile() {
           : l,
       ),
     );
+    setEditingNoteId(null);
     showToast("Note saved.");
   };
 
@@ -219,32 +221,50 @@ export default function StudentProfile() {
                     <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">
                       Lesson {lessonPosition.get(l.id) ?? "?"} of 4
                     </span>
+                    <button
+                      onClick={() =>
+                        setEditingNoteId((prev) =>
+                          prev === l.id ? null : l.id,
+                        )
+                      }
+                      aria-label="Edit lesson notes"
+                      className="text-sm text-gray-400 hover:text-gray-600"
+                    >
+                      ✏️
+                    </button>
                   </div>
                   <span className="text-xs text-gray-500">
                     {(l.duration_minutes / 60).toFixed(2)}h
                     {l.rate != null && ` · $${l.rate}/hr`}
                   </span>
                 </div>
-                <textarea
-                  value={noteDrafts[l.id] ?? ""}
-                  onChange={(e) =>
-                    setNoteDrafts((prev) => ({
-                      ...prev,
-                      [l.id]: e.target.value,
-                    }))
-                  }
-                  placeholder="Add a quick note for this lesson..."
-                  rows={2}
-                  className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-                {noteDrafts[l.id] !== (l.notes ?? "") && (
-                  <button
-                    onClick={() => handleSaveNote(l.id)}
-                    disabled={savingNoteId === l.id}
-                    className="mt-2 min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
-                  >
-                    {savingNoteId === l.id ? "Saving..." : "Save note"}
-                  </button>
+                {l.notes && editingNoteId !== l.id && (
+                  <p className="mt-1 text-sm italic text-gray-500">{l.notes}</p>
+                )}
+                {editingNoteId === l.id && (
+                  <>
+                    <textarea
+                      value={noteDrafts[l.id] ?? ""}
+                      onChange={(e) =>
+                        setNoteDrafts((prev) => ({
+                          ...prev,
+                          [l.id]: e.target.value,
+                        }))
+                      }
+                      placeholder="Add a quick note for this lesson..."
+                      rows={2}
+                      className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                    />
+                    {noteDrafts[l.id] !== (l.notes ?? "") && (
+                      <button
+                        onClick={() => handleSaveNote(l.id)}
+                        disabled={savingNoteId === l.id}
+                        className="mt-2 min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {savingNoteId === l.id ? "Saving..." : "Save note"}
+                      </button>
+                    )}
+                  </>
                 )}
               </li>
             ))}

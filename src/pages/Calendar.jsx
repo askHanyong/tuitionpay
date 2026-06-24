@@ -325,6 +325,11 @@ export default function Calendar() {
                     {lessonPosition.get(l.id) ?? "?"} of 4 ·{" "}
                     {(l.duration_minutes / 60).toFixed(2)}h
                   </p>
+                  {l.notes && (
+                    <p className="mb-2 text-xs italic text-gray-500">
+                      {l.notes}
+                    </p>
+                  )}
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => handleAddToCalendar(l)}
