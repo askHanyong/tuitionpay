@@ -42,8 +42,12 @@ export default function About() {
           Coordinator · Applied Mathematics
         </p>
 
-        <div className="mt-8 flex h-32 w-32 items-center justify-center rounded-full bg-gray-100 text-center text-xs font-medium text-gray-400">
-          Photo coming soon
+        <div className="mt-8 h-32 w-32 overflow-hidden rounded-full bg-gray-100">
+          <img
+            src="/hanyong-lim.jpg"
+            alt="Hanyong Lim"
+            className="h-full w-full object-cover"
+          />
         </div>
 
         <div className="mt-8 space-y-4 text-base leading-relaxed text-gray-700">
@@ -92,6 +96,14 @@ export default function About() {
             className="flex min-h-11 items-center rounded-md border border-gray-300 px-5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100"
           >
             ✉️ Email me
+          </a>
+          <a
+            href="https://linkedin.com/in/limhanyong"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-h-11 items-center rounded-md border border-gray-300 px-5 text-sm font-semibold text-gray-700 transition hover:bg-gray-100"
+          >
+            🔗 LinkedIn
           </a>
         </div>
       </section>
