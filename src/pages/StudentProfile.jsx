@@ -4,6 +4,12 @@ import { supabase } from "../lib/supabase";
 import { formatSGD } from "../lib/paymentNotice";
 import { formatDate } from "../lib/date";
 import { useToast } from "../contexts/ToastContext";
+import {
+  buildPaidReceiptMessage,
+  buildPaymentRequestMessage,
+  buildWhatsAppLink,
+} from "../lib/whatsapp";
+import { useAuth } from "../contexts/AuthContext";
 import AppShell from "../components/AppShell";
 import StatusBadge from "../components/StatusBadge";
 import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
@@ -12,9 +18,11 @@ export default function StudentProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [student, setStudent] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [cycles, setCycles] = useState([]);
+  const [tutorProfile, setTutorProfile] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [noteDrafts, setNoteDrafts] = useState({});
@@ -27,6 +35,7 @@ export default function StudentProfile() {
       { data: studentData, error: studentError },
       { data: lessonsData },
       { data: cyclesData },
+      { data: tutorData },
     ] = await Promise.all([
       supabase.from("students").select("*").eq("id", id).single(),
       supabase
@@ -40,11 +49,17 @@ export default function StudentProfile() {
         .select("*")
         .eq("student_id", id)
         .order("period_end", { ascending: false }),
+      supabase
+        .from("tutors")
+        .select("full_name, paynow_number")
+        .eq("id", user.id)
+        .single(),
     ]);
     if (studentError) setError(studentError.message);
     setStudent(studentData ?? null);
     setLessons(lessonsData ?? []);
     setCycles(cyclesData ?? []);
+    setTutorProfile(tutorData ?? {});
     setNoteDrafts(
       Object.fromEntries((lessonsData ?? []).map((l) => [l.id, l.notes ?? ""])),
     );
@@ -79,6 +94,40 @@ export default function StudentProfile() {
     .filter((c) => c.status === "paid")
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   const openCount = completedLessons.filter((l) => !l.payment_cycle_id).length;
+
+  const lessonDatesByCycle = useMemo(() => {
+    const map = new Map();
+    for (const l of lessons) {
+      if (!l.payment_cycle_id) continue;
+      if (!map.has(l.payment_cycle_id)) map.set(l.payment_cycle_id, []);
+      map.get(l.payment_cycle_id).push(l.lesson_date);
+    }
+    for (const dates of map.values()) dates.sort();
+    return map;
+  }, [lessons]);
+
+  const handleRequestPayment = (cycle) => {
+    const message = buildPaymentRequestMessage({
+      studentName: student.name,
+      subject: student.subject,
+      lessonDates: lessonDatesByCycle.get(cycle.id) ?? [],
+      amountDue: cycle.amount_due,
+      tutorName: tutorProfile.full_name,
+      paynowNumber: tutorProfile.paynow_number,
+    });
+    window.open(buildWhatsAppLink(message), "_blank");
+  };
+
+  const handleSendReceipt = (cycle) => {
+    const message = buildPaidReceiptMessage({
+      studentName: student.name,
+      subject: student.subject,
+      lessonDates: lessonDatesByCycle.get(cycle.id) ?? [],
+      amountDue: cycle.amount_due,
+      tutorName: tutorProfile.full_name,
+    });
+    window.open(buildWhatsAppLink(message), "_blank");
+  };
 
   const handleSaveNote = async (lessonId) => {
     setSavingNoteId(lessonId);
@@ -302,6 +351,21 @@ export default function StudentProfile() {
                   <p className="mt-0.5 text-xs text-gray-400">
                     Paid on {formatDate(c.paid_at)}
                   </p>
+                )}
+                {c.status === "paid" ? (
+                  <button
+                    onClick={() => handleSendReceipt(c)}
+                    className="mt-2 min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 hover:shadow"
+                  >
+                    💬 Send WhatsApp Receipt
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleRequestPayment(c)}
+                    className="mt-2 min-h-11 rounded-md bg-orange-500 px-3 text-xs font-medium text-white transition hover:bg-orange-600 hover:shadow"
+                  >
+                    💬 Request Payment
+                  </button>
                 )}
               </li>
             ))}

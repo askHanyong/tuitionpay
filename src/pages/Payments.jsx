@@ -4,6 +4,11 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
 import { formatDate } from "../lib/date";
+import {
+  buildPaidReceiptMessage,
+  buildPaymentRequestMessage,
+  buildWhatsAppLink,
+} from "../lib/whatsapp";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
 
@@ -11,31 +16,51 @@ export default function Payments() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [cycles, setCycles] = useState([]);
+  const [lessonDatesByCycle, setLessonDatesByCycle] = useState({});
+  const [tutorProfile, setTutorProfile] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [copiedId, setCopiedId] = useState(null);
 
   const load = async () => {
-    const { data, error } = await supabase
-      .from("payment_cycles")
-      .select("*, students(name, guardian_name, guardian_contact)")
-      .order("created_at", { ascending: false });
+    const [{ data, error }, { data: tutorData }] = await Promise.all([
+      supabase
+        .from("payment_cycles")
+        .select("*, students(name, subject, guardian_name, guardian_contact)")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("tutors")
+        .select("full_name, paynow_number")
+        .eq("id", user.id)
+        .single(),
+    ]);
     if (error) setError(error.message);
     setCycles(data ?? []);
+    setTutorProfile(tutorData ?? {});
+
+    const cycleIds = (data ?? []).map((c) => c.id);
+    if (cycleIds.length > 0) {
+      const { data: lessonsData } = await supabase
+        .from("lessons")
+        .select("payment_cycle_id, lesson_date")
+        .in("payment_cycle_id", cycleIds)
+        .order("lesson_date", { ascending: true });
+      const map = {};
+      for (const l of lessonsData ?? []) {
+        if (!map[l.payment_cycle_id]) map[l.payment_cycle_id] = [];
+        map[l.payment_cycle_id].push(l.lesson_date);
+      }
+      setLessonDatesByCycle(map);
+    }
     setLoading(false);
   };
 
   useEffect(() => {
-    const initialLoad = async () => {
-      const { data, error } = await supabase
-        .from("payment_cycles")
-        .select("*, students(name, guardian_name, guardian_contact)")
-        .order("created_at", { ascending: false });
-      if (error) setError(error.message);
-      setCycles(data ?? []);
-      setLoading(false);
+    const run = async () => {
+      await load();
     };
-    initialLoad();
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCopy = async (cycle) => {
@@ -65,6 +90,29 @@ export default function Payments() {
     }
     await load();
     showToast("Marked as paid.");
+  };
+
+  const handleRequestPayment = (cycle) => {
+    const message = buildPaymentRequestMessage({
+      studentName: cycle.students?.name,
+      subject: cycle.students?.subject,
+      lessonDates: lessonDatesByCycle[cycle.id] ?? [],
+      amountDue: cycle.amount_due,
+      tutorName: tutorProfile.full_name,
+      paynowNumber: tutorProfile.paynow_number,
+    });
+    window.open(buildWhatsAppLink(message), "_blank");
+  };
+
+  const handleSendReceipt = (cycle) => {
+    const message = buildPaidReceiptMessage({
+      studentName: cycle.students?.name,
+      subject: cycle.students?.subject,
+      lessonDates: lessonDatesByCycle[cycle.id] ?? [],
+      amountDue: cycle.amount_due,
+      tutorName: tutorProfile.full_name,
+    });
+    window.open(buildWhatsAppLink(message), "_blank");
   };
 
   const pending = cycles.filter((c) => c.status === "pending");
@@ -127,6 +175,12 @@ export default function Payments() {
                   >
                     Mark as paid
                   </button>
+                  <button
+                    onClick={() => handleRequestPayment(c)}
+                    className="min-h-11 rounded-md bg-orange-500 px-3 text-sm font-medium text-white transition hover:bg-orange-600 hover:shadow"
+                  >
+                    💬 Request Payment
+                  </button>
                 </div>
               </li>
             ))}
@@ -160,6 +214,14 @@ export default function Payments() {
                     {formatDate(c.period_start)} – {formatDate(c.period_end)} ·{" "}
                     {formatSGD(c.amount_due)}
                   </p>
+                  {c.status === "paid" && (
+                    <button
+                      onClick={() => handleSendReceipt(c)}
+                      className="mt-2 min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 hover:shadow"
+                    >
+                      💬 Send WhatsApp Receipt
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -171,6 +233,7 @@ export default function Payments() {
                     <th className="px-4 py-2 font-medium">Period</th>
                     <th className="px-4 py-2 font-medium">Amount</th>
                     <th className="px-4 py-2 font-medium">Status</th>
+                    <th className="px-4 py-2 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -188,6 +251,16 @@ export default function Payments() {
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={c.status} />
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {c.status === "paid" && (
+                          <button
+                            onClick={() => handleSendReceipt(c)}
+                            className="font-medium text-green-600 hover:text-green-700"
+                          >
+                            💬 Send WhatsApp Receipt
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

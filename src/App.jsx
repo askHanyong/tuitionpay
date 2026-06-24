@@ -9,6 +9,7 @@ import Lessons from "./pages/Lessons";
 import Payments from "./pages/Payments";
 import Calendar from "./pages/Calendar";
 import StudentProfile from "./pages/StudentProfile";
+import Settings from "./pages/Settings";
 
 function App() {
   return (
@@ -62,6 +63,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Calendar />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
                 </ProtectedRoute>
               }
             />
