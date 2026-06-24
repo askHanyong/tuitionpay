@@ -8,6 +8,11 @@ import {
   requestGoogleCalendarAccess,
   revokeGoogleCalendarAccess,
 } from "../lib/googleCalendar";
+import {
+  buildReferralLink,
+  buildReferralWhatsAppMessage,
+} from "../lib/referral";
+import { buildWhatsAppLink } from "../lib/whatsapp";
 
 const NOTIFICATION_TYPES = [
   {
@@ -36,6 +41,9 @@ export default function Settings() {
   const [error, setError] = useState(null);
   const [googleTutor, setGoogleTutor] = useState(null);
   const [connecting, setConnecting] = useState(false);
+  const [referralCode, setReferralCode] = useState(null);
+  const [referralCount, setReferralCount] = useState(0);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [notifyPrefs, setNotifyPrefs] = useState({
     notify_lesson_reminders: true,
     notify_payment_due: true,
@@ -53,16 +61,21 @@ export default function Settings() {
 
   useEffect(() => {
     const load = async () => {
-      const { data, error } = await supabase
-        .from("tutors")
-        .select(
-          "paynow_number, google_access_token, google_token_expiry, notify_lesson_reminders, notify_payment_due, notify_weekly_summary",
-        )
-        .eq("id", user.id)
-        .single();
+      const [{ data, error }, { data: referralCountData }] = await Promise.all([
+        supabase
+          .from("tutors")
+          .select(
+            "paynow_number, google_access_token, google_token_expiry, notify_lesson_reminders, notify_payment_due, notify_weekly_summary, referral_code",
+          )
+          .eq("id", user.id)
+          .single(),
+        supabase.rpc("referral_count"),
+      ]);
       if (error) setError(error.message);
       setPaynowNumber(data?.paynow_number ?? "");
       setGoogleTutor(data ?? null);
+      setReferralCode(data?.referral_code ?? null);
+      setReferralCount(referralCountData ?? 0);
       if (data) {
         setNotifyPrefs({
           notify_lesson_reminders: data.notify_lesson_reminders,
@@ -74,6 +87,20 @@ export default function Settings() {
     };
     load();
   }, [user.id]);
+
+  const handleCopyReferralLink = async () => {
+    await navigator.clipboard.writeText(buildReferralLink(referralCode));
+    setLinkCopied(true);
+    showToast("Referral link copied.");
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  const handleShareReferralWhatsApp = () => {
+    window.open(
+      buildWhatsAppLink(buildReferralWhatsAppMessage(referralCode)),
+      "_blank",
+    );
+  };
 
   const handleToggleNotification = async (key) => {
     const nextValue = !notifyPrefs[key];
@@ -247,6 +274,57 @@ export default function Settings() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
+        <h2 className="text-base font-semibold text-gray-900">
+          Refer a Friend
+        </h2>
+        <p className="text-sm text-gray-600">
+          Invite other tutors to TuitionPayLah and help us grow!
+        </p>
+
+        {referralCode && (
+          <>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Your referral link
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={buildReferralLink(referralCode)}
+                  className="min-w-0 flex-1 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyReferralLink}
+                  className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+                >
+                  {linkCopied ? "Copied!" : "Copy link"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShareReferralWhatsApp}
+                  className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
+                >
+                  💬 Share via WhatsApp
+                </button>
+              </div>
+            </div>
+
+            <p className="text-sm font-medium text-gray-900">
+              You've referred {referralCount}{" "}
+              {referralCount === 1 ? "tutor" : "tutors"} so far! 🎉
+            </p>
+          </>
+        )}
+
+        <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          🏆 Top referrers will get exclusive perks when we launch premium
+          features — keep sharing!
+        </div>
       </section>
     </AppShell>
   );

@@ -1,36 +1,40 @@
-import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "../lib/supabase";
 
-const AuthContext = createContext(undefined)
+const AuthContext = createContext(undefined);
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setLoading(false)
-    })
+      setSession(session);
+      setLoading(false);
+    });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+      },
+    );
 
-    return () => listener.subscription.unsubscribe()
-  }, [])
+    return () => listener.subscription.unsubscribe();
+  }, []);
 
-  const signUp = (email, password, fullName) =>
+  const signUp = (email, password, fullName, referredBy) =>
     supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
-    })
+      options: {
+        data: { full_name: fullName, referred_by: referredBy || null },
+      },
+    });
 
   const signIn = (email, password) =>
-    supabase.auth.signInWithPassword({ email, password })
+    supabase.auth.signInWithPassword({ email, password });
 
-  const signOut = () => supabase.auth.signOut()
+  const signOut = () => supabase.auth.signOut();
 
   const value = {
     session,
@@ -39,15 +43,15 @@ export function AuthProvider({ children }) {
     signUp,
     signIn,
     signOut,
-  }
+  };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    throw new Error("useAuth must be used within an AuthProvider");
   }
-  return context
+  return context;
 }
