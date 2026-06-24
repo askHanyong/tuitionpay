@@ -136,10 +136,10 @@ export default function Dashboard() {
     );
   };
   const collectedThisMonth = paymentCycles
-    .filter((c) => c.status === "paid" && isThisMonth(c.paid_at))
+    .filter((c) => c.status === "paid" && isThisMonth(c.period_end))
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   const pendingThisMonth = paymentCycles
-    .filter((c) => c.status === "pending" && isThisMonth(c.created_at))
+    .filter((c) => c.status === "pending" && isThisMonth(c.period_end))
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
 
   const todayLessonNumber = (lesson) =>

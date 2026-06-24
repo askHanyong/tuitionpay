@@ -15,11 +15,11 @@ function computeForMonth(monthDate, lessons, paymentCycles) {
     isSameMonth(l.lesson_date, monthDate),
   );
   const collected = paymentCycles
-    .filter((c) => c.status === "paid" && isSameMonth(c.paid_at, monthDate))
+    .filter((c) => c.status === "paid" && isSameMonth(c.period_end, monthDate))
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   const pending = paymentCycles
     .filter(
-      (c) => c.status === "pending" && isSameMonth(c.created_at, monthDate),
+      (c) => c.status === "pending" && isSameMonth(c.period_end, monthDate),
     )
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
 
