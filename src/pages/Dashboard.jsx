@@ -238,6 +238,11 @@ export default function Dashboard() {
                           </span>
                         )}
                       </div>
+                      {(s.level || s.subject) && (
+                        <p className="mt-0.5 text-xs text-gray-400">
+                          {[s.level, s.subject].filter(Boolean).join(" ")}
+                        </p>
+                      )}
                       <p className="mt-0.5 text-xs text-gray-400">
                         {lastLessonDate
                           ? `Last lesson: ${formatDate(lastLessonDate)}`

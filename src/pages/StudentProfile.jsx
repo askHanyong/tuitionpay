@@ -203,6 +203,11 @@ export default function StudentProfile() {
                   {student.subject}
                 </span>
               )}
+              {student.level && (
+                <span className="inline-block rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                  {student.level}
+                </span>
+              )}
             </div>
             <p className="mt-1 text-sm text-gray-600">
               {student.hourly_rate != null

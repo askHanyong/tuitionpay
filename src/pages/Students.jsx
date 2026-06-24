@@ -6,10 +6,13 @@ import { useToast } from "../contexts/ToastContext";
 import AppShell from "../components/AppShell";
 import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
 import { formatDate } from "../lib/date";
+import { formatSGD } from "../lib/paymentNotice";
+import { LEVEL_OPTIONS } from "../lib/levels";
 
 const emptyForm = {
   name: "",
   subject: "",
+  level: "",
   hourly_rate: "",
   lesson_duration_hours: "",
 };
@@ -31,6 +34,7 @@ export default function Students() {
   const [lessonsByStudent, setLessonsByStudent] = useState({});
   const [lessonsLoading, setLessonsLoading] = useState(false);
   const [scheduleStudent, setScheduleStudent] = useState(null);
+  const [rateBenchmark, setRateBenchmark] = useState(null);
 
   const refreshLessonsFor = async (studentId) => {
     const { data } = await supabase
@@ -74,6 +78,7 @@ export default function Students() {
     setForm({
       name: student.name ?? "",
       subject: student.subject ?? "",
+      level: student.level ?? "",
       hourly_rate: student.hourly_rate ?? "",
       lesson_duration_hours: student.lesson_duration_hours ?? "",
     });
@@ -99,9 +104,31 @@ export default function Students() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const subject = form.subject.trim();
+    const level = form.level;
+    let cancelled = false;
+    const fetchBenchmark = async () => {
+      if (!subject || !level) {
+        if (!cancelled) setRateBenchmark(null);
+        return;
+      }
+      const { data } = await supabase.rpc("rate_benchmark", {
+        p_subject: subject,
+        p_level: level,
+      });
+      if (!cancelled) setRateBenchmark(data?.[0] ?? null);
+    };
+    fetchBenchmark();
+    return () => {
+      cancelled = true;
+    };
+  }, [form.subject, form.level]);
+
   const resetForm = () => {
     setForm(emptyForm);
     setEditingId(null);
+    setRateBenchmark(null);
   };
 
   const handleSubmit = async (e) => {
@@ -112,6 +139,7 @@ export default function Students() {
     const payload = {
       name: form.name.trim(),
       subject: form.subject.trim() || null,
+      level: form.level || null,
       hourly_rate: form.hourly_rate === "" ? null : Number(form.hourly_rate),
       lesson_duration_hours:
         form.lesson_duration_hours === ""
@@ -195,6 +223,24 @@ export default function Students() {
 
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
+              Level
+            </label>
+            <select
+              value={form.level}
+              onChange={(e) => setForm({ ...form, level: e.target.value })}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            >
+              <option value="">Select level...</option>
+              {LEVEL_OPTIONS.map((level) => (
+                <option key={level} value={level}>
+                  {level}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
               Hourly rate (SGD)
             </label>
             <input
@@ -207,6 +253,21 @@ export default function Students() {
               }
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             />
+            {rateBenchmark &&
+              (rateBenchmark.sample_size >= 3 ? (
+                <p className="mt-1 text-xs text-gray-500">
+                  💡 Tutors charge an average of{" "}
+                  {formatSGD(rateBenchmark.avg_rate)}/hr (range{" "}
+                  {formatSGD(rateBenchmark.min_rate)}–
+                  {formatSGD(rateBenchmark.max_rate)}/hr) for {form.level}{" "}
+                  {form.subject.trim()}.
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-gray-500">
+                  💡 Not enough data yet for this subject and level —
+                  you&apos;ll be among the first!
+                </p>
+              ))}
           </div>
 
           <div>
