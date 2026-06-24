@@ -6,6 +6,7 @@ import { formatSGD } from "../lib/paymentNotice";
 import { formatDate, formatLessonTime, toDateKey } from "../lib/date";
 import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import { getWeekSummaryKey, showAppNotification } from "../lib/notifications";
+import { buildGoogleMapsUrl } from "../lib/maps";
 import { useToast } from "../contexts/ToastContext";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
@@ -63,7 +64,7 @@ export default function Dashboard() {
         .order("period_end", { ascending: false }),
       supabase
         .from("lessons")
-        .select("*, students(name, subject)")
+        .select("*, students(name, subject, address)")
         .eq("lesson_date", todayKey())
         .order("lesson_time", { ascending: true }),
       supabase
@@ -325,6 +326,20 @@ export default function Dashboard() {
                     <p className="mt-0.5 text-xs text-gray-500">
                       Lesson {todayLessonNumber(l)} of 4
                     </p>
+                    {l.students?.address && (
+                      <p className="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
+                        <span>📍 {l.students.address}</span>
+                        <a
+                          href={buildGoogleMapsUrl(l.students.address)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="font-medium text-green-600 hover:text-green-700"
+                        >
+                          Open in Maps
+                        </a>
+                      </p>
+                    )}
                   </div>
                   <button
                     onClick={() => !done && handleMarkDone(l.id)}

@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
 import { formatDate, formatLessonTime } from "../lib/date";
 import AppShell from "../components/AppShell";
+import LessonDetailModal from "../components/LessonDetailModal";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -58,11 +59,12 @@ export default function Calendar() {
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedKey, setSelectedKey] = useState(null);
+  const [detailLesson, setDetailLesson] = useState(null);
 
   const reloadLessons = async () => {
     const { data } = await supabase
       .from("lessons")
-      .select("*, students(name, subject, hourly_rate)")
+      .select("*, students(name, subject, hourly_rate, address)")
       .order("created_at", { ascending: true });
     setLessons(data ?? []);
   };
@@ -176,6 +178,19 @@ export default function Calendar() {
     await reloadLessons();
   };
 
+  const handleMarkDone = async (lesson) => {
+    setDetailLesson(null);
+    const { error } = await supabase
+      .from("lessons")
+      .update({ status: "completed" })
+      .eq("id", lesson.id);
+    if (error) {
+      window.alert(error.message);
+      return;
+    }
+    await reloadLessons();
+  };
+
   return (
     <AppShell>
       <div className="flex flex-col gap-6 lg:flex-row">
@@ -261,22 +276,31 @@ export default function Calendar() {
                         {cell.date.getDate()}
                       </span>
                       <div className="flex flex-col gap-0.5 lg:gap-1">
-                        {dayLessons.slice(0, 2).map((l) => (
-                          <Link
-                            key={l.id}
-                            to={`/students/${l.student_id}`}
-                            onClick={(e) => e.stopPropagation()}
-                            className={`truncate rounded px-1 py-0.5 text-[10px] font-medium lg:rounded-md lg:px-1.5 lg:py-1 lg:text-xs ${studentColor.get(l.student_id) ?? "bg-gray-100 text-gray-700"}`}
-                          >
-                            {l.students?.name}
-                            {l.lesson_time &&
-                              ` ${formatLessonTime(l.lesson_time)}`}
-                            <span className="hidden lg:inline">
-                              {" "}
-                              ({lessonPosition.get(l.id) ?? "?"}/4)
-                            </span>
-                          </Link>
-                        ))}
+                        {dayLessons.slice(0, 2).map((l) => {
+                          const label = `${l.students?.name ?? ""}${
+                            l.lesson_time
+                              ? ` ${formatLessonTime(l.lesson_time)}`
+                              : ""
+                          }`;
+                          return (
+                            <button
+                              key={l.id}
+                              type="button"
+                              title={label}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDetailLesson(l);
+                              }}
+                              className={`truncate rounded px-1 py-0.5 text-left text-[10px] font-medium lg:rounded-md lg:px-1.5 lg:py-1 lg:text-xs ${studentColor.get(l.student_id) ?? "bg-gray-100 text-gray-700"}`}
+                            >
+                              {label}
+                              <span className="hidden lg:inline">
+                                {" "}
+                                ({lessonPosition.get(l.id) ?? "?"}/4)
+                              </span>
+                            </button>
+                          );
+                        })}
                         {dayLessons.length > 2 && (
                           <span className="text-[10px] font-medium text-gray-400 lg:text-xs">
                             +{dayLessons.length - 2} more
@@ -360,6 +384,19 @@ export default function Calendar() {
           )}
         </section>
       </div>
+
+      {detailLesson && (
+        <LessonDetailModal
+          lesson={detailLesson}
+          lessonNumber={lessonPosition.get(detailLesson.id)}
+          onClose={() => setDetailLesson(null)}
+          onEdit={() => {
+            setDetailLesson(null);
+            handleEditLesson(detailLesson);
+          }}
+          onMarkDone={() => handleMarkDone(detailLesson)}
+        />
+      )}
     </AppShell>
   );
 }

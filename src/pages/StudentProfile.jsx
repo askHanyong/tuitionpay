@@ -9,6 +9,7 @@ import {
   buildPaymentRequestMessage,
 } from "../lib/whatsapp";
 import { useAuth } from "../contexts/AuthContext";
+import { buildGoogleMapsUrl } from "../lib/maps";
 import AppShell from "../components/AppShell";
 import StatusBadge from "../components/StatusBadge";
 import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
@@ -228,6 +229,19 @@ export default function StudentProfile() {
               {student.lesson_duration_hours != null &&
                 ` · ${student.lesson_duration_hours}h lessons`}
             </p>
+            {student.address && (
+              <p className="mt-1 flex items-center gap-2 text-sm text-gray-600">
+                <span>📍 {student.address}</span>
+                <a
+                  href={buildGoogleMapsUrl(student.address)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-medium text-green-600 hover:text-green-700"
+                >
+                  Open in Maps
+                </a>
+              </p>
+            )}
           </div>
           <div className="flex gap-2">
             <button

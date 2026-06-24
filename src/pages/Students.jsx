@@ -15,6 +15,7 @@ const emptyForm = {
   level: "",
   hourly_rate: "",
   lesson_duration_hours: "",
+  address: "",
 };
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -81,6 +82,7 @@ export default function Students() {
       level: student.level ?? "",
       hourly_rate: student.hourly_rate ?? "",
       lesson_duration_hours: student.lesson_duration_hours ?? "",
+      address: student.address ?? "",
     });
   };
 
@@ -145,6 +147,7 @@ export default function Students() {
         form.lesson_duration_hours === ""
           ? null
           : Number(form.lesson_duration_hours),
+      address: form.address.trim() || null,
     };
 
     try {
@@ -285,6 +288,19 @@ export default function Students() {
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Home address (optional)
+          </label>
+          <input
+            type="text"
+            value={form.address}
+            onChange={(e) => setForm({ ...form, address: e.target.value })}
+            placeholder="e.g. 123 Clementi Ave 3, #05-12, Singapore 120123"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+          />
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
