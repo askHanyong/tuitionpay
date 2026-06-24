@@ -10,51 +10,28 @@ function isSameMonth(dateStr, monthDate) {
   );
 }
 
-function computeForMonth(monthDate, lessons, paymentCycles, students) {
+function computeForMonth(monthDate, lessons, paymentCycles) {
   const monthLessons = lessons.filter((l) =>
     isSameMonth(l.lesson_date, monthDate),
   );
   const collected = paymentCycles
-    .filter((c) => c.status === "paid" && isSameMonth(c.paid_at, monthDate))
+    .filter((c) => c.status === "paid" && isSameMonth(c.period_end, monthDate))
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   const pending = paymentCycles
     .filter(
-      (c) => c.status === "pending" && isSameMonth(c.created_at, monthDate),
+      (c) => c.status === "pending" && isSameMonth(c.period_end, monthDate),
     )
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
-
-  const countByStudent = new Map();
-  for (const l of monthLessons) {
-    countByStudent.set(
-      l.student_id,
-      (countByStudent.get(l.student_id) ?? 0) + 1,
-    );
-  }
-  let busiestId = null;
-  let busiestCount = 0;
-  for (const [id, count] of countByStudent) {
-    if (count > busiestCount) {
-      busiestId = id;
-      busiestCount = count;
-    }
-  }
-  const busiestName = busiestId
-    ? (monthLessons.find((l) => l.student_id === busiestId)?.students?.name ??
-      students.find((s) => s.id === busiestId)?.name ??
-      null)
-    : null;
 
   return {
     totalLessons: monthLessons.length,
     collected,
     pending,
     total: collected + pending,
-    busiestName,
-    busiestCount,
   };
 }
 
-export default function MonthlyRecapCard({ lessons, paymentCycles, students }) {
+export default function MonthlyRecapCard({ lessons, paymentCycles }) {
   const [monthDate, setMonthDate] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
@@ -65,12 +42,12 @@ export default function MonthlyRecapCard({ lessons, paymentCycles, students }) {
   );
 
   const current = useMemo(
-    () => computeForMonth(monthDate, lessons, paymentCycles, students),
-    [monthDate, lessons, paymentCycles, students],
+    () => computeForMonth(monthDate, lessons, paymentCycles),
+    [monthDate, lessons, paymentCycles],
   );
   const previous = useMemo(
-    () => computeForMonth(prevMonthDate, lessons, paymentCycles, students),
-    [prevMonthDate, lessons, paymentCycles, students],
+    () => computeForMonth(prevMonthDate, lessons, paymentCycles),
+    [prevMonthDate, lessons, paymentCycles],
   );
 
   const change =
@@ -123,7 +100,7 @@ export default function MonthlyRecapCard({ lessons, paymentCycles, students }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="text-center">
           <p className="text-xl font-semibold text-gray-900">
             {current.totalLessons}
@@ -160,14 +137,6 @@ export default function MonthlyRecapCard({ lessons, paymentCycles, students }) {
                 {prevMonthLabel}
               </span>
             )}
-          </p>
-        </div>
-        <div className="text-center">
-          <p className="truncate text-xl font-semibold text-gray-900">
-            {current.busiestName ?? "—"}
-          </p>
-          <p className="mt-1 text-xs font-medium text-gray-600">
-            🏆 Busiest student
           </p>
         </div>
       </div>
