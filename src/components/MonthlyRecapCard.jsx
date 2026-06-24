@@ -1,0 +1,180 @@
+import { useMemo, useState } from "react";
+import { formatSGD } from "../lib/paymentNotice";
+
+function isSameMonth(dateStr, monthDate) {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  return (
+    d.getFullYear() === monthDate.getFullYear() &&
+    d.getMonth() === monthDate.getMonth()
+  );
+}
+
+function computeForMonth(monthDate, lessons, paymentCycles, students) {
+  const monthLessons = lessons.filter((l) =>
+    isSameMonth(l.lesson_date, monthDate),
+  );
+  const collected = paymentCycles
+    .filter((c) => c.status === "paid" && isSameMonth(c.paid_at, monthDate))
+    .reduce((sum, c) => sum + Number(c.amount_due), 0);
+  const pending = paymentCycles
+    .filter(
+      (c) => c.status === "pending" && isSameMonth(c.created_at, monthDate),
+    )
+    .reduce((sum, c) => sum + Number(c.amount_due), 0);
+
+  const countByStudent = new Map();
+  for (const l of monthLessons) {
+    countByStudent.set(
+      l.student_id,
+      (countByStudent.get(l.student_id) ?? 0) + 1,
+    );
+  }
+  let busiestId = null;
+  let busiestCount = 0;
+  for (const [id, count] of countByStudent) {
+    if (count > busiestCount) {
+      busiestId = id;
+      busiestCount = count;
+    }
+  }
+  const busiestName = busiestId
+    ? (monthLessons.find((l) => l.student_id === busiestId)?.students?.name ??
+      students.find((s) => s.id === busiestId)?.name ??
+      null)
+    : null;
+
+  return {
+    totalLessons: monthLessons.length,
+    collected,
+    pending,
+    total: collected + pending,
+    busiestName,
+    busiestCount,
+  };
+}
+
+export default function MonthlyRecapCard({ lessons, paymentCycles, students }) {
+  const [monthDate, setMonthDate] = useState(
+    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  );
+
+  const prevMonthDate = useMemo(
+    () => new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1),
+    [monthDate],
+  );
+
+  const current = useMemo(
+    () => computeForMonth(monthDate, lessons, paymentCycles, students),
+    [monthDate, lessons, paymentCycles, students],
+  );
+  const previous = useMemo(
+    () => computeForMonth(prevMonthDate, lessons, paymentCycles, students),
+    [prevMonthDate, lessons, paymentCycles, students],
+  );
+
+  const change =
+    previous.total > 0
+      ? Math.round(((current.total - previous.total) / previous.total) * 100)
+      : null;
+
+  const message =
+    current.total > 3000
+      ? "🔥 Amazing month! You're on fire!"
+      : current.total >= 2000
+        ? "💪 Solid month! Keep it going!"
+        : "📈 Building up — every lesson counts!";
+
+  const monthLabel = monthDate.toLocaleDateString("en-SG", {
+    month: "long",
+    year: "numeric",
+  });
+  const prevMonthLabel = prevMonthDate.toLocaleDateString("en-SG", {
+    month: "short",
+  });
+
+  const goToMonth = (offset) => {
+    setMonthDate(
+      (prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1),
+    );
+  };
+
+  return (
+    <section className="rounded-xl border border-green-200 bg-green-50 p-5 shadow-sm">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-base font-semibold text-gray-900">
+          {monthLabel} recap
+        </h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => goToMonth(-1)}
+            aria-label="Previous month"
+            className="min-h-11 rounded-md border border-green-300 bg-white px-2.5 text-sm text-gray-600 hover:bg-green-100"
+          >
+            ←
+          </button>
+          <button
+            onClick={() => goToMonth(1)}
+            aria-label="Next month"
+            className="min-h-11 rounded-md border border-green-300 bg-white px-2.5 text-sm text-gray-600 hover:bg-green-100"
+          >
+            →
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+        <div className="text-center">
+          <p className="text-xl font-semibold text-gray-900">
+            {current.totalLessons}
+          </p>
+          <p className="mt-1 text-xs font-medium text-gray-600">
+            📚 Lessons taught
+          </p>
+        </div>
+        <div className="text-center">
+          <p className="text-xl font-semibold text-green-700">
+            {formatSGD(current.collected)}
+          </p>
+          <p className="mt-1 text-xs font-medium text-gray-600">✅ Collected</p>
+        </div>
+        <div className="text-center">
+          <p className="text-xl font-semibold text-amber-700">
+            {formatSGD(current.pending)}
+          </p>
+          <p className="mt-1 text-xs font-medium text-gray-600">⏳ Pending</p>
+        </div>
+        <div className="text-center">
+          <p className="text-xl font-semibold text-gray-900">
+            {formatSGD(current.total)}
+          </p>
+          <p className="mt-1 text-xs font-medium text-gray-600">
+            💰 Total earned
+            {change != null && (
+              <span
+                className={`ml-1 font-semibold ${
+                  change >= 0 ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                {change >= 0 ? "↑" : "↓"} {Math.abs(change)}% vs{" "}
+                {prevMonthLabel}
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="text-center">
+          <p className="truncate text-xl font-semibold text-gray-900">
+            {current.busiestName ?? "—"}
+          </p>
+          <p className="mt-1 text-xs font-medium text-gray-600">
+            🏆 Busiest student
+          </p>
+        </div>
+      </div>
+
+      <p className="mt-4 text-center text-sm font-medium text-gray-700">
+        {message}
+      </p>
+    </section>
+  );
+}

@@ -8,6 +8,7 @@ import { useToast } from "../contexts/ToastContext";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
 import Onboarding from "../components/Onboarding";
+import MonthlyRecapCard from "../components/MonthlyRecapCard";
 
 export default function Dashboard() {
   const { showToast } = useToast();
@@ -168,6 +169,12 @@ export default function Dashboard() {
 
   return (
     <AppShell>
+      <MonthlyRecapCard
+        lessons={lessons}
+        paymentCycles={paymentCycles}
+        students={students}
+      />
+
       {!loading && pendingCycleByStudent.size > 0 && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-sm">
           <span className="font-semibold">⚠️ Payment due:</span>{" "}
