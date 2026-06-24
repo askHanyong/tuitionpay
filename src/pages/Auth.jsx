@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function Auth() {
-  const [mode, setMode] = useState("login");
+  const [searchParams] = useSearchParams();
+  const [mode, setMode] = useState(
+    searchParams.get("mode") === "signup" ? "signup" : "login",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
