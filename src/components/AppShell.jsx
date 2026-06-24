@@ -76,6 +76,79 @@ function NavIcon({ name, className }) {
   );
 }
 
+function CloverLogo({ className }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 100 110"
+      aria-hidden="true"
+    >
+      <g transform="translate(50, 52)">
+        <ellipse cx="0" cy="-28" rx="20" ry="24" fill="#22c55e" />
+        <ellipse
+          cx="0"
+          cy="-28"
+          rx="20"
+          ry="24"
+          fill="#16a34a"
+          transform="rotate(90)"
+        />
+        <ellipse
+          cx="0"
+          cy="-28"
+          rx="20"
+          ry="24"
+          fill="#22c55e"
+          transform="rotate(180)"
+        />
+        <ellipse
+          cx="0"
+          cy="-28"
+          rx="20"
+          ry="24"
+          fill="#16a34a"
+          transform="rotate(270)"
+        />
+        <ellipse cx="0" cy="-26" rx="12" ry="15" fill="#4ade80" />
+        <ellipse
+          cx="0"
+          cy="-26"
+          rx="12"
+          ry="15"
+          fill="#4ade80"
+          transform="rotate(90)"
+        />
+        <ellipse
+          cx="0"
+          cy="-26"
+          rx="12"
+          ry="15"
+          fill="#4ade80"
+          transform="rotate(180)"
+        />
+        <ellipse
+          cx="0"
+          cy="-26"
+          rx="12"
+          ry="15"
+          fill="#4ade80"
+          transform="rotate(270)"
+        />
+        <circle cx="0" cy="0" r="14" fill="#bbf7d0" />
+        <circle cx="0" cy="0" r="8" fill="#4ade80" />
+        <path
+          d="M0,14 Q5,28 3,40"
+          fill="none"
+          stroke="#15803d"
+          strokeWidth="3"
+          strokeLinecap="round"
+        />
+      </g>
+    </svg>
+  );
+}
+
 export default function AppShell({ children }) {
   const { user, signOut } = useAuth();
   const { pathname } = useLocation();
@@ -86,10 +159,10 @@ export default function AppShell({ children }) {
       <aside className="hidden lg:flex lg:w-60 lg:flex-none lg:flex-col lg:border-r lg:border-gray-200 lg:bg-white">
         <Link
           to="/dashboard"
-          className="flex items-center gap-2 px-6 py-5 text-lg font-semibold text-gray-900"
+          className="flex items-center gap-2 px-6 py-5 text-lg text-gray-900"
         >
-          <span aria-hidden="true">🌿</span>
-          TuitionPay
+          <CloverLogo className="h-9 w-9 flex-none" />
+          <span className="font-medium">TuitionPayLah</span>
         </Link>
         <nav className="flex flex-1 flex-col gap-1 px-3">
           {NAV_ITEMS.map((item) => {
@@ -126,10 +199,10 @@ export default function AppShell({ children }) {
           <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
             <Link
               to="/dashboard"
-              className="flex items-center gap-2 text-lg font-semibold text-gray-900"
+              className="flex items-center gap-2 text-lg text-gray-900"
             >
-              <span aria-hidden="true">🌿</span>
-              TuitionPay
+              <CloverLogo className="h-9 w-9 flex-none" />
+              <span className="font-medium">TuitionPayLah</span>
             </Link>
             <button
               onClick={() => setMenuOpen((open) => !open)}
