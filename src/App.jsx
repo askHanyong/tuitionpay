@@ -4,6 +4,7 @@ import { ToastProvider } from "./contexts/ToastContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import OfflineBanner from "./components/OfflineBanner";
 import InstallPromptBanner from "./components/InstallPromptBanner";
+import FeedbackButton from "./components/FeedbackButton";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -15,6 +16,7 @@ import StudentProfile from "./pages/StudentProfile";
 import Settings from "./pages/Settings";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
+import About from "./pages/About";
 
 function App() {
   return (
@@ -23,6 +25,7 @@ function App() {
         <ToastProvider>
           <OfflineBanner />
           <InstallPromptBanner />
+          <FeedbackButton />
           <Routes>
             <Route path="/login" element={<Auth />} />
             <Route
@@ -82,6 +85,7 @@ function App() {
               }
             />
             <Route path="/" element={<Landing />} />
+            <Route path="/about" element={<About />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
           </Routes>

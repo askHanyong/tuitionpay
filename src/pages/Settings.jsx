@@ -13,6 +13,10 @@ import {
   buildReferralWhatsAppMessage,
 } from "../lib/referral";
 import { buildWhatsAppLink } from "../lib/whatsapp";
+import {
+  buildFeedbackMailtoLink,
+  buildFeedbackWhatsAppLink,
+} from "../lib/feedback";
 
 const NOTIFICATION_TYPES = [
   {
@@ -324,6 +328,29 @@ export default function Settings() {
         <div className="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-800">
           🏆 Top referrers will get exclusive perks when we launch premium
           features — keep sharing!
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
+        <h2 className="text-base font-semibold text-gray-900">Send Feedback</h2>
+        <p className="text-sm text-gray-600">
+          Got a suggestion or found a bug? We'd love to hear from you.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href={buildFeedbackWhatsAppLink()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex min-h-11 items-center rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
+          >
+            💬 WhatsApp us
+          </a>
+          <a
+            href={buildFeedbackMailtoLink()}
+            className="flex min-h-11 items-center rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+          >
+            ✉️ Send an email
+          </a>
         </div>
       </section>
     </AppShell>
