@@ -319,15 +319,11 @@ export default function Dashboard() {
                   <div>
                     <p className="text-sm font-medium text-gray-900">
                       {l.students?.name}
-                      {l.students?.subject && (
-                        <span className="ml-2 inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                          {l.students.subject}
-                        </span>
-                      )}
+                      {l.lesson_time && ` · ${formatLessonTime(l.lesson_time)}`}
+                      {l.students?.subject && ` · ${l.students.subject}`}
                     </p>
                     <p className="mt-0.5 text-xs text-gray-500">
-                      {formatLessonTime(l.lesson_time)} · Lesson{" "}
-                      {todayLessonNumber(l)} of 4
+                      Lesson {todayLessonNumber(l)} of 4
                     </p>
                   </div>
                   <button

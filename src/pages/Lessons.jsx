@@ -13,14 +13,22 @@ import AppShell from "../components/AppShell";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-const emptyForm = (students, prefillDate) => ({
+const emptyForm = (students, prefillDate, defaultTime) => ({
   student_id: students[0]?.id ?? "",
   lesson_date: prefillDate ?? today(),
-  lesson_time: "09:00",
+  lesson_time: defaultTime ?? "",
   duration_hours: students[0]?.lesson_duration_hours ?? "",
   rate: students[0]?.hourly_rate ?? "",
   notes: "",
 });
+
+// Most recently used lesson_time for a student, based on the latest lesson_date.
+function mostRecentLessonTime(lessons, studentId) {
+  const matches = lessons
+    .filter((l) => l.student_id === studentId && l.lesson_time)
+    .sort((a, b) => (a.lesson_date < b.lesson_date ? 1 : -1));
+  return matches[0]?.lesson_time?.slice(0, 5) ?? "";
+}
 
 export default function Lessons() {
   const { user } = useAuth();
@@ -58,7 +66,13 @@ export default function Lessons() {
       if (lessonsError) setError(lessonsError.message);
       setStudents(studentsData ?? []);
       setLessons(lessonsData ?? []);
-      setForm((f) => emptyForm(studentsData ?? [], f.lesson_date));
+      setForm((f) =>
+        emptyForm(
+          studentsData ?? [],
+          f.lesson_date,
+          mostRecentLessonTime(lessonsData ?? [], (studentsData ?? [])[0]?.id),
+        ),
+      );
       if (editLessonId) {
         const lesson = (lessonsData ?? []).find((l) => l.id === editLessonId);
         if (lesson) {
@@ -165,12 +179,19 @@ export default function Lessons() {
       student_id: studentId,
       duration_hours: student?.lesson_duration_hours ?? "",
       rate: student?.hourly_rate ?? "",
+      lesson_time: mostRecentLessonTime(lessons, studentId),
     });
   };
 
   const resetForm = () => {
     setEditingId(null);
-    setForm((f) => emptyForm(students, f.lesson_date));
+    setForm((f) =>
+      emptyForm(
+        students,
+        f.lesson_date,
+        mostRecentLessonTime(lessons, students[0]?.id),
+      ),
+    );
   };
 
   const handleEditLesson = (lesson) => {
@@ -377,11 +398,10 @@ export default function Lessons() {
 
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
-                Time
+                Lesson time (optional)
               </label>
               <input
                 type="time"
-                required
                 value={form.lesson_time}
                 onChange={(e) =>
                   setForm({ ...form, lesson_time: e.target.value })

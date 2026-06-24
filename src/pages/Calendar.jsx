@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
-import { formatDate } from "../lib/date";
+import { formatDate, formatLessonTime } from "../lib/date";
 import AppShell from "../components/AppShell";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -117,6 +117,11 @@ export default function Calendar() {
       if (!lesson.lesson_date) continue;
       if (!map.has(lesson.lesson_date)) map.set(lesson.lesson_date, []);
       map.get(lesson.lesson_date).push(lesson);
+    }
+    for (const dayLessons of map.values()) {
+      dayLessons.sort((a, b) =>
+        (a.lesson_time ?? "").localeCompare(b.lesson_time ?? ""),
+      );
     }
     return map;
   }, [lessons]);
@@ -263,15 +268,13 @@ export default function Calendar() {
                             onClick={(e) => e.stopPropagation()}
                             className={`truncate rounded px-1 py-0.5 text-[10px] font-medium lg:rounded-md lg:px-1.5 lg:py-1 lg:text-xs ${studentColor.get(l.student_id) ?? "bg-gray-100 text-gray-700"}`}
                           >
-                            {l.students?.name} (
-                            {lessonPosition.get(l.id) ?? "?"}
-                            /4)
-                            {l.lesson_time && (
-                              <span className="hidden lg:inline">
-                                {" "}
-                                · {l.lesson_time.slice(0, 5)}
-                              </span>
-                            )}
+                            {l.students?.name}
+                            {l.lesson_time &&
+                              ` ${formatLessonTime(l.lesson_time)}`}
+                            <span className="hidden lg:inline">
+                              {" "}
+                              ({lessonPosition.get(l.id) ?? "?"}/4)
+                            </span>
                           </Link>
                         ))}
                         {dayLessons.length > 2 && (
@@ -321,6 +324,7 @@ export default function Calendar() {
                     {l.students?.name}
                   </Link>
                   <p className="mb-2 text-xs text-gray-500">
+                    {l.lesson_time && `${formatLessonTime(l.lesson_time)} · `}
                     {l.students?.subject || "—"} · Lesson{" "}
                     {lessonPosition.get(l.id) ?? "?"} of 4 ·{" "}
                     {(l.duration_minutes / 60).toFixed(2)}h
