@@ -13,3 +13,12 @@ export function toDateKey(date) {
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
+
+function formatLessonDateShort(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return d.toLocaleDateString("en-SG", { day: "numeric", month: "short" });
+}
+
+export function formatLessonDates(lessonDates) {
+  return lessonDates.map(formatLessonDateShort).join(", ");
+}

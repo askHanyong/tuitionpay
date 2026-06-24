@@ -1,4 +1,4 @@
-import { formatDate } from "./date";
+import { formatLessonDates } from "./date";
 
 export function formatSGD(amount) {
   return new Intl.NumberFormat("en-SG", {
@@ -9,18 +9,27 @@ export function formatSGD(amount) {
 
 export function buildPaymentNoticeMessage({
   studentName,
+  lessonDates,
   amountDue,
-  periodStart,
-  periodEnd,
+  paynowNumber,
   tutorName,
 }) {
-  const from = formatDate(periodStart);
-  const to = formatDate(periodEnd);
-
-  return [
+  const lines = [
     `Hi! This is a payment reminder for ${studentName}'s tuition.`,
-    `4 lessons (${from} - ${to}) have been completed.`,
+    "",
+    `4 lessons (${formatLessonDates(lessonDates ?? [])}) have been completed.`,
+    "",
     `Amount due: ${formatSGD(amountDue)}.`,
-    `Please make payment at your earliest convenience. Thank you!${tutorName ? `\n- ${tutorName}` : ""}`,
-  ].join("\n");
+  ];
+  if (paynowNumber) {
+    lines.push("", `Payment can be made via PayNow: ${paynowNumber}`);
+  }
+  lines.push(
+    "",
+    "Please make payment at your earliest convenience. Thank you!",
+  );
+  if (tutorName) {
+    lines.push("", tutorName);
+  }
+  return lines.join("\n");
 }

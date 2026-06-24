@@ -1,13 +1,5 @@
 import { formatSGD } from "./paymentNotice";
-
-function formatLessonDateShort(dateStr) {
-  const d = new Date(`${dateStr}T00:00:00`);
-  return d.toLocaleDateString("en-SG", { day: "numeric", month: "short" });
-}
-
-export function formatLessonDates(lessonDates) {
-  return lessonDates.map(formatLessonDateShort).join(", ");
-}
+import { formatLessonDates } from "./date";
 
 function studentLabel(studentName, subject) {
   return subject ? `${studentName} (${subject})` : studentName;

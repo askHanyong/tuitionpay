@@ -66,10 +66,10 @@ export default function Payments() {
   const handleCopy = async (cycle) => {
     const message = buildPaymentNoticeMessage({
       studentName: cycle.students?.name,
+      lessonDates: lessonDatesByCycle[cycle.id] ?? [],
       amountDue: cycle.amount_due,
-      periodStart: cycle.period_start,
-      periodEnd: cycle.period_end,
-      tutorName: user?.user_metadata?.full_name,
+      paynowNumber: tutorProfile.paynow_number,
+      tutorName: tutorProfile.full_name,
     });
     await navigator.clipboard.writeText(message);
     setCopiedId(cycle.id);
