@@ -64,7 +64,7 @@ function PhoneMockup() {
                 Today's lessons
               </p>
               <p className="mt-1 text-xs font-semibold text-gray-900">
-                Lucas · 3:30pm
+                Wei Ming · 3:30pm
               </p>
             </div>
             <div className="rounded-lg border border-gray-100 bg-white p-3">
@@ -80,11 +80,11 @@ function PhoneMockup() {
                 ⚠️ Payment due
               </p>
               <p className="mt-1 text-xs text-red-800">
-                Angie — $540, 4 lessons completed
+                Priya — $540, 4 lessons completed
               </p>
             </div>
             <div className="space-y-2">
-              {["Yuan Xin", "Laurel", "Lucas"].map((name) => (
+              {["Danial", "Sarah", "Wei Ming"].map((name) => (
                 <div
                   key={name}
                   className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-sm"
