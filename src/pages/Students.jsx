@@ -16,7 +16,17 @@ const emptyForm = {
   hourly_rate: "",
   lesson_duration_hours: "",
   address: "",
+  payment_mode: "lessons",
+  payment_cycle_count: "4",
+  payment_custom_day: "1",
 };
+
+const PAYMENT_MODE_OPTIONS = [
+  { value: "lessons", label: "Every N lessons" },
+  { value: "monthly", label: "End of each month" },
+  { value: "per_lesson", label: "After each lesson" },
+  { value: "custom_date", label: "On a specific day each month" },
+];
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -83,6 +93,9 @@ export default function Students() {
       hourly_rate: student.hourly_rate ?? "",
       lesson_duration_hours: student.lesson_duration_hours ?? "",
       address: student.address ?? "",
+      payment_mode: student.payment_mode ?? "lessons",
+      payment_cycle_count: String(student.payment_cycle_count ?? 4),
+      payment_custom_day: String(student.payment_custom_day ?? 1),
     });
   };
 
@@ -148,6 +161,13 @@ export default function Students() {
           ? null
           : Number(form.lesson_duration_hours),
       address: form.address.trim() || null,
+      payment_mode: form.payment_mode,
+      payment_cycle_count:
+        form.payment_mode === "lessons" ? Number(form.payment_cycle_count) : 4,
+      payment_custom_day:
+        form.payment_mode === "custom_date"
+          ? Number(form.payment_custom_day)
+          : null,
     };
 
     try {
@@ -301,6 +321,66 @@ export default function Students() {
             placeholder="e.g. 123 Clementi Ave 3, #05-12, Singapore 120123"
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
           />
+        </div>
+
+        <div className="rounded-md border border-gray-200 p-4">
+          <label className="mb-2 block text-sm font-medium text-gray-700">
+            Payment cycle
+          </label>
+          <div className="space-y-2">
+            {PAYMENT_MODE_OPTIONS.map((opt) => (
+              <div key={opt.value} className="flex items-center gap-2">
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="radio"
+                    name="payment_mode"
+                    value={opt.value}
+                    checked={form.payment_mode === opt.value}
+                    onChange={() =>
+                      setForm({ ...form, payment_mode: opt.value })
+                    }
+                  />
+                  {opt.label}
+                </label>
+                {opt.value === "lessons" && form.payment_mode === "lessons" && (
+                  <input
+                    type="number"
+                    min="2"
+                    max="20"
+                    value={form.payment_cycle_count}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        payment_cycle_count: e.target.value,
+                      })
+                    }
+                    className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  />
+                )}
+                {opt.value === "custom_date" &&
+                  form.payment_mode === "custom_date" && (
+                    <select
+                      value={form.payment_custom_day}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          payment_custom_day: e.target.value,
+                        })
+                      }
+                      className="rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                    >
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map(
+                        (day) => (
+                          <option key={day} value={day}>
+                            {day}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  )}
+              </div>
+            ))}
+          </div>
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}

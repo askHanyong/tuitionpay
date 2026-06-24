@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { formatSGD } from "../lib/paymentNotice";
+import { ordinal } from "../lib/paymentMode";
 import { formatDate, formatLessonTime, toDateKey } from "../lib/date";
 import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import { getWeekSummaryKey, showAppNotification } from "../lib/notifications";
@@ -414,11 +415,28 @@ export default function Dashboard() {
                 const completed = openCountByStudent.get(s.id) ?? 0;
                 const pendingCycle = pendingCycleByStudent.get(s.id);
                 const paymentDue = Boolean(pendingCycle);
+                const cycleCount = s.payment_cycle_count ?? 4;
                 const expectedAmount =
                   s.hourly_rate != null && s.lesson_duration_hours != null
-                    ? s.hourly_rate * s.lesson_duration_hours * 4
+                    ? s.hourly_rate *
+                      s.lesson_duration_hours *
+                      (s.payment_mode === "per_lesson" ? 1 : cycleCount)
                     : null;
                 const lastLessonDate = lastLessonByStudent.get(s.id);
+                const progressLabel = (() => {
+                  if (s.payment_mode === "per_lesson") {
+                    return completed > 0
+                      ? `${completed} lesson${completed === 1 ? "" : "s"} unpaid${expectedAmount != null ? ` · ${formatSGD(completed * (s.hourly_rate ?? 0) * (s.lesson_duration_hours ?? 0))} due` : ""}`
+                      : "No unpaid lessons";
+                  }
+                  if (s.payment_mode === "monthly") {
+                    return `${monthLabel.split(" ")[0]}: ${completed} lesson${completed === 1 ? "" : "s"}${expectedAmount != null ? ` · ${formatSGD(completed * (s.hourly_rate ?? 0) * (s.lesson_duration_hours ?? 0))} due ${formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0))}` : ""}`;
+                  }
+                  if (s.payment_mode === "custom_date") {
+                    return `${completed} lesson${completed === 1 ? "" : "s"}${expectedAmount != null ? ` · ${formatSGD(completed * (s.hourly_rate ?? 0) * (s.lesson_duration_hours ?? 0))} due on ${ordinal(s.payment_custom_day ?? 1)}` : ""}`;
+                  }
+                  return `${completed}/${cycleCount} lessons${expectedAmount != null ? ` · ${formatSGD(expectedAmount)} due at completion` : ""}`;
+                })();
                 return (
                   <li
                     key={s.id}
@@ -458,18 +476,21 @@ export default function Dashboard() {
                     </div>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                       <div className="flex items-center gap-3">
-                        <div className="h-2 w-full max-w-40 flex-1 overflow-hidden rounded-full bg-gray-100 sm:w-24 sm:flex-none">
-                          <div
-                            className={`h-full rounded-full ${paymentDue ? "bg-red-500" : "bg-green-500"}`}
-                            style={{
-                              width: `${Math.min(completed, 4) * 25}%`,
-                            }}
-                          />
-                        </div>
-                        <span className="text-xs font-medium text-gray-500">
-                          {completed}/4 lessons
-                          {expectedAmount != null &&
-                            ` · ${formatSGD(expectedAmount)} due at completion`}
+                        {s.payment_mode === "lessons" ||
+                        s.payment_mode == null ? (
+                          <div className="h-2 w-full max-w-40 flex-1 overflow-hidden rounded-full bg-gray-100 sm:w-24 sm:flex-none">
+                            <div
+                              className={`h-full rounded-full ${paymentDue ? "bg-red-500" : "bg-green-500"}`}
+                              style={{
+                                width: `${Math.min(completed, cycleCount) * (100 / cycleCount)}%`,
+                              }}
+                            />
+                          </div>
+                        ) : null}
+                        <span
+                          className={`text-xs font-medium ${s.payment_mode === "per_lesson" && completed > 0 ? "text-amber-700" : "text-gray-500"}`}
+                        >
+                          {progressLabel}
                         </span>
                       </div>
                       {paymentDue && (

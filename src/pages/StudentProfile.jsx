@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatSGD } from "../lib/paymentNotice";
 import { formatDate } from "../lib/date";
+import { paymentModeLabel } from "../lib/paymentMode";
 import { useToast } from "../contexts/ToastContext";
 import {
   buildPaidReceiptMessage,
@@ -136,6 +137,12 @@ export default function StudentProfile() {
       amountDue: cycle.amount_due,
       tutorName: tutorProfile.full_name,
       paynowNumber: tutorProfile.paynow_number,
+      paymentMode: student.payment_mode,
+      monthLabel: new Date(`${cycle.period_end}T00:00:00`).toLocaleDateString(
+        "en-SG",
+        { month: "long" },
+      ),
+      dueDateLabel: formatDate(cycle.period_end),
     });
     setPreview({ title: "Payment request", message, mode: "whatsapp" });
   };
@@ -221,6 +228,9 @@ export default function StudentProfile() {
                   {student.level}
                 </span>
               )}
+              <span className="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                {paymentModeLabel(student)}
+              </span>
             </div>
             <p className="mt-1 text-sm text-gray-600">
               {student.hourly_rate != null

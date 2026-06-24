@@ -25,6 +25,26 @@ export function buildPaidReceiptMessage({
   ].join("\n");
 }
 
+function paymentRequestOpeningLine({
+  paymentMode,
+  studentLabelText,
+  lessonDates,
+  amountDue,
+  monthLabel,
+  dueDateLabel,
+}) {
+  switch (paymentMode) {
+    case "monthly":
+      return `Hi! Just a reminder that payment for ${studentLabelText}'s ${monthLabel} lessons is due. Total: ${formatSGD(amountDue)} for ${lessonDates.length} lesson${lessonDates.length === 1 ? "" : "s"}.`;
+    case "per_lesson":
+      return `Hi! Just a reminder that payment for ${studentLabelText}'s ${dueDateLabel} lesson is due. Amount: ${formatSGD(amountDue)}.`;
+    case "custom_date":
+      return `Hi! Just a reminder that ${studentLabelText}'s monthly payment of ${formatSGD(amountDue)} is due on ${dueDateLabel}.`;
+    default:
+      return `Hi! 👋 Just a friendly reminder that 4 lessons have been completed for ${studentLabelText}.`;
+  }
+}
+
 export function buildPaymentRequestMessage({
   studentName,
   subject,
@@ -32,9 +52,19 @@ export function buildPaymentRequestMessage({
   amountDue,
   tutorName,
   paynowNumber,
+  paymentMode = "lessons",
+  monthLabel,
+  dueDateLabel,
 }) {
   const lines = [
-    `Hi! 👋 Just a friendly reminder that 4 lessons have been completed for ${studentLabel(studentName, subject)}.`,
+    paymentRequestOpeningLine({
+      paymentMode,
+      studentLabelText: studentLabel(studentName, subject),
+      lessonDates,
+      amountDue,
+      monthLabel,
+      dueDateLabel,
+    }),
     `📚 Lessons: ${formatLessonDates(lessonDates)}`,
     "",
     `💰 Amount due: ${formatSGD(amountDue)}`,

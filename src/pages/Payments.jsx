@@ -26,7 +26,9 @@ export default function Payments() {
     const [{ data, error }, { data: tutorData }] = await Promise.all([
       supabase
         .from("payment_cycles")
-        .select("*, students(name, subject, guardian_name, guardian_contact)")
+        .select(
+          "*, students(name, subject, guardian_name, guardian_contact, payment_mode, payment_cycle_count, payment_custom_day)",
+        )
         .order("created_at", { ascending: false }),
       supabase
         .from("tutors")
@@ -93,6 +95,12 @@ export default function Payments() {
       amountDue: cycle.amount_due,
       tutorName: tutorProfile.full_name,
       paynowNumber: tutorProfile.paynow_number,
+      paymentMode: cycle.students?.payment_mode,
+      monthLabel: new Date(`${cycle.period_end}T00:00:00`).toLocaleDateString(
+        "en-SG",
+        { month: "long" },
+      ),
+      dueDateLabel: formatDate(cycle.period_end),
     });
     setPreview({
       title: "Payment request",
