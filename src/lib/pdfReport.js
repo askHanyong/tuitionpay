@@ -2,6 +2,16 @@ import { jsPDF } from "jspdf";
 import { formatSGD } from "./paymentNotice";
 import { reportFilenameBase } from "./monthlyReport";
 
+// jsPDF's built-in fonts only support WinAnsi encoding, which has no emoji
+// glyphs — render them as mangled bytes instead of failing silently, so
+// strip them out of any text drawn into the PDF.
+function stripEmoji(text) {
+  return text
+    .replace(/[\u{1F000}-\u{1FFFF}\u{2190}-\u{2BFF}\u{2600}-\u{27BF}]/gu, "")
+    .replace(/️/gu, "")
+    .trim();
+}
+
 export function downloadMonthlyReportPdf(monthDate, tutorName, report) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -98,7 +108,7 @@ export function downloadMonthlyReportPdf(monthDate, tutorName, report) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.setTextColor(22, 101, 52);
-  doc.text(report.message, margin, y);
+  doc.text(stripEmoji(report.message), margin, y);
 
   const footerY = doc.internal.pageSize.getHeight() - 36;
   doc.setFont("helvetica", "normal");
