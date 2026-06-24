@@ -8,6 +8,7 @@ import { formatDate } from "../lib/date";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
 import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import { createCalendarEvent, isGoogleTokenValid } from "../lib/googleCalendar";
+import { showAppNotification } from "../lib/notifications";
 import AppShell from "../components/AppShell";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -265,6 +266,18 @@ export default function Lessons() {
         setInfo(
           "Lesson logged. 4 lessons have now accumulated — a payment notice is ready below.",
         );
+        if (cycle) {
+          const { data: tutor } = await supabase
+            .from("tutors")
+            .select("notify_payment_due")
+            .eq("id", user.id)
+            .single();
+          if (tutor?.notify_payment_due) {
+            showAppNotification(
+              `${cycle.students?.name} has completed 4 lessons — ${formatSGD(cycle.amount_due)} due! 💰`,
+            );
+          }
+        }
       } else {
         setInfo("Lesson logged.");
       }

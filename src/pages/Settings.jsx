@@ -9,6 +9,24 @@ import {
   revokeGoogleCalendarAccess,
 } from "../lib/googleCalendar";
 
+const NOTIFICATION_TYPES = [
+  {
+    key: "notify_lesson_reminders",
+    label: "Pre-lesson reminders",
+    description: "Notify me 30 minutes before each scheduled lesson.",
+  },
+  {
+    key: "notify_payment_due",
+    label: "Payment due",
+    description: "Notify me as soon as a student completes their 4th lesson.",
+  },
+  {
+    key: "notify_weekly_summary",
+    label: "Weekly summary",
+    description: "Notify me every Sunday at 8pm with a summary of the week.",
+  },
+];
+
 export default function Settings() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -18,6 +36,11 @@ export default function Settings() {
   const [error, setError] = useState(null);
   const [googleTutor, setGoogleTutor] = useState(null);
   const [connecting, setConnecting] = useState(false);
+  const [notifyPrefs, setNotifyPrefs] = useState({
+    notify_lesson_reminders: true,
+    notify_payment_due: true,
+    notify_weekly_summary: true,
+  });
 
   const loadGoogleStatus = async () => {
     const { data } = await supabase
@@ -32,16 +55,40 @@ export default function Settings() {
     const load = async () => {
       const { data, error } = await supabase
         .from("tutors")
-        .select("paynow_number, google_access_token, google_token_expiry")
+        .select(
+          "paynow_number, google_access_token, google_token_expiry, notify_lesson_reminders, notify_payment_due, notify_weekly_summary",
+        )
         .eq("id", user.id)
         .single();
       if (error) setError(error.message);
       setPaynowNumber(data?.paynow_number ?? "");
       setGoogleTutor(data ?? null);
+      if (data) {
+        setNotifyPrefs({
+          notify_lesson_reminders: data.notify_lesson_reminders,
+          notify_payment_due: data.notify_payment_due,
+          notify_weekly_summary: data.notify_weekly_summary,
+        });
+      }
       setLoading(false);
     };
     load();
   }, [user.id]);
+
+  const handleToggleNotification = async (key) => {
+    const nextValue = !notifyPrefs[key];
+    setNotifyPrefs((prev) => ({ ...prev, [key]: nextValue }));
+    const { error } = await supabase
+      .from("tutors")
+      .update({ [key]: nextValue })
+      .eq("id", user.id);
+    if (error) {
+      setNotifyPrefs((prev) => ({ ...prev, [key]: !nextValue }));
+      showToast(error.message, "error");
+      return;
+    }
+    showToast("Notification preferences saved.");
+  };
 
   const handleConnectGoogle = async () => {
     setConnecting(true);
@@ -165,6 +212,41 @@ export default function Settings() {
             {connecting ? "Connecting..." : "Connect Google Calendar"}
           </button>
         )}
+      </section>
+
+      <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
+        <h2 className="text-base font-semibold text-gray-900">Notifications</h2>
+        <ul className="divide-y divide-gray-100">
+          {NOTIFICATION_TYPES.map((type) => (
+            <li
+              key={type.key}
+              className="flex items-center justify-between gap-4 py-3"
+            >
+              <div>
+                <p className="text-sm font-medium text-gray-900">
+                  {type.label}
+                </p>
+                <p className="text-xs text-gray-500">{type.description}</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={notifyPrefs[type.key]}
+                onClick={() => handleToggleNotification(type.key)}
+                disabled={loading}
+                className={`relative inline-flex h-7 w-12 flex-none items-center rounded-full transition disabled:opacity-50 ${
+                  notifyPrefs[type.key] ? "bg-green-600" : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white transition ${
+                    notifyPrefs[type.key] ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </li>
+          ))}
+        </ul>
       </section>
     </AppShell>
   );

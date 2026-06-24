@@ -1,19 +1,23 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../contexts/AuthContext";
 import { formatSGD } from "../lib/paymentNotice";
 import { formatDate, formatLessonTime, toDateKey } from "../lib/date";
 import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
+import { getWeekSummaryKey, showAppNotification } from "../lib/notifications";
 import { useToast } from "../contexts/ToastContext";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
 import Onboarding from "../components/Onboarding";
 import MonthlyRecapCard from "../components/MonthlyRecapCard";
+import NotificationPrompt from "../components/NotificationPrompt";
 
 const todayKey = () => toDateKey(new Date());
 const tomorrowKey = () => toDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const { showToast } = useToast();
   const [students, setStudents] = useState([]);
   const [lessons, setLessons] = useState([]);
@@ -21,6 +25,11 @@ export default function Dashboard() {
   const [todayLessons, setTodayLessons] = useState([]);
   const [tomorrowLessons, setTomorrowLessons] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [notifyPrefs, setNotifyPrefs] = useState({
+    notify_lesson_reminders: true,
+    notify_payment_due: true,
+    notify_weekly_summary: true,
+  });
   const [onboardingDismissed, setOnboardingDismissed] = useState(
     () => localStorage.getItem("tuitionpay_onboarding_dismissed") === "true",
   );
@@ -73,10 +82,64 @@ export default function Dashboard() {
 
   useEffect(() => {
     const load = async () => {
+      const { data: tutorData } = await supabase
+        .from("tutors")
+        .select(
+          "notify_lesson_reminders, notify_payment_due, notify_weekly_summary",
+        )
+        .eq("id", user.id)
+        .single();
+      if (tutorData) setNotifyPrefs(tutorData);
       await loadAll();
     };
     load();
-  }, []);
+  }, [user.id]);
+
+  useEffect(() => {
+    if (!notifyPrefs.notify_lesson_reminders) return;
+    const timers = [];
+    const now = Date.now();
+    for (const lesson of todayLessons) {
+      if (lesson.status === "completed" || !lesson.lesson_time) continue;
+      const [h, m] = lesson.lesson_time.split(":").map(Number);
+      const lessonTime = new Date();
+      lessonTime.setHours(h, m, 0, 0);
+      const fireAt = lessonTime.getTime() - 30 * 60 * 1000;
+      const delay = fireAt - now;
+      if (delay <= 0 || delay > 24 * 60 * 60 * 1000) continue;
+      timers.push(
+        setTimeout(() => {
+          showAppNotification(
+            `${lesson.students?.name} at ${formatLessonTime(lesson.lesson_time)} in 30 minutes 📚`,
+          );
+        }, delay),
+      );
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [todayLessons, notifyPrefs.notify_lesson_reminders]);
+
+  useEffect(() => {
+    if (!notifyPrefs.notify_weekly_summary || loading) return;
+    const now = new Date();
+    if (now.getDay() !== 0 || now.getHours() < 20) return;
+    const key = getWeekSummaryKey(now);
+    if (localStorage.getItem(key) === "1") return;
+    const weekStart = new Date(now);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(weekStart.getDate() - 6);
+    const weekStartKey = toDateKey(weekStart);
+    const todayK = todayKey();
+    const weekLessons = lessons.filter(
+      (l) => l.lesson_date >= weekStartKey && l.lesson_date <= todayK,
+    );
+    const weekEarnings = paymentCycles
+      .filter((c) => c.period_end >= weekStartKey && c.period_end <= todayK)
+      .reduce((sum, c) => sum + Number(c.amount_due), 0);
+    showAppNotification(
+      `This week: ${weekLessons.length} lessons · ${formatSGD(weekEarnings)} earned 🎉`,
+    );
+    localStorage.setItem(key, "1");
+  }, [notifyPrefs.notify_weekly_summary, loading, lessons, paymentCycles]);
 
   // Position each lesson within its running 4-lesson billing sequence, based
   // purely on chronological lesson_date (not insertion order or which
@@ -148,6 +211,9 @@ export default function Dashboard() {
       : ((openCountByStudent.get(lesson.student_id) ?? 0) % 4) + 1;
 
   const handleMarkDone = async (lessonId) => {
+    const previouslyPendingIds = new Set(
+      paymentCycles.filter((c) => c.status === "pending").map((c) => c.id),
+    );
     setTodayLessons((prev) =>
       prev.map((l) => (l.id === lessonId ? { ...l, status: "completed" } : l)),
     );
@@ -166,6 +232,20 @@ export default function Dashboard() {
     }
     showToast("Lesson marked as done.");
     await loadAll();
+    if (notifyPrefs.notify_payment_due) {
+      const { data: newCycles } = await supabase
+        .from("payment_cycles")
+        .select("*, students(name)")
+        .eq("status", "pending");
+      const newlyCreated = (newCycles ?? []).find(
+        (c) => !previouslyPendingIds.has(c.id),
+      );
+      if (newlyCreated) {
+        showAppNotification(
+          `${newlyCreated.students?.name} has completed 4 lessons — ${formatSGD(newlyCreated.amount_due)} due! 💰`,
+        );
+      }
+    }
   };
 
   const handleCollectPayment = async (cycleId) => {
@@ -190,6 +270,7 @@ export default function Dashboard() {
   if (!loading && students.length === 0) {
     return (
       <AppShell>
+        <NotificationPrompt />
         {showOnboarding && (
           <Onboarding
             onDismiss={() => setOnboardingDismissed(true)}
@@ -214,6 +295,8 @@ export default function Dashboard() {
 
   return (
     <AppShell>
+      <NotificationPrompt />
+
       <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
         <h2 className="mb-4 text-base font-semibold text-gray-900">
           Today&apos;s lessons
