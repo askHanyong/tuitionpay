@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
@@ -351,6 +352,24 @@ export default function Settings() {
           >
             ✉️ Send an email
           </a>
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-md border border-gray-200 bg-white p-5">
+        <h2 className="text-base font-semibold text-gray-900">Legal</h2>
+        <div className="flex flex-wrap gap-4">
+          <Link
+            to="/privacy"
+            className="text-sm font-medium text-green-600 hover:text-green-700"
+          >
+            Privacy Policy
+          </Link>
+          <Link
+            to="/terms"
+            className="text-sm font-medium text-green-600 hover:text-green-700"
+          >
+            Terms of Service
+          </Link>
         </div>
       </section>
     </AppShell>
