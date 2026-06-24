@@ -2,6 +2,8 @@ import { Route, BrowserRouter, Routes } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ToastProvider } from "./contexts/ToastContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import OfflineBanner from "./components/OfflineBanner";
+import InstallPromptBanner from "./components/InstallPromptBanner";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -19,6 +21,8 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
+          <OfflineBanner />
+          <InstallPromptBanner />
           <Routes>
             <Route path="/login" element={<Auth />} />
             <Route
