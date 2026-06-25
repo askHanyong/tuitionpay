@@ -10,7 +10,6 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [referredBy] = useState(searchParams.get("ref") || "");
   const [error, setError] = useState(null);
   const [info, setInfo] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -30,7 +29,7 @@ export default function Auth() {
 
     try {
       if (mode === "signup") {
-        const { error } = await signUp(email, password, fullName, referredBy);
+        const { error } = await signUp(email, password, fullName);
         if (error) throw error;
         setInfo("Check your email to confirm your account, then log in.");
         setMode("login");

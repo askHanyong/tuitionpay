@@ -22,12 +22,12 @@ export function AuthProvider({ children }) {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  const signUp = (email, password, fullName, referredBy) =>
+  const signUp = (email, password, fullName) =>
     supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name: fullName, referred_by: referredBy || null },
+        data: { full_name: fullName },
       },
     });
 
