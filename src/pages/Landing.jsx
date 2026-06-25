@@ -30,6 +30,24 @@ const FEATURES = [
   },
 ];
 
+const TRUST_POINTS = [
+  {
+    title: "👤 Only you can see your data",
+    description:
+      "Your students, rates and earnings are visible only to you. Not even the developer can access your individual data.",
+  },
+  {
+    title: "🔐 Bank-level encryption",
+    description:
+      "All data is encrypted in transit and at rest on Supabase (AWS infrastructure).",
+  },
+  {
+    title: "📊 Anonymous benchmarks only",
+    description:
+      "Rate benchmarks are calculated from anonymised averages only. No individual data is ever shared or viewed.",
+  },
+];
+
 const TESTIMONIALS = [
   {
     name: "Rachel Tan",
@@ -252,6 +270,25 @@ export default function Landing() {
             >
               Sign up free
             </Link>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-gray-50 py-16 sm:py-20">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <h2 className="text-center text-2xl font-bold text-gray-900 sm:text-3xl">
+            <span aria-hidden="true">🔒</span> Your data is private
+          </h2>
+          <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
+            {TRUST_POINTS.map((t) => (
+              <div
+                key={t.title}
+                className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm"
+              >
+                <p className="text-sm font-semibold text-gray-900">{t.title}</p>
+                <p className="mt-2 text-sm text-gray-600">{t.description}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>

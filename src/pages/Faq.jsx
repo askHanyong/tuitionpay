@@ -50,6 +50,14 @@ const SECTIONS = [
           </>
         ),
       },
+      {
+        q: "Can the developer see my students' names and how much I earn?",
+        a: "No. The developer has committed not to access, view or use any individual tutor data — including student names, hourly rates or earnings. Only anonymous aggregate statistics (like total number of app users) are ever reviewed. Your data is yours alone.",
+      },
+      {
+        q: "How do the rate benchmarks work — can you see what I charge?",
+        a: "No. Rate benchmarks are calculated using anonymous database averages across all tutors teaching the same subject and level. The system only ever sees the average, minimum and maximum — never which tutor charges what. Your individual rate is completely private.",
+      },
     ],
   },
   {

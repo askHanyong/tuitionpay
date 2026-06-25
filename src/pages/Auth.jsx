@@ -115,6 +115,13 @@ export default function Auth() {
                 ? "Log in"
                 : "Sign up"}
           </button>
+
+          {mode === "signup" && (
+            <p className="text-center text-xs text-gray-500">
+              <span aria-hidden="true">🔒</span> Free · Your data is private ·
+              No credit card needed
+            </p>
+          )}
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-500">

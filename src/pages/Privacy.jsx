@@ -72,6 +72,44 @@ export default function Privacy() {
           <p className="font-medium text-gray-900">
             We do NOT use your data for advertising.
           </p>
+          <p className="font-medium text-gray-900">
+            The app developer does not access individual tutor data. Your
+            students, rates and earnings are visible only to you.
+          </p>
+        </Section>
+
+        <Section title="Developer Data Access Policy">
+          <p>
+            As the developer of ChopeAndPay, Hanyong Lim commits to the
+            following:
+          </p>
+          <ul className="list-inside list-disc space-y-1">
+            <li>
+              I do not access, view, browse or use any individual tutor's data,
+              including student names, lesson details, hourly rates or earnings
+              figures.
+            </li>
+            <li>
+              I do not run queries against individual tutor records for any
+              purpose other than technical debugging when explicitly requested
+              by the affected tutor.
+            </li>
+            <li>
+              The only data I may review is anonymous aggregate statistics such
+              as total number of registered users or total lessons logged across
+              the platform — never individual records.
+            </li>
+            <li>
+              Rate benchmark features are calculated using anonymised database
+              averages only. No individual tutor's rate is ever identified,
+              viewed or shared.
+            </li>
+          </ul>
+          <p>
+            This is a personal project built in good faith for the Singapore
+            tutor community. Your trust means everything to me.
+          </p>
+          <p className="font-medium text-gray-900">— Hanyong Lim, Developer</p>
         </Section>
 
         <Section title="Data storage">
