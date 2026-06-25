@@ -157,12 +157,14 @@ export default function AppShell({ children }) {
   return (
     <div className="min-h-screen bg-gray-50 lg:flex">
       <aside className="hidden lg:flex lg:w-60 lg:flex-none lg:flex-col lg:border-r lg:border-gray-200 lg:bg-white">
-        <Link
-          to="/dashboard"
-          className="flex items-center gap-2 px-6 py-5 text-lg text-gray-900"
-        >
-          <CloverLogo className="h-9 w-9 flex-none" />
-          <span className="font-medium">ChopeAndPay</span>
+        <Link to="/dashboard" className="flex flex-col gap-1 px-6 py-5">
+          <span className="flex items-center gap-2 text-lg text-gray-900">
+            <CloverLogo className="h-9 w-9 flex-none" />
+            <span className="font-medium">ChopeAndPay</span>
+          </span>
+          <span className="text-xs text-gray-500">
+            Chope your slots. Track your lessons. Get paid on time.
+          </span>
         </Link>
         <nav className="flex flex-1 flex-col gap-1 px-3">
           {NAV_ITEMS.map((item) => {

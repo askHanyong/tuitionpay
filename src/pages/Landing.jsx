@@ -153,8 +153,7 @@ export default function Landing() {
               Stop tracking payments in WhatsApp. Start using ChopeAndPay.
             </h1>
             <p className="mt-5 text-lg text-gray-600">
-              The free app for Singapore tutors and freelancers to chope their
-              slots, track lessons and get paid on time.
+              Chope your slots. Track your lessons. Get paid on time.
             </p>
             <div className="mt-8 flex justify-center lg:justify-start">
               <Link
