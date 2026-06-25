@@ -131,6 +131,12 @@ export default function Landing() {
               About
             </Link>
             <Link
+              to="/faq"
+              className="min-h-11 rounded-md px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100 flex items-center"
+            >
+              FAQ
+            </Link>
+            <Link
               to="/login"
               className="min-h-11 rounded-md px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100 flex items-center"
             >
@@ -321,6 +327,9 @@ export default function Landing() {
             <div className="flex flex-wrap items-center justify-center gap-4">
               <Link to="/about" className="hover:text-gray-700">
                 About
+              </Link>
+              <Link to="/faq" className="hover:text-gray-700">
+                FAQ
               </Link>
               <Link to="/privacy" className="hover:text-gray-700">
                 Privacy Policy

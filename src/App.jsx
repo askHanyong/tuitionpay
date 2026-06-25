@@ -17,6 +17,7 @@ import Settings from "./pages/Settings";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import About from "./pages/About";
+import Faq from "./pages/Faq";
 
 function App() {
   return (
@@ -86,6 +87,7 @@ function App() {
             />
             <Route path="/" element={<Landing />} />
             <Route path="/about" element={<About />} />
+            <Route path="/faq" element={<Faq />} />
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/terms" element={<Terms />} />
           </Routes>
