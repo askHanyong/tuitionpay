@@ -48,6 +48,13 @@ function formatTime(d) {
     .toLowerCase();
 }
 
+export function formatDateTime(date, time) {
+  const formattedDate = formatDate(date);
+  if (!time) return formattedDate;
+  const d = new Date(`2000-01-01T${time.slice(0, 5)}:00`);
+  return `${formattedDate} · ${formatTime(d)}`;
+}
+
 const DAY_NAMES = [
   "Sunday",
   "Monday",

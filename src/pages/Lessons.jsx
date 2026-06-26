@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
-import { formatDate } from "../utils/dateFormat";
+import { formatDate, formatDateTime } from "../utils/dateFormat";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
 import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import { createCalendarEvent, isGoogleTokenValid } from "../lib/googleCalendar";
@@ -28,6 +28,71 @@ function mostRecentLessonTime(lessons, studentId) {
     .filter((l) => l.student_id === studentId && l.lesson_time)
     .sort((a, b) => (a.lesson_date < b.lesson_date ? 1 : -1));
   return matches[0]?.lesson_time?.slice(0, 5) ?? "";
+}
+
+function isLessonCompleted(lesson) {
+  return lesson.status === "scheduled" ? lesson.lesson_date <= today() : true;
+}
+
+function LessonActionsMenu({ onAddToCalendar, onEdit, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative inline-block text-left">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Lesson actions"
+        className="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+      >
+        ⋯
+      </button>
+      {open && (
+        <div className="absolute right-0 z-10 mt-1 w-44 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onAddToCalendar();
+            }}
+            className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+          >
+            📅 Add to Calendar
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onEdit();
+            }}
+            className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onDelete();
+            }}
+            className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-50"
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function Lessons() {
@@ -550,49 +615,49 @@ export default function Lessons() {
                   key={l.id}
                   className="rounded-md border border-gray-200 bg-white p-4"
                 >
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="flex items-center gap-2 font-medium text-gray-900">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <span className="flex flex-wrap items-center gap-2 font-medium text-gray-900">
                       <Link
                         to={`/students/${l.student_id}`}
                         className="hover:text-green-700"
                       >
                         {l.students?.name}
                       </Link>
-                      {l.status === "scheduled" && (
+                      {isLessonCompleted(l) ? (
+                        <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                          Completed
+                        </span>
+                      ) : (
                         <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                           Scheduled
                         </span>
                       )}
                     </span>
-                    <span className="text-sm text-gray-500">
-                      {formatDate(l.lesson_date)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-500">
+                        {formatDateTime(l.lesson_date, l.lesson_time)}
+                      </span>
+                      <LessonActionsMenu
+                        onAddToCalendar={() => handleAddToCalendar(l)}
+                        onEdit={() => handleEditLesson(l)}
+                        onDelete={() => handleDelete(l.id)}
+                      />
+                    </div>
                   </div>
-                  <p className="mb-3 text-sm text-gray-600">
+                  <p className="text-sm text-gray-600">
                     {(l.duration_minutes / 60).toFixed(2)}h
                     {l.rate != null && ` · $${l.rate}/hr`}
-                    {` · Billed: ${l.payment_cycle_id ? "Yes" : "No"}`}
+                    {" · "}
+                    {l.payment_cycle_id ? (
+                      <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                        Paid
+                      </span>
+                    ) : (
+                      <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                        Unpaid
+                      </span>
+                    )}
                   </p>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => handleAddToCalendar(l)}
-                      className="text-sm font-medium text-green-600 hover:text-green-700"
-                    >
-                      📅 Add to Calendar
-                    </button>
-                    <button
-                      onClick={() => handleEditLesson(l)}
-                      className="text-sm font-medium text-gray-700 hover:text-gray-900"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(l.id)}
-                      className="text-sm font-medium text-red-600 hover:text-red-700"
-                    >
-                      Delete
-                    </button>
-                  </div>
                 </li>
               ))}
             </ul>
@@ -602,9 +667,10 @@ export default function Lessons() {
                   <tr>
                     <th className="px-4 py-2 font-medium">Date</th>
                     <th className="px-4 py-2 font-medium">Student</th>
+                    <th className="px-4 py-2 font-medium">Status</th>
                     <th className="px-4 py-2 font-medium">Duration</th>
                     <th className="px-4 py-2 font-medium">Rate</th>
-                    <th className="px-4 py-2 font-medium">Billed</th>
+                    <th className="px-4 py-2 font-medium">Payment</th>
                     <th className="px-4 py-2 font-medium"></th>
                   </tr>
                 </thead>
@@ -612,22 +678,26 @@ export default function Lessons() {
                   {lessons.map((l) => (
                     <tr key={l.id} className="transition hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-900">
-                        {formatDate(l.lesson_date)}
+                        {formatDateTime(l.lesson_date, l.lesson_time)}
                       </td>
                       <td className="px-4 py-3 text-gray-700">
-                        <span className="flex items-center gap-2">
-                          <Link
-                            to={`/students/${l.student_id}`}
-                            className="hover:text-green-700"
-                          >
-                            {l.students?.name}
-                          </Link>
-                          {l.status === "scheduled" && (
-                            <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                              Scheduled
-                            </span>
-                          )}
-                        </span>
+                        <Link
+                          to={`/students/${l.student_id}`}
+                          className="hover:text-green-700"
+                        >
+                          {l.students?.name}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        {isLessonCompleted(l) ? (
+                          <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                            Completed
+                          </span>
+                        ) : (
+                          <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                            Scheduled
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         {(l.duration_minutes / 60).toFixed(2)}h
@@ -635,28 +705,23 @@ export default function Lessons() {
                       <td className="px-4 py-3 text-gray-700">
                         {l.rate != null ? `$${l.rate}` : "—"}
                       </td>
-                      <td className="px-4 py-3 text-gray-700">
-                        {l.payment_cycle_id ? "Yes" : "No"}
+                      <td className="px-4 py-3">
+                        {l.payment_cycle_id ? (
+                          <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                            Paid
+                          </span>
+                        ) : (
+                          <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                            Unpaid
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleAddToCalendar(l)}
-                          className="mr-3 font-medium text-green-600 hover:text-green-700"
-                        >
-                          📅 Add to Calendar
-                        </button>
-                        <button
-                          onClick={() => handleEditLesson(l)}
-                          className="mr-3 font-medium text-gray-700 hover:text-gray-900"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(l.id)}
-                          className="font-medium text-red-600 hover:text-red-700"
-                        >
-                          Delete
-                        </button>
+                        <LessonActionsMenu
+                          onAddToCalendar={() => handleAddToCalendar(l)}
+                          onEdit={() => handleEditLesson(l)}
+                          onDelete={() => handleDelete(l.id)}
+                        />
                       </td>
                     </tr>
                   ))}
