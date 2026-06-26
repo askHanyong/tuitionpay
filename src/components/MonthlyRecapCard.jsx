@@ -29,19 +29,26 @@ function computeForMonth(monthDate, lessons, paymentCycles, students) {
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   // A payment cycle only gets created once its full lesson group has
   // landed, so a student mid-cycle (e.g. 3 of 4 lessons done) has no
-  // payment_cycles row yet -- their accumulating amount has to come from
-  // completed-but-unbilled lessons (payment_cycle_id is null) directly, or
-  // it's invisible here even though it's money already earned this month.
+  // payment_cycles row yet. Once at least one of this month's lessons has
+  // landed unbilled (payment_cycle_id is null), the FULL cycle amount is
+  // what's actually pending -- that's what gets collected the moment the
+  // last lesson in the cycle is logged, not just the lessons-so-far amount.
   const studentsById = new Map(students.map((s) => [s.id, s]));
-  const pendingFromMidCycleLessons = monthLessons
-    .filter((l) => !l.payment_cycle_id)
-    .reduce((sum, l) => {
-      const student = studentsById.get(l.student_id);
+  const midCycleStudentIds = new Set(
+    monthLessons.filter((l) => !l.payment_cycle_id).map((l) => l.student_id),
+  );
+  const pendingFromMidCycleLessons = [...midCycleStudentIds].reduce(
+    (sum, studentId) => {
+      const student = studentsById.get(studentId);
       if (!student) return sum;
-      const lessonAmount =
-        (student.hourly_rate ?? 0) * (student.lesson_duration_hours ?? 0);
-      return sum + lessonAmount;
-    }, 0);
+      const cycleAmount =
+        (student.hourly_rate ?? 0) *
+        (student.lesson_duration_hours ?? 0) *
+        (student.payment_cycle_count ?? 4);
+      return sum + cycleAmount;
+    },
+    0,
+  );
   const pending = pendingFromCycles + pendingFromMidCycleLessons;
 
   return {

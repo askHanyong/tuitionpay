@@ -267,22 +267,29 @@ export default function Dashboard() {
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   // A cycle only exists once its full lesson group has landed, so a student
   // mid-cycle (e.g. 3 of 4 lessons done) has no payment_cycles row at all
-  // yet -- their accumulating amount has to be derived directly from
-  // completed-but-unbilled lessons (payment_cycle_id is null) rather than
-  // read off payment_cycles, or it's invisible here even though it's money
-  // already earned this month.
+  // yet. Once at least one of this month's lessons has landed unbilled
+  // (payment_cycle_id is null), the FULL cycle amount is what's actually
+  // pending -- that's what gets collected the moment the last lesson in the
+  // cycle is logged, not just the lessons-so-far amount.
   const pendingFromCyclesThisMonth = paymentCycles
     .filter((c) => c.status === "pending" && isThisMonth(c.period_end))
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
-  const pendingFromMidCycleLessonsThisMonth = lessons
-    .filter((l) => !l.payment_cycle_id && isThisMonth(l.lesson_date))
-    .reduce((sum, l) => {
-      const student = studentsById.get(l.student_id);
-      if (!student) return sum;
-      const lessonAmount =
-        (student.hourly_rate ?? 0) * (student.lesson_duration_hours ?? 0);
-      return sum + lessonAmount;
-    }, 0);
+  const midCycleStudentIdsThisMonth = new Set(
+    lessons
+      .filter((l) => !l.payment_cycle_id && isThisMonth(l.lesson_date))
+      .map((l) => l.student_id),
+  );
+  const pendingFromMidCycleLessonsThisMonth = [
+    ...midCycleStudentIdsThisMonth,
+  ].reduce((sum, studentId) => {
+    const student = studentsById.get(studentId);
+    if (!student) return sum;
+    const cycleAmount =
+      (student.hourly_rate ?? 0) *
+      (student.lesson_duration_hours ?? 0) *
+      (student.payment_cycle_count ?? 4);
+    return sum + cycleAmount;
+  }, 0);
   const pendingThisMonth =
     pendingFromCyclesThisMonth + pendingFromMidCycleLessonsThisMonth;
 
