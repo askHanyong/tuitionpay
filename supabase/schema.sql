@@ -171,8 +171,6 @@ begin
     for month_rec in
       select date_trunc('month', lesson_date)::date as month_start,
              array_agg(id order by lesson_date, created_at) as lesson_ids,
-             min(lesson_date) as period_start,
-             max(lesson_date) as period_end,
              count(*) as lesson_count
       from lessons
       where student_id = p_student_id and is_completed
@@ -193,6 +191,9 @@ begin
         continue;
       end if;
 
+      -- Monthly billing always covers the full calendar month, regardless
+      -- of which day the first lesson actually fell on.
+      v_period_start := month_rec.month_start;
       v_amount := month_rec.lesson_count * coalesce(v_hourly_rate, 0) * coalesce(v_duration_hours, 0);
 
       select id into cycle_id
@@ -205,11 +206,11 @@ begin
 
       if cycle_id is not null then
         update payment_cycles
-        set period_start = month_rec.period_start, period_end = v_due_date
+        set period_start = v_period_start, period_end = v_due_date
         where id = cycle_id;
       else
         insert into payment_cycles (tutor_id, student_id, period_start, period_end, amount_due, status)
-        values (p_tutor_id, p_student_id, month_rec.period_start, v_due_date, v_amount, 'pending')
+        values (p_tutor_id, p_student_id, v_period_start, v_due_date, v_amount, 'pending')
         returning id into cycle_id;
       end if;
 

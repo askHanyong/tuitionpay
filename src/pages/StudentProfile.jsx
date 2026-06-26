@@ -80,19 +80,38 @@ export default function StudentProfile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const lessonPosition = useMemo(() => {
-    const sorted = [...lessons].sort((a, b) =>
-      a.lesson_date < b.lesson_date
-        ? -1
-        : a.lesson_date > b.lesson_date
-          ? 1
-          : 0,
-    );
-    const positions = new Map();
-    sorted.forEach((l, i) => positions.set(l.id, (i % 4) + 1));
-    return positions;
-  }, [lessons]);
+  const isMonthlyBilled =
+    student?.payment_mode === "monthly" ||
+    student?.payment_mode === "custom_date";
 
+  const lessonPosition = useMemo(() => {
+    const groupKey = (l) =>
+      isMonthlyBilled ? l.lesson_date?.slice(0, 7) : "all";
+    const groups = new Map();
+    for (const l of lessons) {
+      const key = groupKey(l);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(l);
+    }
+    const positions = new Map();
+    const cycleCount = student?.payment_cycle_count ?? 4;
+    for (const group of groups.values()) {
+      const sorted = [...group].sort((a, b) =>
+        a.lesson_date < b.lesson_date
+          ? -1
+          : a.lesson_date > b.lesson_date
+            ? 1
+            : 0,
+      );
+      sorted.forEach((l, i) =>
+        positions.set(l.id, isMonthlyBilled ? i + 1 : (i % cycleCount) + 1),
+      );
+    }
+    return positions;
+  }, [lessons, isMonthlyBilled, student?.payment_cycle_count]);
+
+  const lessonAmount =
+    (student?.hourly_rate ?? 0) * (student?.lesson_duration_hours ?? 0);
   const completedLessons = lessons.filter((l) => l.is_completed);
   const totalLessons = completedLessons.length;
   const totalEarned = cycles
@@ -100,10 +119,7 @@ export default function StudentProfile() {
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   const openCount = completedLessons.filter((l) => !l.payment_cycle_id).length;
   const cycleCount = student?.payment_cycle_count ?? 4;
-  const cycleAmount =
-    (student?.hourly_rate ?? 0) *
-    (student?.lesson_duration_hours ?? 0) *
-    cycleCount;
+  const cycleAmount = lessonAmount * cycleCount;
   const currentCycleProgress = `Lesson ${Math.min(openCount, cycleCount)} of ${cycleCount}`;
   const lessonsThisMonth = useMemo(() => {
     const now = new Date();
@@ -114,6 +130,17 @@ export default function StudentProfile() {
       );
     }).length;
   }, [lessons]);
+  const openCountThisMonth = useMemo(() => {
+    const now = new Date();
+    return lessons.filter((l) => {
+      if (!l.is_completed || l.payment_cycle_id) return false;
+      const d = new Date(`${l.lesson_date}T00:00:00`);
+      return (
+        d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      );
+    }).length;
+  }, [lessons]);
+  const monthLabel = formatMonth(new Date());
 
   const lessonDatesByCycle = useMemo(() => {
     const map = new Map();
@@ -296,15 +323,32 @@ export default function StudentProfile() {
           </p>
         </div>
         <div className="rounded-xl border border-gray-100 bg-white p-5 text-center shadow-sm transition hover:shadow-md">
-          <p className="text-2xl font-semibold text-gray-900">
-            {Math.min(openCount, cycleCount)}/{cycleCount}
-          </p>
-          <p className="mt-1 text-xs font-medium text-gray-500">
-            Current cycle progress
-          </p>
-          <p className="mt-1 text-xs text-gray-400">
-            {formatSGD(cycleAmount)} due at completion
-          </p>
+          {isMonthlyBilled ? (
+            <>
+              <p className="text-2xl font-semibold text-gray-900">
+                {openCountThisMonth} lesson
+                {openCountThisMonth === 1 ? "" : "s"}
+              </p>
+              <p className="mt-1 text-xs font-medium text-gray-500">
+                {monthLabel} (end-of-month billing)
+              </p>
+              <p className="mt-1 text-xs text-gray-400">
+                {formatSGD(openCountThisMonth * lessonAmount)} accrued so far
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-semibold text-gray-900">
+                {Math.min(openCount, cycleCount)}/{cycleCount}
+              </p>
+              <p className="mt-1 text-xs font-medium text-gray-500">
+                Current cycle progress
+              </p>
+              <p className="mt-1 text-xs text-gray-400">
+                {formatSGD(cycleAmount)} due at completion
+              </p>
+            </>
+          )}
         </div>
       </div>
 
@@ -329,7 +373,13 @@ export default function StudentProfile() {
                       </span>
                     )}
                     <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">
-                      Lesson {lessonPosition.get(l.id) ?? "?"} of 4
+                      {isMonthlyBilled
+                        ? `Lesson ${lessonPosition.get(l.id) ?? "?"} · ${formatMonth(
+                            new Date(`${l.lesson_date}T00:00:00`),
+                          )}`
+                        : `Lesson ${lessonPosition.get(l.id) ?? "?"} of ${
+                            student?.payment_cycle_count ?? 4
+                          }`}
                     </span>
                     <button
                       onClick={() =>

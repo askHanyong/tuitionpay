@@ -83,27 +83,57 @@ export default function Payments() {
         .select("student_id, lesson_date, payment_cycle_id, is_completed")
         .in("student_id", allStudentIds);
 
-      const todayStr = new Date().toISOString().slice(0, 10);
+      const now = new Date();
+      const todayStr = now.toISOString().slice(0, 10);
       const result = [];
       for (const student of students) {
         if (pendingStudentIds.has(student.id)) continue;
         const studentLessons = (allLessons ?? []).filter(
           (l) => l.student_id === student.id,
         );
+        const mode = student.payment_mode ?? "lessons";
+        const lessonAmount =
+          (student.hourly_rate ?? 0) * (student.lesson_duration_hours ?? 0);
+        const nextLesson = studentLessons
+          .filter((l) => !l.is_completed && l.lesson_date > todayStr)
+          .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1))[0];
+
+        // Monthly/custom-date billing has no fixed cycle size -- it's just
+        // every unbilled completed lesson so far this month, accumulating
+        // toward a total that's only actually due once the month ends (at
+        // which point the backend creates a real payment_cycles row, shown
+        // separately in `pending`). per_lesson billing gets a real cycle
+        // the moment a lesson completes, so it never needs this estimate.
+        if (mode === "monthly" || mode === "custom_date") {
+          const openCount = studentLessons.filter(
+            (l) =>
+              l.is_completed &&
+              !l.payment_cycle_id &&
+              l.lesson_date.slice(0, 7) === todayStr.slice(0, 7),
+          ).length;
+          if (openCount === 0) continue;
+          result.push({
+            studentId: student.id,
+            studentName: student.name,
+            openCount,
+            cycleCount: null,
+            monthLabel: formatMonth(now),
+            expectedAmount: openCount * lessonAmount,
+            nextLessonDate: nextLesson?.lesson_date ?? null,
+            isFullyDue: false,
+          });
+          continue;
+        }
+
+        if (mode === "per_lesson") continue;
+
         const openCount = studentLessons.filter(
           (l) => l.is_completed && !l.payment_cycle_id,
         ).length;
         const cycleCount = student.payment_cycle_count ?? 4;
         if (openCount === 0) continue;
 
-        const nextLesson = studentLessons
-          .filter((l) => !l.is_completed && l.lesson_date > todayStr)
-          .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1))[0];
-
-        const cycleAmount =
-          (student.hourly_rate ?? 0) *
-          (student.lesson_duration_hours ?? 0) *
-          cycleCount;
+        const cycleAmount = lessonAmount * cycleCount;
 
         result.push({
           studentId: student.id,
@@ -182,10 +212,12 @@ export default function Payments() {
   const settled = cycles.filter((c) => c.status !== "pending");
   const fullyDue = cycleProgress.filter((p) => p.isFullyDue);
   const dueSoon = cycleProgress.filter(
-    (p) => !p.isFullyDue && p.openCount === p.cycleCount - 1,
+    (p) =>
+      !p.isFullyDue && p.cycleCount != null && p.openCount === p.cycleCount - 1,
   );
   const inProgress = cycleProgress.filter(
-    (p) => !p.isFullyDue && p.openCount < p.cycleCount - 1,
+    (p) =>
+      !p.isFullyDue && (p.cycleCount == null || p.openCount < p.cycleCount - 1),
   );
   const noticesCount = pending.length + fullyDue.length + dueSoon.length;
 
@@ -315,7 +347,9 @@ export default function Payments() {
                   </span>
                 </div>
                 <p className="text-sm text-gray-600">
-                  {p.openCount}/{p.cycleCount} lessons completed
+                  {p.cycleCount != null
+                    ? `${p.openCount}/${p.cycleCount} lessons completed`
+                    : `${p.monthLabel}: ${p.openCount} lesson${p.openCount === 1 ? "" : "s"} completed`}
                   {p.nextLessonDate &&
                     ` · Next lesson on ${formatDate(p.nextLessonDate)}`}
                 </p>

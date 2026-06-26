@@ -48,13 +48,23 @@ function computeForMonth(monthDate, lessons, paymentCycles, students) {
     (sum, studentId) => {
       const student = studentsById.get(studentId);
       if (!student) return sum;
+      const mode = student.payment_mode ?? "lessons";
+      const lessonAmount =
+        (student.hourly_rate ?? 0) * (student.lesson_duration_hours ?? 0);
+      // Monthly/custom-date billing has no fixed cycle size -- every
+      // unbilled lesson this month accumulates toward the month's total,
+      // regardless of payment_cycle_count (which only applies to "lessons"
+      // mode billing).
+      if (mode === "monthly" || mode === "custom_date") {
+        const unbilledThisMonthCount = monthLessons.filter(
+          (l) => l.student_id === studentId && !l.payment_cycle_id,
+        ).length;
+        return sum + unbilledThisMonthCount * lessonAmount;
+      }
       const cycleCount = student.payment_cycle_count ?? 4;
       const unbilledCount = unbilledCountByStudent.get(studentId) ?? 0;
       if (unbilledCount < cycleCount - 1) return sum;
-      const cycleAmount =
-        (student.hourly_rate ?? 0) *
-        (student.lesson_duration_hours ?? 0) *
-        cycleCount;
+      const cycleAmount = lessonAmount * cycleCount;
       return sum + cycleAmount;
     },
     0,

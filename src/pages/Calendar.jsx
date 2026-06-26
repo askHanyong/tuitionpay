@@ -78,7 +78,9 @@ export default function Calendar() {
   const reloadLessons = async () => {
     const { data } = await supabase
       .from("lessons")
-      .select("*, students(name, subject, hourly_rate, address)")
+      .select(
+        "*, students(name, subject, hourly_rate, address, payment_mode, payment_cycle_count)",
+      )
       .order("created_at", { ascending: true });
     setLessons(data ?? []);
   };
@@ -91,9 +93,17 @@ export default function Calendar() {
     load();
   }, []);
 
-  // Position each lesson within its running 4-lesson billing sequence, based
-  // purely on chronological lesson_date (not insertion order or which
-  // payment_cycle_id it was actually billed under).
+  const isMonthlyBilled = (lesson) => {
+    const mode = lesson.students?.payment_mode ?? "lessons";
+    return mode === "monthly" || mode === "custom_date";
+  };
+
+  // Position each lesson within its running billing sequence (sized to the
+  // student's own payment_cycle_count, not a fixed 4), based purely on
+  // chronological lesson_date (not insertion order or which payment_cycle_id
+  // it was actually billed under). Monthly/custom-date students have no
+  // fixed cycle size, so their "position" is computed separately below as
+  // their place within the calendar month instead.
   const lessonPosition = useMemo(() => {
     const lessonsByStudent = new Map();
     for (const lesson of lessons) {
@@ -103,6 +113,7 @@ export default function Calendar() {
     }
     const positions = new Map();
     for (const group of lessonsByStudent.values()) {
+      const cycleCount = group[0]?.students?.payment_cycle_count ?? 4;
       const sorted = [...group].sort((a, b) =>
         a.lesson_date < b.lesson_date
           ? -1
@@ -110,10 +121,45 @@ export default function Calendar() {
             ? 1
             : 0,
       );
-      sorted.forEach((lesson, i) => positions.set(lesson.id, (i % 4) + 1));
+      sorted.forEach((lesson, i) =>
+        positions.set(lesson.id, (i % cycleCount) + 1),
+      );
     }
     return positions;
   }, [lessons]);
+
+  const monthlyLessonPosition = useMemo(() => {
+    const groups = new Map();
+    for (const lesson of lessons) {
+      const key = `${lesson.student_id}|${lesson.lesson_date?.slice(0, 7)}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(lesson);
+    }
+    const positions = new Map();
+    for (const group of groups.values()) {
+      const sorted = [...group].sort((a, b) =>
+        a.lesson_date < b.lesson_date
+          ? -1
+          : a.lesson_date > b.lesson_date
+            ? 1
+            : 0,
+      );
+      sorted.forEach((lesson, i) => positions.set(lesson.id, i + 1));
+    }
+    return positions;
+  }, [lessons]);
+
+  const lessonBadgeLabel = (lesson) => {
+    if (isMonthlyBilled(lesson)) {
+      const pos = monthlyLessonPosition.get(lesson.id) ?? "?";
+      const monthLabel = lesson.lesson_date
+        ? formatMonth(new Date(`${lesson.lesson_date}T00:00:00`))
+        : "";
+      return `Lesson ${pos} · ${monthLabel}`;
+    }
+    const cycleCount = lesson.students?.payment_cycle_count ?? 4;
+    return `Lesson ${lessonPosition.get(lesson.id) ?? "?"} of ${cycleCount}`;
+  };
 
   const studentColorIndex = useMemo(() => {
     const colors = new Map();
@@ -315,7 +361,7 @@ export default function Calendar() {
                               {label}
                               <span className="hidden lg:inline">
                                 {" "}
-                                ({lessonPosition.get(l.id) ?? "?"}/4)
+                                ({lessonBadgeLabel(l)})
                               </span>
                             </button>
                           );
@@ -368,8 +414,7 @@ export default function Calendar() {
                   </Link>
                   <p className="mb-2 text-xs text-gray-500">
                     {l.lesson_time && `${formatLessonTime(l.lesson_time)} · `}
-                    {l.students?.subject || "—"} · Lesson{" "}
-                    {lessonPosition.get(l.id) ?? "?"} of 4 ·{" "}
+                    {l.students?.subject || "—"} · {lessonBadgeLabel(l)} ·{" "}
                     {(l.duration_minutes / 60).toFixed(2)}h
                   </p>
                   {l.notes && (
@@ -407,7 +452,7 @@ export default function Calendar() {
       {detailLesson && (
         <LessonDetailModal
           lesson={detailLesson}
-          lessonNumber={lessonPosition.get(detailLesson.id)}
+          lessonLabel={detailLesson ? lessonBadgeLabel(detailLesson) : null}
           onClose={() => setDetailLesson(null)}
           onEdit={() => {
             setDetailLesson(null);

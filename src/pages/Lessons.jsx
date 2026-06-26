@@ -120,7 +120,9 @@ export default function Lessons() {
         supabase.from("students").select("*").order("name"),
         supabase
           .from("lessons")
-          .select("*, students(name, subject, hourly_rate)")
+          .select(
+            "*, students(name, subject, hourly_rate, payment_mode, payment_cycle_count)",
+          )
           .order("lesson_date", { ascending: false })
           .order("created_at", { ascending: false })
           .limit(50),
@@ -158,7 +160,9 @@ export default function Lessons() {
   const reloadLessons = async () => {
     const { data, error } = await supabase
       .from("lessons")
-      .select("*, students(name, subject, hourly_rate)")
+      .select(
+        "*, students(name, subject, hourly_rate, payment_mode, payment_cycle_count)",
+      )
       .order("lesson_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(50);
@@ -166,17 +170,29 @@ export default function Lessons() {
     setLessons(data ?? []);
   };
 
-  // Position each lesson within its running 4-lesson billing sequence, based
-  // on chronological lesson_date (not insertion order or DB cycle membership).
+  // Position each lesson within its billing sequence, based on chronological
+  // lesson_date (not insertion order or DB cycle membership). For monthly /
+  // custom_date students, the sequence resets every calendar month since
+  // there is no fixed cycle size.
   const lessonPosition = useMemo(() => {
-    const lessonsByStudent = new Map();
+    const isMonthlyBilled = (lesson) => {
+      const mode = lesson.students?.payment_mode ?? "lessons";
+      return mode === "monthly" || mode === "custom_date";
+    };
+    const groupKey = (lesson) =>
+      isMonthlyBilled(lesson)
+        ? `${lesson.student_id}|${lesson.lesson_date?.slice(0, 7)}`
+        : lesson.student_id;
+    const lessonsByGroup = new Map();
     for (const lesson of lessons) {
-      if (!lessonsByStudent.has(lesson.student_id))
-        lessonsByStudent.set(lesson.student_id, []);
-      lessonsByStudent.get(lesson.student_id).push(lesson);
+      const key = groupKey(lesson);
+      if (!lessonsByGroup.has(key)) lessonsByGroup.set(key, []);
+      lessonsByGroup.get(key).push(lesson);
     }
     const positions = new Map();
-    for (const group of lessonsByStudent.values()) {
+    for (const group of lessonsByGroup.values()) {
+      const cycleCount = group[0]?.students?.payment_cycle_count ?? 4;
+      const monthly = isMonthlyBilled(group[0]);
       const sorted = [...group].sort((a, b) =>
         a.lesson_date < b.lesson_date
           ? -1
@@ -184,7 +200,9 @@ export default function Lessons() {
             ? 1
             : 0,
       );
-      sorted.forEach((lesson, i) => positions.set(lesson.id, (i % 4) + 1));
+      sorted.forEach((lesson, i) =>
+        positions.set(lesson.id, monthly ? i + 1 : (i % cycleCount) + 1),
+      );
     }
     return positions;
   }, [lessons]);
@@ -220,10 +238,15 @@ export default function Lessons() {
     const student = students.find((s) => s.id === studentId);
     const start = new Date(`${lessonDate}T${lessonTime || "09:00"}:00`);
     const end = new Date(start.getTime() + durationMinutes * 60000);
+    const mode = student?.payment_mode ?? "lessons";
+    const isMonthlyBilled = mode === "monthly" || mode === "custom_date";
+    const lessonLabel = isMonthlyBilled
+      ? `Lesson ${lessonNumber}`
+      : `Lesson ${lessonNumber} of ${student?.payment_cycle_count ?? 4}`;
     try {
       await createCalendarEvent(tutor.google_access_token, {
-        summary: `${student?.name ?? "Lesson"} - ${student?.subject || "Lesson"} (Lesson ${lessonNumber} of 4)`,
-        description: `Lesson ${lessonNumber} of 4 for ${student?.name ?? "student"}`,
+        summary: `${student?.name ?? "Lesson"} - ${student?.subject || "Lesson"} (${lessonLabel})`,
+        description: `${lessonLabel} for ${student?.name ?? "student"}`,
         start: start.toISOString(),
         end: end.toISOString(),
       });

@@ -4,7 +4,7 @@ import { buildGoogleMapsUrl } from "../lib/maps";
 
 export default function LessonDetailModal({
   lesson,
-  lessonNumber,
+  lessonLabel,
   onClose,
   onEdit,
   onMarkDone,
@@ -46,7 +46,7 @@ export default function LessonDetailModal({
             {lesson.duration_minutes != null &&
               ` · ${(lesson.duration_minutes / 60).toFixed(2)}h`}
           </p>
-          <p className="text-gray-500">Lesson {lessonNumber ?? "?"} of 4</p>
+          <p className="text-gray-500">{lessonLabel ?? "Lesson ?"}</p>
         </div>
 
         {address && (

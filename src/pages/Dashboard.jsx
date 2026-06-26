@@ -199,6 +199,32 @@ export default function Dashboard() {
     );
   }
 
+  // Monthly/custom-date billing has no fixed cycle size, so a lesson's
+  // position there is simply its place within that calendar month, not a
+  // running mod-N cycle position.
+  const monthlyLessonPosition = new Map();
+  const monthlyGroups = new Map();
+  for (const lesson of [...lessons, ...scheduledLessons]) {
+    const key = `${lesson.student_id}|${lesson.lesson_date?.slice(0, 7)}`;
+    if (!monthlyGroups.has(key)) monthlyGroups.set(key, []);
+    monthlyGroups.get(key).push(lesson);
+  }
+  for (const group of monthlyGroups.values()) {
+    const sorted = [...group].sort((a, b) =>
+      a.lesson_date < b.lesson_date
+        ? -1
+        : a.lesson_date > b.lesson_date
+          ? 1
+          : 0,
+    );
+    sorted.forEach((lesson, i) => monthlyLessonPosition.set(lesson.id, i + 1));
+  }
+  const studentsLookup = new Map(students.map((s) => [s.id, s]));
+  const isMonthlyBilled = (studentId) => {
+    const mode = studentsLookup.get(studentId)?.payment_mode ?? "lessons";
+    return mode === "monthly" || mode === "custom_date";
+  };
+
   const openCountByStudent = new Map();
   for (const lesson of lessons) {
     if (lesson.payment_cycle_id) continue;
@@ -287,13 +313,25 @@ export default function Dashboard() {
   ].reduce((sum, studentId) => {
     const student = studentsById.get(studentId);
     if (!student) return sum;
+    const mode = student.payment_mode ?? "lessons";
+    const lessonAmount =
+      (student.hourly_rate ?? 0) * (student.lesson_duration_hours ?? 0);
+    // Monthly/custom-date billing has no fixed cycle size -- every unbilled
+    // lesson this month accumulates toward that month's total, regardless
+    // of payment_cycle_count (which only applies to "lessons" mode).
+    if (mode === "monthly" || mode === "custom_date") {
+      const unbilledThisMonthCount = lessons.filter(
+        (l) =>
+          l.student_id === studentId &&
+          !l.payment_cycle_id &&
+          isThisMonth(l.lesson_date),
+      ).length;
+      return sum + unbilledThisMonthCount * lessonAmount;
+    }
     const cycleCount = student.payment_cycle_count ?? 4;
     const unbilledCount = openCountByStudent.get(studentId) ?? 0;
     if (unbilledCount < cycleCount - 1) return sum;
-    const cycleAmount =
-      (student.hourly_rate ?? 0) *
-      (student.lesson_duration_hours ?? 0) *
-      cycleCount;
+    const cycleAmount = lessonAmount * cycleCount;
     return sum + cycleAmount;
   }, 0);
   const pendingThisMonth =
@@ -338,6 +376,21 @@ export default function Dashboard() {
       : ((openCountByStudent.get(lesson.student_id) ?? 0) %
           (cycleCountByStudent.get(lesson.student_id) ?? 4)) +
         1;
+
+  // Monthly/custom-date students have no fixed cycle size, so their badge
+  // shows the lesson's place within its calendar month instead of "of N".
+  const lessonBadgeLabel = (lesson) => {
+    if (isMonthlyBilled(lesson.student_id)) {
+      const pos = monthlyLessonPosition.get(lesson.id) ?? "?";
+      const monthLabel = lesson.lesson_date
+        ? formatMonth(new Date(`${lesson.lesson_date}T00:00:00`))
+        : "";
+      return `Lesson ${pos} · ${monthLabel}`;
+    }
+    return `Lesson ${todayLessonNumber(lesson)} of ${
+      cycleCountByStudent.get(lesson.student_id) ?? 4
+    }`;
+  };
 
   const handleMarkDone = async (lessonId) => {
     const previouslyPendingIds = new Set(
@@ -464,7 +517,7 @@ export default function Dashboard() {
                       {l.students?.subject && ` · ${l.students.subject}`}
                     </p>
                     <p className="mt-0.5 text-xs text-gray-500">
-                      Lesson {todayLessonNumber(l)} of 4
+                      {lessonBadgeLabel(l)}
                     </p>
                     {l.students?.address && (
                       <p className="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
@@ -761,8 +814,7 @@ export default function Dashboard() {
                       </p>
                     </div>
                     <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                      Lesson {lessonPosition.get(l.id) ?? "?"} of{" "}
-                      {cycleCountByStudent.get(l.student_id) ?? 4}
+                      {lessonBadgeLabel(l)}
                     </span>
                   </li>
                 ))}
