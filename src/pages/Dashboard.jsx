@@ -13,6 +13,7 @@ import { useToast } from "../contexts/ToastContext";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
 import Onboarding from "../components/Onboarding";
+import GettingStartedChecklist from "../components/GettingStartedChecklist";
 import MonthlyRecapCard from "../components/MonthlyRecapCard";
 import NotificationPrompt from "../components/NotificationPrompt";
 
@@ -27,6 +28,8 @@ export default function Dashboard() {
   const [paymentCycles, setPaymentCycles] = useState([]);
   const [todayLessons, setTodayLessons] = useState([]);
   const [tomorrowLessons, setTomorrowLessons] = useState([]);
+  const [hasScheduledLesson, setHasScheduledLesson] = useState(false);
+  const [checklistDismissed, setChecklistDismissed] = useState(true);
   const [loading, setLoading] = useState(true);
   const [notifyPrefs, setNotifyPrefs] = useState({
     notify_lesson_reminders: true,
@@ -50,6 +53,7 @@ export default function Dashboard() {
       { data: cyclesData },
       { data: todayData },
       { data: tomorrowData },
+      { count: scheduledCount },
     ] = await Promise.all([
       supabase
         .from("students")
@@ -74,12 +78,17 @@ export default function Dashboard() {
         .select("*, students(name)")
         .eq("lesson_date", tomorrowKey())
         .order("lesson_time", { ascending: true }),
+      supabase
+        .from("lessons")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "scheduled"),
     ]);
     setStudents(studentsData ?? []);
     setLessons(lessonsData ?? []);
     setPaymentCycles(cyclesData ?? []);
     setTodayLessons(todayData ?? []);
     setTomorrowLessons(tomorrowData ?? []);
+    setHasScheduledLesson((scheduledCount ?? 0) > 0);
     setLoading(false);
   };
 
@@ -88,11 +97,14 @@ export default function Dashboard() {
       const { data: tutorData } = await supabase
         .from("tutors")
         .select(
-          "notify_lesson_reminders, notify_payment_due, notify_weekly_summary",
+          "notify_lesson_reminders, notify_payment_due, notify_weekly_summary, onboarding_dismissed",
         )
         .eq("id", user.id)
         .single();
-      if (tutorData) setNotifyPrefs(tutorData);
+      if (tutorData) {
+        setNotifyPrefs(tutorData);
+        setChecklistDismissed(Boolean(tutorData.onboarding_dismissed));
+      }
       await loadAll();
     };
     load();
@@ -296,6 +308,18 @@ export default function Dashboard() {
   return (
     <AppShell>
       <NotificationPrompt />
+
+      {!loading && !checklistDismissed && (
+        <GettingStartedChecklist
+          tutorId={user.id}
+          hasStudent={students.length > 0}
+          hasScheduledLesson={hasScheduledLesson}
+          hasCompletedLesson={lessons.length > 0}
+          hasPaidCycle={paymentCycles.some((c) => c.status === "paid")}
+          dismissed={checklistDismissed}
+          onDismissed={() => setChecklistDismissed(true)}
+        />
+      )}
 
       <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
         <h2 className="mb-4 text-base font-semibold text-gray-900">
