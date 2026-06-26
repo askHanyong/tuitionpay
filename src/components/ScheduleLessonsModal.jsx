@@ -96,6 +96,7 @@ export default function ScheduleLessonsModal({
     const { data: existing, error: lookupError } = await supabase
       .from("lessons")
       .select("id, lesson_date")
+      .eq("tutor_id", user.id)
       .eq("student_id", student.id)
       .in("lesson_date", dates);
     setLoadingPreview(false);
@@ -141,7 +142,8 @@ export default function ScheduleLessonsModal({
         const { error } = await supabase
           .from("lessons")
           .delete()
-          .in("id", toDelete);
+          .in("id", toDelete)
+          .eq("tutor_id", user.id);
         if (error) throw error;
       }
       if (toInsert.length) {

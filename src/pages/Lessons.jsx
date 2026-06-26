@@ -182,12 +182,17 @@ export default function Lessons() {
         { data: studentsData, error: studentsError },
         { data: lessonsData, error: lessonsError },
       ] = await Promise.all([
-        supabase.from("students").select("*").order("name"),
+        supabase
+          .from("students")
+          .select("*")
+          .eq("tutor_id", user.id)
+          .order("name"),
         supabase
           .from("lessons")
           .select(
             "*, students(name, subject, hourly_rate, payment_mode, payment_cycle_count)",
           )
+          .eq("tutor_id", user.id)
           .order("lesson_date", { ascending: false })
           .order("created_at", { ascending: false })
           .limit(1000),
@@ -228,6 +233,7 @@ export default function Lessons() {
       .select(
         "*, students(name, subject, hourly_rate, payment_mode, payment_cycle_count)",
       )
+      .eq("tutor_id", user.id)
       .order("lesson_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1000);
@@ -448,7 +454,8 @@ export default function Lessons() {
             status,
             is_completed,
           })
-          .eq("id", editingId);
+          .eq("id", editingId)
+          .eq("tutor_id", user.id);
         if (error) throw error;
         setInfo("Lesson updated.");
         resetForm();
@@ -459,6 +466,7 @@ export default function Lessons() {
       const { count: beforeCount } = await supabase
         .from("lessons")
         .select("id", { count: "exact", head: true })
+        .eq("tutor_id", user.id)
         .eq("student_id", form.student_id)
         .is("payment_cycle_id", null)
         .eq("is_completed", true);
@@ -492,6 +500,7 @@ export default function Lessons() {
         const { data: cycle } = await supabase
           .from("payment_cycles")
           .select("*, students(name)")
+          .eq("tutor_id", user.id)
           .eq("student_id", form.student_id)
           .order("created_at", { ascending: false })
           .limit(1)
@@ -549,7 +558,11 @@ export default function Lessons() {
     if (!id) return;
     setDeleting(true);
     setError(null);
-    const { error } = await supabase.from("lessons").delete().eq("id", id);
+    const { error } = await supabase
+      .from("lessons")
+      .delete()
+      .eq("id", id)
+      .eq("tutor_id", user.id);
     setDeleting(false);
     if (error) {
       setError(error.message);

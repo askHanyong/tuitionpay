@@ -32,13 +32,14 @@ export default function Payments() {
           .select(
             "*, students(name, subject, guardian_name, guardian_contact, payment_mode, payment_cycle_count, payment_custom_day)",
           )
+          .eq("tutor_id", user.id)
           .order("created_at", { ascending: false }),
         supabase
           .from("tutors")
           .select("full_name, paynow_number")
           .eq("id", user.id)
           .single(),
-        supabase.from("students").select("*"),
+        supabase.from("students").select("*").eq("tutor_id", user.id),
       ]);
     if (error) setError(error.message);
     setCycles(data ?? []);
@@ -49,6 +50,7 @@ export default function Payments() {
       const { data: lessonsData } = await supabase
         .from("lessons")
         .select("student_id, lesson_date")
+        .eq("tutor_id", user.id)
         .in("student_id", studentIds)
         .eq("is_completed", true)
         .order("lesson_date", { ascending: true });
@@ -84,6 +86,7 @@ export default function Payments() {
         .select(
           "student_id, lesson_date, payment_cycle_id, is_completed, duration_minutes, rate",
         )
+        .eq("tutor_id", user.id)
         .in("student_id", allStudentIds);
 
       const now = new Date();
@@ -176,7 +179,8 @@ export default function Payments() {
     const { error } = await supabase
       .from("payment_cycles")
       .update({ status: "paid", paid_at: new Date().toISOString() })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("tutor_id", user.id);
     if (error) {
       setError(error.message);
       showToast(error.message, "error");

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "../contexts/AuthContext";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
 import { formatLessonTime } from "../lib/date";
 import { formatDateFull, formatMonth } from "../utils/dateFormat";
@@ -69,6 +70,7 @@ function buildMonthGrid(monthDate) {
 
 export default function Calendar() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [monthDate, setMonthDate] = useState(startOfMonth(new Date()));
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +83,7 @@ export default function Calendar() {
       .select(
         "*, students(name, subject, hourly_rate, address, payment_mode, payment_cycle_count), payment_cycles(id, status, amount_due)",
       )
+      .eq("tutor_id", user.id)
       .order("created_at", { ascending: true });
     setLessons(data ?? []);
   };
@@ -266,7 +269,11 @@ export default function Calendar() {
 
   const handleDeleteLesson = async (lesson) => {
     if (!window.confirm("Delete this lesson? This cannot be undone.")) return;
-    await supabase.from("lessons").delete().eq("id", lesson.id);
+    await supabase
+      .from("lessons")
+      .delete()
+      .eq("id", lesson.id)
+      .eq("tutor_id", user.id);
     await reloadLessons();
   };
 
@@ -275,7 +282,8 @@ export default function Calendar() {
     const { error } = await supabase
       .from("lessons")
       .update({ is_completed: true })
-      .eq("id", lesson.id);
+      .eq("id", lesson.id)
+      .eq("tutor_id", user.id);
     if (error) {
       window.alert(error.message);
       return;
@@ -288,7 +296,8 @@ export default function Calendar() {
     const { error } = await supabase
       .from("payment_cycles")
       .update({ status: "paid", paid_at: new Date().toISOString() })
-      .eq("id", cycleId);
+      .eq("id", cycleId)
+      .eq("tutor_id", user.id);
     if (error) {
       window.alert(error.message);
       return;

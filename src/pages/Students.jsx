@@ -65,6 +65,7 @@ export default function Students() {
       .from("lessons")
       .select("*")
       .eq("student_id", studentId)
+      .eq("tutor_id", user.id)
       .order("lesson_date", { ascending: false });
     setLessonsByStudent((prev) => ({ ...prev, [studentId]: data ?? [] }));
   };
@@ -81,6 +82,7 @@ export default function Students() {
         .from("lessons")
         .select("*")
         .eq("student_id", studentId)
+        .eq("tutor_id", user.id)
         .order("lesson_date", { ascending: false });
       setLessonsByStudent((prev) => ({ ...prev, [studentId]: data ?? [] }));
       setLessonsLoading(false);
@@ -93,13 +95,18 @@ export default function Students() {
         supabase
           .from("payment_cycles")
           .select("student_id, period_end")
+          .eq("tutor_id", user.id)
           .eq("status", "pending")
           .order("period_end", { ascending: true }),
         supabase
           .from("lessons")
           .select("student_id, lesson_date, payment_cycle_id, is_completed")
+          .eq("tutor_id", user.id)
           .order("lesson_date", { ascending: false }),
-        supabase.from("payment_cycles").select("student_id, status"),
+        supabase
+          .from("payment_cycles")
+          .select("student_id, status")
+          .eq("tutor_id", user.id),
       ]);
     const dueMap = {};
     for (const c of cyclesData ?? []) {
@@ -134,6 +141,7 @@ export default function Students() {
     const { data, error } = await supabase
       .from("students")
       .select("*")
+      .eq("tutor_id", user.id)
       .order("created_at", { ascending: false });
     if (error) setError(error.message);
     setStudents(data ?? []);
@@ -182,6 +190,7 @@ export default function Students() {
       const { data, error } = await supabase
         .from("students")
         .select("*")
+        .eq("tutor_id", user.id)
         .order("created_at", { ascending: false });
       if (error) setError(error.message);
       setStudents(data ?? []);
@@ -254,7 +263,8 @@ export default function Students() {
         const { error } = await supabase
           .from("students")
           .update(payload)
-          .eq("id", editingId);
+          .eq("id", editingId)
+          .eq("tutor_id", user.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -276,7 +286,11 @@ export default function Students() {
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this student? This cannot be undone.")) return;
     setError(null);
-    const { error } = await supabase.from("students").delete().eq("id", id);
+    const { error } = await supabase
+      .from("students")
+      .delete()
+      .eq("id", id)
+      .eq("tutor_id", user.id);
     if (error) {
       setError(error.message);
       showToast(error.message, "error");

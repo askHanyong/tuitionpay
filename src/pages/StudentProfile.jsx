@@ -42,17 +42,24 @@ export default function StudentProfile() {
       { data: cyclesData },
       { data: tutorData },
     ] = await Promise.all([
-      supabase.from("students").select("*").eq("id", id).single(),
+      supabase
+        .from("students")
+        .select("*")
+        .eq("id", id)
+        .eq("tutor_id", user.id)
+        .single(),
       supabase
         .from("lessons")
         .select("*")
         .eq("student_id", id)
+        .eq("tutor_id", user.id)
         .order("lesson_date", { ascending: false })
         .order("created_at", { ascending: false }),
       supabase
         .from("payment_cycles")
         .select("*")
         .eq("student_id", id)
+        .eq("tutor_id", user.id)
         .order("period_end", { ascending: false }),
       supabase
         .from("tutors")
@@ -208,7 +215,8 @@ export default function StudentProfile() {
     const { error } = await supabase
       .from("lessons")
       .update({ notes: noteDrafts[lessonId]?.trim() || null })
-      .eq("id", lessonId);
+      .eq("id", lessonId)
+      .eq("tutor_id", user.id);
     setSavingNoteId(null);
     if (error) {
       showToast(error.message, "error");

@@ -62,24 +62,29 @@ export default function Dashboard() {
       supabase
         .from("students")
         .select("*")
+        .eq("tutor_id", user.id)
         .order("created_at", { ascending: false }),
       supabase
         .from("lessons")
         .select("*, students(name)")
+        .eq("tutor_id", user.id)
         .eq("is_completed", true)
         .order("created_at", { ascending: true }),
       supabase
         .from("payment_cycles")
         .select("*, students(name)")
+        .eq("tutor_id", user.id)
         .order("period_end", { ascending: false }),
       supabase
         .from("lessons")
         .select("*, students(name, subject, address)")
+        .eq("tutor_id", user.id)
         .eq("lesson_date", todayKey())
         .order("lesson_time", { ascending: true }),
       supabase
         .from("lessons")
         .select("*, students(name)")
+        .eq("tutor_id", user.id)
         .eq("lesson_date", tomorrowKey())
         .order("lesson_time", { ascending: true }),
       supabase
@@ -87,6 +92,7 @@ export default function Dashboard() {
         .select(
           "id, student_id, lesson_date, lesson_time, is_completed, students(name)",
         )
+        .eq("tutor_id", user.id)
         .eq("is_completed", false),
     ]);
     setStudents(studentsData ?? []);
@@ -449,7 +455,8 @@ export default function Dashboard() {
     const { error } = await supabase
       .from("lessons")
       .update({ is_completed: true })
-      .eq("id", lessonId);
+      .eq("id", lessonId)
+      .eq("tutor_id", user.id);
     if (error) {
       setTodayLessons((prev) =>
         prev.map((l) =>
@@ -465,6 +472,7 @@ export default function Dashboard() {
       const { data: newCycles } = await supabase
         .from("payment_cycles")
         .select("*, students(name)")
+        .eq("tutor_id", user.id)
         .eq("status", "pending");
       const newlyCreated = (newCycles ?? []).find(
         (c) => !previouslyPendingIds.has(c.id),
@@ -481,7 +489,8 @@ export default function Dashboard() {
     const { error } = await supabase
       .from("payment_cycles")
       .update({ status: "paid", paid_at: new Date().toISOString() })
-      .eq("id", cycleId);
+      .eq("id", cycleId)
+      .eq("tutor_id", user.id);
     if (error) {
       showToast(error.message, "error");
       return;
