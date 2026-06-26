@@ -123,7 +123,7 @@ begin
   from students where id = p_student_id;
 
   update lessons set payment_cycle_id = null
-  where student_id = p_student_id and is_completed;
+  where student_id = p_student_id;
 
   if v_payment_mode in ('lessons', 'per_lesson') then
     group_size := case
