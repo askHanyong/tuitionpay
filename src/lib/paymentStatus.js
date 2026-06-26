@@ -1,6 +1,6 @@
 import { formatSGD } from "./paymentNotice";
 import { formatDate, formatMonth } from "../utils/dateFormat";
-import { ordinal } from "./paymentMode";
+import { ordinal, lessonAmount as amountForLesson } from "./paymentMode";
 
 const TIER_RANK = { red: 0, amber: 1, blue: 2, grey: 2, green: 3 };
 
@@ -89,9 +89,6 @@ export function computeStudentPaymentStatus(student, ctx) {
     openCount,
     now,
   } = ctx;
-  const rate = student.hourly_rate ?? 0;
-  const duration = student.lesson_duration_hours ?? 0;
-  const lessonAmount = rate * duration;
   const mode = student.payment_mode ?? "lessons";
 
   if (mode === "per_lesson") {
@@ -146,10 +143,14 @@ export function computeStudentPaymentStatus(student, ctx) {
       };
     }
 
-    const thisMonthCount = completedLessons.filter((l) =>
+    const thisMonthLessons = completedLessons.filter((l) =>
       isSameMonth(l.lesson_date, now),
-    ).length;
-    const thisMonthAmount = thisMonthCount * lessonAmount;
+    );
+    const thisMonthCount = thisMonthLessons.length;
+    const thisMonthAmount = thisMonthLessons.reduce(
+      (sum, l) => sum + amountForLesson(l, student),
+      0,
+    );
     const thisMonthLabel = formatMonth(now);
     const dueDate = lastDayOfMonth(now.getFullYear(), now.getMonth());
     const dueIn = daysUntil(dueDate, now);
@@ -217,10 +218,14 @@ export function computeStudentPaymentStatus(student, ctx) {
         : customDueDateFor(now.getFullYear(), now.getMonth() + 1, customDay);
     const dueIn = daysUntil(nextDue, now);
 
-    const thisMonthCount = completedLessons.filter((l) =>
+    const thisMonthLessons = completedLessons.filter((l) =>
       isSameMonth(l.lesson_date, now),
-    ).length;
-    const thisMonthAmount = thisMonthCount * lessonAmount;
+    );
+    const thisMonthCount = thisMonthLessons.length;
+    const thisMonthAmount = thisMonthLessons.reduce(
+      (sum, l) => sum + amountForLesson(l, student),
+      0,
+    );
 
     const recentPaid = sortByDueDesc(paidCycles)[0];
     if (recentPaid && thisMonthCount === 0) {
@@ -257,7 +262,13 @@ export function computeStudentPaymentStatus(student, ctx) {
 
   // "lessons" mode (every N lessons) — default
   const cycleCount = student.payment_cycle_count ?? 4;
-  const cycleAmount = cycleCount * lessonAmount;
+  const openLessons = sortLessonsByWhen(
+    completedLessons.filter((l) => !l.payment_cycle_id),
+  ).slice(-cycleCount);
+  const cycleAmount = openLessons.reduce(
+    (sum, l) => sum + amountForLesson(l, student),
+    0,
+  );
   const pending = sortByDueAsc(pendingCycles);
   const amountDue = pending.reduce((sum, c) => sum + Number(c.amount_due), 0);
   const progressFraction = Math.min(openCount, cycleCount) / cycleCount;
@@ -336,7 +347,7 @@ export function computeStudentPaymentStatus(student, ctx) {
 
   return {
     tier,
-    amountDue: openCount * lessonAmount,
+    amountDue: cycleAmount,
     cycleAmount,
     label,
     showProgressBar: true,

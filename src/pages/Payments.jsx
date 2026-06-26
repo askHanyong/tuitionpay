@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { formatSGD } from "../lib/paymentNotice";
 import { formatDate, formatDateFull, formatMonth } from "../utils/dateFormat";
+import { lessonAmount } from "../lib/paymentMode";
 import {
   buildPaidReceiptMessage,
   buildPaymentRequestMessage,
@@ -80,7 +81,9 @@ export default function Payments() {
       const allStudentIds = students.map((s) => s.id);
       const { data: allLessons } = await supabase
         .from("lessons")
-        .select("student_id, lesson_date, payment_cycle_id, is_completed")
+        .select(
+          "student_id, lesson_date, payment_cycle_id, is_completed, duration_minutes, rate",
+        )
         .in("student_id", allStudentIds);
 
       const now = new Date();
@@ -92,8 +95,6 @@ export default function Payments() {
           (l) => l.student_id === student.id,
         );
         const mode = student.payment_mode ?? "lessons";
-        const lessonAmount =
-          (student.hourly_rate ?? 0) * (student.lesson_duration_hours ?? 0);
         const nextLesson = studentLessons
           .filter((l) => !l.is_completed && l.lesson_date > todayStr)
           .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1))[0];
@@ -105,20 +106,24 @@ export default function Payments() {
         // separately in `pending`). per_lesson billing gets a real cycle
         // the moment a lesson completes, so it never needs this estimate.
         if (mode === "monthly" || mode === "custom_date") {
-          const openCount = studentLessons.filter(
+          const openLessons = studentLessons.filter(
             (l) =>
               l.is_completed &&
               !l.payment_cycle_id &&
               l.lesson_date.slice(0, 7) === todayStr.slice(0, 7),
-          ).length;
-          if (openCount === 0) continue;
+          );
+          if (openLessons.length === 0) continue;
+          const expectedAmount = openLessons.reduce(
+            (sum, l) => sum + lessonAmount(l, student),
+            0,
+          );
           result.push({
             studentId: student.id,
             studentName: student.name,
-            openCount,
+            openCount: openLessons.length,
             cycleCount: null,
             monthLabel: formatMonth(now),
-            expectedAmount: openCount * lessonAmount,
+            expectedAmount,
             nextLessonDate: nextLesson?.lesson_date ?? null,
             isFullyDue: false,
           });
@@ -127,13 +132,20 @@ export default function Payments() {
 
         if (mode === "per_lesson") continue;
 
-        const openCount = studentLessons.filter(
+        const openLessonsAll = studentLessons.filter(
           (l) => l.is_completed && !l.payment_cycle_id,
-        ).length;
+        );
+        const openCount = openLessonsAll.length;
         const cycleCount = student.payment_cycle_count ?? 4;
         if (openCount === 0) continue;
 
-        const cycleAmount = lessonAmount * cycleCount;
+        const cycleLessons = [...openLessonsAll]
+          .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1))
+          .slice(-cycleCount);
+        const cycleAmount = cycleLessons.reduce(
+          (sum, l) => sum + lessonAmount(l, student),
+          0,
+        );
 
         result.push({
           studentId: student.id,

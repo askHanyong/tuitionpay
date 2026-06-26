@@ -89,10 +89,13 @@ create trigger on_auth_user_created
 -- reassigned, or deleted, recompute the student's billing groups from
 -- scratch, strictly by lesson_date (not insertion order), so backfilling
 -- history out of order can't strand a lesson in the wrong group. A cycle's
--- amount_due is always group_size * hourly_rate * lesson_duration_hours,
--- independent of which specific lessons it covers, so this can safely
--- realign lesson membership and period dates even for already-'paid'
--- cycles without ever touching amount_due, status, or paid_at.
+-- amount_due is the sum, over each lesson in the group, of that lesson's
+-- actual (duration_minutes / 60.0) * coalesce(lesson.rate, hourly_rate) --
+-- never a fixed group_size * hourly_rate * lesson_duration_hours, since
+-- lessons can run longer or shorter than the student's nominal duration.
+-- This can safely realign lesson membership and period dates even for
+-- already-'paid' cycles, but only ever recomputes amount_due for cycles
+-- still 'pending' -- once paid, the historical amount is left untouched.
 create or replace function public.recompute_payment_cycles(p_student_id uuid, p_tutor_id uuid)
 returns void
 language plpgsql
@@ -100,7 +103,6 @@ security definer set search_path = public
 as $$
 declare
   v_hourly_rate numeric(10, 2);
-  v_duration_hours numeric(4, 2);
   v_payment_mode text;
   v_cycle_count integer;
   v_custom_day integer;
@@ -118,8 +120,8 @@ declare
   v_due_date date;
   v_today date := current_date;
 begin
-  select hourly_rate, lesson_duration_hours, payment_mode, payment_cycle_count, payment_custom_day
-  into v_hourly_rate, v_duration_hours, v_payment_mode, v_cycle_count, v_custom_day
+  select hourly_rate, payment_mode, payment_cycle_count, payment_custom_day
+  into v_hourly_rate, v_payment_mode, v_cycle_count, v_custom_day
   from students where id = p_student_id;
 
   update lessons set payment_cycle_id = null
@@ -151,11 +153,16 @@ begin
       select min(lesson_date), max(lesson_date) into v_period_start, v_period_end
       from lessons where id = any (chunk_lesson_ids);
 
-      v_amount := group_size * coalesce(v_hourly_rate, 0) * coalesce(v_duration_hours, 0);
+      select coalesce(sum((duration_minutes / 60.0) * coalesce(rate, v_hourly_rate, 0)), 0)
+      into v_amount
+      from lessons where id = any (chunk_lesson_ids);
 
       if cycle_ids is not null and array_length(cycle_ids, 1) >= i then
         cycle_id := cycle_ids[i];
-        update payment_cycles set period_start = v_period_start, period_end = v_period_end
+        update payment_cycles
+        set period_start = v_period_start,
+            period_end = v_period_end,
+            amount_due = case when status = 'pending' then v_amount else amount_due end
         where id = cycle_id;
       else
         insert into payment_cycles (tutor_id, student_id, period_start, period_end, amount_due, status)
@@ -194,7 +201,10 @@ begin
       -- Monthly billing always covers the full calendar month, regardless
       -- of which day the first lesson actually fell on.
       v_period_start := month_rec.month_start;
-      v_amount := month_rec.lesson_count * coalesce(v_hourly_rate, 0) * coalesce(v_duration_hours, 0);
+
+      select coalesce(sum((duration_minutes / 60.0) * coalesce(rate, v_hourly_rate, 0)), 0)
+      into v_amount
+      from lessons where id = any (month_rec.lesson_ids);
 
       select id into cycle_id
       from payment_cycles
@@ -206,7 +216,9 @@ begin
 
       if cycle_id is not null then
         update payment_cycles
-        set period_start = v_period_start, period_end = v_due_date
+        set period_start = v_period_start,
+            period_end = v_due_date,
+            amount_due = case when status = 'pending' then v_amount else amount_due end
         where id = cycle_id;
       else
         insert into payment_cycles (tutor_id, student_id, period_start, period_end, amount_due, status)

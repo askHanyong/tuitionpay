@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatSGD } from "../lib/paymentNotice";
 import { formatDate, formatDateFull, formatMonth } from "../utils/dateFormat";
-import { paymentModeLabel } from "../lib/paymentMode";
+import { paymentModeLabel, lessonAmount } from "../lib/paymentMode";
 import { useToast } from "../contexts/ToastContext";
 import {
   buildPaidReceiptMessage,
@@ -114,16 +114,18 @@ export default function StudentProfile() {
     return positions;
   }, [lessons, isMonthlyBilled, isPerLesson, student?.payment_cycle_count]);
 
-  const lessonAmount =
-    (student?.hourly_rate ?? 0) * (student?.lesson_duration_hours ?? 0);
   const completedLessons = lessons.filter((l) => l.is_completed);
   const totalLessons = completedLessons.length;
   const totalEarned = cycles
     .filter((c) => c.status === "paid")
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
-  const openCount = completedLessons.filter((l) => !l.payment_cycle_id).length;
+  const openLessons = completedLessons.filter((l) => !l.payment_cycle_id);
+  const openCount = openLessons.length;
   const cycleCount = student?.payment_cycle_count ?? 4;
-  const cycleAmount = lessonAmount * cycleCount;
+  const cycleAmount = openLessons.reduce(
+    (sum, l) => sum + lessonAmount(l, student),
+    0,
+  );
   const currentCycleProgress = `Lesson ${Math.min(openCount, cycleCount)} of ${cycleCount}`;
   const lessonsThisMonth = useMemo(() => {
     const now = new Date();
@@ -134,7 +136,7 @@ export default function StudentProfile() {
       );
     }).length;
   }, [lessons]);
-  const openCountThisMonth = useMemo(() => {
+  const openLessonsThisMonth = useMemo(() => {
     const now = new Date();
     return lessons.filter((l) => {
       if (!l.is_completed || l.payment_cycle_id) return false;
@@ -142,8 +144,13 @@ export default function StudentProfile() {
       return (
         d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
       );
-    }).length;
+    });
   }, [lessons]);
+  const openCountThisMonth = openLessonsThisMonth.length;
+  const openThisMonthAmount = openLessonsThisMonth.reduce(
+    (sum, l) => sum + lessonAmount(l, student),
+    0,
+  );
   const monthLabel = formatMonth(new Date());
   const unpaidPerLessonCycles = cycles.filter((c) => c.status === "pending");
   const unpaidPerLessonAmount = unpaidPerLessonCycles.reduce(
@@ -342,7 +349,7 @@ export default function StudentProfile() {
                 {monthLabel} (end-of-month billing)
               </p>
               <p className="mt-1 text-xs text-gray-400">
-                {formatSGD(openCountThisMonth * lessonAmount)} accrued so far
+                {formatSGD(openThisMonthAmount)} accrued so far
               </p>
             </>
           ) : isPerLesson ? (

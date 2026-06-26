@@ -12,6 +12,7 @@ import {
 } from "../lib/paymentStatus";
 import { getWeekSummaryKey, showAppNotification } from "../lib/notifications";
 import { buildGoogleMapsUrl } from "../lib/maps";
+import { lessonAmount } from "../lib/paymentMode";
 import { useToast } from "../contexts/ToastContext";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
@@ -336,24 +337,44 @@ export default function Dashboard() {
     const student = studentsById.get(studentId);
     if (!student) return sum;
     const mode = student.payment_mode ?? "lessons";
-    const lessonAmount =
-      (student.hourly_rate ?? 0) * (student.lesson_duration_hours ?? 0);
     // Monthly/custom-date billing has no fixed cycle size -- every unbilled
     // lesson this month accumulates toward that month's total, regardless
-    // of payment_cycle_count (which only applies to "lessons" mode).
+    // of payment_cycle_count (which only applies to "lessons" mode). Sum
+    // each lesson's actual duration_minutes * rate rather than assuming a
+    // fixed per-lesson amount.
     if (mode === "monthly" || mode === "custom_date") {
-      const unbilledThisMonthCount = lessons.filter(
+      const unbilledThisMonthLessons = lessons.filter(
         (l) =>
           l.student_id === studentId &&
           !l.payment_cycle_id &&
           isThisMonth(l.lesson_date),
-      ).length;
-      return sum + unbilledThisMonthCount * lessonAmount;
+      );
+      const total = unbilledThisMonthLessons.reduce(
+        (s, l) => s + lessonAmount(l, student),
+        0,
+      );
+      return sum + total;
     }
     const cycleCount = student.payment_cycle_count ?? 4;
     const unbilledCount = openCountByStudent.get(studentId) ?? 0;
     if (unbilledCount < cycleCount - 1) return sum;
-    const cycleAmount = lessonAmount * cycleCount;
+    const unbilledLessons = lessons
+      .filter(
+        (l) =>
+          l.student_id === studentId && !l.payment_cycle_id && l.is_completed,
+      )
+      .sort((a, b) =>
+        a.lesson_date < b.lesson_date
+          ? -1
+          : a.lesson_date > b.lesson_date
+            ? 1
+            : 0,
+      )
+      .slice(-cycleCount);
+    const cycleAmount = unbilledLessons.reduce(
+      (s, l) => s + lessonAmount(l, student),
+      0,
+    );
     return sum + cycleAmount;
   }, 0);
   const pendingThisMonth =

@@ -12,6 +12,15 @@ export function ordinal(day) {
   return ORDINALS[day] ?? `${day}th`;
 }
 
+// The billable amount for a single lesson: its actual logged duration
+// (not the student's nominal lesson_duration_hours) times its rate, falling
+// back to the student's hourly_rate when the lesson has no rate override.
+export function lessonAmount(lesson, student) {
+  const rate = lesson?.rate ?? student?.hourly_rate ?? 0;
+  const minutes = lesson?.duration_minutes ?? 0;
+  return (minutes / 60) * rate;
+}
+
 export function paymentModeLabel(student) {
   switch (student?.payment_mode) {
     case "monthly":
