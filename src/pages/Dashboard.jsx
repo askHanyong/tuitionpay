@@ -353,12 +353,12 @@ export default function Dashboard() {
       // month -- only start showing them as pending once the month is almost
       // over (last 3 days), so the dashboard doesn't nag about a balance
       // that's still growing.
-      const lastDayOfMonthNum = new Date(
-        now.getFullYear(),
-        now.getMonth() + 1,
-        0,
-      ).getDate();
-      const daysToEnd = lastDayOfMonthNum - now.getDate();
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      const daysToEnd = Math.round(
+        (endOfMonth -
+          new Date(now.getFullYear(), now.getMonth(), now.getDate())) /
+          (1000 * 60 * 60 * 24),
+      );
       if (daysToEnd > 3) return sum;
       const unbilledThisMonthLessons = lessons.filter(
         (l) =>
@@ -379,21 +379,13 @@ export default function Dashboard() {
     // pending if the scheduled lesson that would complete it (the next
     // lesson needed to reach payment_cycle_count) actually falls within
     // this month -- otherwise the cycle won't close until a later month.
-    const neededScheduled = cycleCount - unbilledCount;
-    if (neededScheduled > 0) {
-      const upcomingScheduled = scheduledLessons
-        .filter((l) => l.student_id === studentId)
-        .sort((a, b) =>
-          a.lesson_date < b.lesson_date
-            ? -1
-            : a.lesson_date > b.lesson_date
-              ? 1
-              : 0,
-        );
-      const completingLesson = upcomingScheduled[neededScheduled - 1];
-      if (!completingLesson || !isThisMonth(completingLesson.lesson_date)) {
-        return sum;
-      }
+    const nextScheduled = (scheduledLessonsByStudent.get(studentId) ?? [])
+      .slice()
+      .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1));
+    const lessonsNeeded = cycleCount - unbilledCount;
+    const completingLesson = nextScheduled[lessonsNeeded - 1];
+    if (completingLesson && !isThisMonth(completingLesson.lesson_date)) {
+      return sum;
     }
     const unbilledLessons = lessons
       .filter(
