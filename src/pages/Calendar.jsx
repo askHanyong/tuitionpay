@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
 import { formatLessonTime } from "../lib/date";
-import { formatDate, formatDateFull, formatMonth } from "../utils/dateFormat";
+import { formatDateFull, formatMonth } from "../utils/dateFormat";
 import AppShell from "../components/AppShell";
 import LessonDetailModal from "../components/LessonDetailModal";
 
@@ -187,10 +187,7 @@ export default function Calendar() {
     }
     if (isPerLesson(lesson)) {
       const pos = perLessonPosition.get(lesson.id) ?? "?";
-      const dateLabel = lesson.lesson_date
-        ? formatDate(lesson.lesson_date)
-        : "";
-      return `Lesson ${pos} · ${dateLabel}`;
+      return `Lesson ${pos}`;
     }
     const cycleCount = lesson.students?.payment_cycle_count ?? 4;
     return `Lesson ${lessonPosition.get(lesson.id) ?? "?"} of ${cycleCount}`;

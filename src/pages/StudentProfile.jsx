@@ -406,9 +406,7 @@ export default function StudentProfile() {
                             new Date(`${l.lesson_date}T00:00:00`),
                           )}`
                         : isPerLesson
-                          ? `Lesson ${lessonPosition.get(l.id) ?? "?"} · ${formatDate(
-                              l.lesson_date,
-                            )}`
+                          ? `Lesson ${lessonPosition.get(l.id) ?? "?"}`
                           : `Lesson ${lessonPosition.get(l.id) ?? "?"} of ${
                               student?.payment_cycle_count ?? 4
                             }`}

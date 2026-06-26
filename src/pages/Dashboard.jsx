@@ -432,10 +432,7 @@ export default function Dashboard() {
     }
     if (isPerLesson(lesson.student_id)) {
       const pos = perLessonPosition.get(lesson.id) ?? "?";
-      const dateLabel = lesson.lesson_date
-        ? formatDate(lesson.lesson_date)
-        : "";
-      return `Lesson ${pos} · ${dateLabel}`;
+      return `Lesson ${pos}`;
     }
     return `Lesson ${todayLessonNumber(lesson)} of ${
       cycleCountByStudent.get(lesson.student_id) ?? 4

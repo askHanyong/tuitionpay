@@ -2,6 +2,7 @@ import { formatLessonTime } from "../lib/date";
 import { formatDate } from "../utils/dateFormat";
 import { buildGoogleMapsUrl } from "../lib/maps";
 import { formatSGD } from "../lib/paymentNotice";
+import { lessonAmount } from "../lib/paymentMode";
 
 export default function LessonDetailModal({
   lesson,
@@ -15,6 +16,9 @@ export default function LessonDetailModal({
   const address = lesson.students?.address;
   const isDone = lesson.is_completed;
   const isPaid = paymentCycle?.status === "paid";
+  const amountDue = paymentCycle
+    ? Number(paymentCycle.amount_due)
+    : lessonAmount(lesson, lesson.students);
 
   return (
     <div
@@ -71,15 +75,13 @@ export default function LessonDetailModal({
           <p className="mt-3 text-sm italic text-gray-500">{lesson.notes}</p>
         )}
 
-        {paymentCycle && (
+        {isDone && lesson.students?.payment_mode === "per_lesson" && (
           <p
             className={`mt-3 text-sm font-medium ${
               isPaid ? "text-green-700" : "text-red-700"
             }`}
           >
-            {isPaid
-              ? "Paid ✓"
-              : `Unpaid — collect ${formatSGD(paymentCycle.amount_due)}`}
+            {isPaid ? "Paid ✓" : `Unpaid — ${formatSGD(amountDue)} due`}
           </p>
         )}
 
@@ -98,14 +100,17 @@ export default function LessonDetailModal({
               ✅ Mark as Done
             </button>
           )}
-          {paymentCycle && !isPaid && (
-            <button
-              onClick={() => onMarkPaid(paymentCycle.id)}
-              className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
-            >
-              💰 Mark as Paid
-            </button>
-          )}
+          {isDone &&
+            lesson.students?.payment_mode === "per_lesson" &&
+            !isPaid &&
+            paymentCycle && (
+              <button
+                onClick={() => onMarkPaid(paymentCycle.id)}
+                className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
+              >
+                💰 Mark as Paid
+              </button>
+            )}
         </div>
       </div>
     </div>
