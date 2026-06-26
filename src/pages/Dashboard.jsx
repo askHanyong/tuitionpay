@@ -83,7 +83,9 @@ export default function Dashboard() {
         .order("lesson_time", { ascending: true }),
       supabase
         .from("lessons")
-        .select("id, student_id, lesson_date, lesson_time")
+        .select(
+          "id, student_id, lesson_date, lesson_time, is_completed, students(name)",
+        )
         .eq("is_completed", false),
     ]);
     setStudents(studentsData ?? []);
@@ -160,17 +162,31 @@ export default function Dashboard() {
     localStorage.setItem(key, "1");
   }, [notifyPrefs.notify_weekly_summary, loading, lessons, paymentCycles]);
 
-  // Position each lesson within its running 4-lesson billing sequence, based
-  // purely on chronological lesson_date (not insertion order or which
-  // payment_cycle_id it was actually billed under).
+  const cycleCountByStudent = new Map(
+    students.map((s) => [s.id, s.payment_cycle_count ?? 4]),
+  );
+
   const lessonsByStudent = new Map();
   for (const lesson of lessons) {
     if (!lessonsByStudent.has(lesson.student_id))
       lessonsByStudent.set(lesson.student_id, []);
     lessonsByStudent.get(lesson.student_id).push(lesson);
   }
+
+  // Position each lesson within its running billing sequence (sized to the
+  // student's own payment_cycle_count, not a fixed 4), based purely on
+  // chronological lesson_date -- covers both completed and still-scheduled
+  // lessons so the "Lesson X of Y" badge works everywhere it's shown,
+  // including upcoming/scheduled lessons in Recent Lessons.
+  const lessonPositionByStudent = new Map();
+  for (const lesson of [...lessons, ...scheduledLessons]) {
+    if (!lessonPositionByStudent.has(lesson.student_id))
+      lessonPositionByStudent.set(lesson.student_id, []);
+    lessonPositionByStudent.get(lesson.student_id).push(lesson);
+  }
   const lessonPosition = new Map();
-  for (const group of lessonsByStudent.values()) {
+  for (const [studentId, group] of lessonPositionByStudent) {
+    const cycleCount = cycleCountByStudent.get(studentId) ?? 4;
     const sorted = [...group].sort((a, b) =>
       a.lesson_date < b.lesson_date
         ? -1
@@ -178,7 +194,9 @@ export default function Dashboard() {
           ? 1
           : 0,
     );
-    sorted.forEach((lesson, i) => lessonPosition.set(lesson.id, (i % 4) + 1));
+    sorted.forEach((lesson, i) =>
+      lessonPosition.set(lesson.id, (i % cycleCount) + 1),
+    );
   }
 
   const openCountByStudent = new Map();
@@ -190,7 +208,20 @@ export default function Dashboard() {
     );
   }
 
-  const recentLessons = [...lessons].slice(-3).reverse();
+  // Recent Lessons must span every student, not just whichever rows happen
+  // to be last in `lessons` (which is ordered by insertion time, not
+  // lesson_date) -- so pull from both completed and scheduled lessons and
+  // sort by lesson_date/lesson_time ourselves, across all students.
+  const recentLessons = [...lessons, ...scheduledLessons]
+    .sort((a, b) => {
+      if (a.lesson_date !== b.lesson_date) {
+        return a.lesson_date < b.lesson_date ? 1 : -1;
+      }
+      const aTime = a.lesson_time ?? "";
+      const bTime = b.lesson_time ?? "";
+      return aTime < bTime ? 1 : aTime > bTime ? -1 : 0;
+    })
+    .slice(0, 5);
 
   const lastLessonByStudent = new Map();
   for (const lesson of lessons) {
@@ -291,7 +322,9 @@ export default function Dashboard() {
   const todayLessonNumber = (lesson) =>
     lesson.is_completed
       ? (lessonPosition.get(lesson.id) ?? "?")
-      : ((openCountByStudent.get(lesson.student_id) ?? 0) % 4) + 1;
+      : ((openCountByStudent.get(lesson.student_id) ?? 0) %
+          (cycleCountByStudent.get(lesson.student_id) ?? 4)) +
+        1;
 
   const handleMarkDone = async (lessonId) => {
     const previouslyPendingIds = new Set(
@@ -712,9 +745,21 @@ export default function Dashboard() {
                         {formatDate(l.lesson_date)}
                       </p>
                     </div>
-                    <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                      Lesson {lessonPosition.get(l.id) ?? "?"} of 4
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                        Lesson {lessonPosition.get(l.id) ?? "?"} of{" "}
+                        {cycleCountByStudent.get(l.student_id) ?? 4}
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          l.is_completed
+                            ? "bg-blue-50 text-blue-700"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {l.is_completed ? "Completed" : "Scheduled"}
+                      </span>
+                    </div>
                   </li>
                 ))}
               </ul>
