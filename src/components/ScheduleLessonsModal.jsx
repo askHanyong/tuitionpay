@@ -72,7 +72,7 @@ export default function ScheduleLessonsModal({
     duration_minutes: Math.round(Number(student.lesson_duration_hours) * 60),
     rate: student.hourly_rate ?? null,
     status: date > todayKey() ? "scheduled" : "completed",
-    is_completed: date <= todayKey(),
+    is_completed: false,
   });
 
   const handlePreview = async () => {

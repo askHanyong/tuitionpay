@@ -81,6 +81,7 @@ export default function Onboarding({ onDismiss, onDone }) {
         lesson_date: lessonForm.lesson_date,
         duration_minutes: Math.round(durationHours * 60),
         rate: student.hourly_rate ?? null,
+        is_completed: true,
       });
       if (error) throw error;
       setStep(3);
