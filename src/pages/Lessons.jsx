@@ -286,7 +286,19 @@ export default function Lessons() {
       const durationHours = Number(form.duration_hours);
       const isFuture = form.lesson_date > today();
       const status = isFuture ? "scheduled" : "completed";
-      const is_completed = !isFuture;
+      // Only strictly past-dated lessons auto-complete on entry. Lessons
+      // dated today must still go through an explicit "Mark as Done" tap,
+      // same as lessons logged via Today's Lessons / the calendar. When
+      // editing, don't silently flip an already-completed lesson back to
+      // incomplete just because its date happens to be today.
+      const original = editingId
+        ? lessons.find((l) => l.id === editingId)
+        : null;
+      const is_completed = isFuture
+        ? false
+        : form.lesson_date < today()
+          ? true
+          : (original?.is_completed ?? false);
 
       if (editingId) {
         const { error } = await supabase
