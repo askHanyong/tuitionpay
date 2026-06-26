@@ -217,6 +217,13 @@ begin
       where id = any (month_rec.lesson_ids);
     end loop;
   end if;
+
+  -- drop any pending cycle for this student that ended up with no lessons
+  -- attached -- it no longer corresponds to a real completed-lesson group.
+  delete from payment_cycles pc
+  where pc.student_id = p_student_id
+    and pc.status = 'pending'
+    and not exists (select 1 from lessons l where l.payment_cycle_id = pc.id);
 end;
 $$;
 
