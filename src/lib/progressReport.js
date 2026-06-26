@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 import { formatSGD } from "./paymentNotice";
-import { formatDate } from "./date";
+import { formatDate, formatDateFull } from "../utils/dateFormat";
 
 // jsPDF's built-in fonts only support WinAnsi encoding, which has no emoji
 // glyphs — render them as mangled bytes instead of failing silently, so
@@ -82,7 +82,7 @@ export function downloadProgressReportPdf({
   doc.setFontSize(10);
   doc.setTextColor(107, 114, 128);
   doc.text(
-    `ChopeAndPay · Generated ${formatDate(generatedDate.toISOString())}`,
+    `ChopeAndPay · Generated ${formatDateFull(generatedDate.toISOString())}`,
     margin,
     y,
   );

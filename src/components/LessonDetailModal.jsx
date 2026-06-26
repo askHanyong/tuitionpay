@@ -1,4 +1,5 @@
-import { formatDate, formatLessonTime } from "../lib/date";
+import { formatLessonTime } from "../lib/date";
+import { formatDate } from "../utils/dateFormat";
 import { buildGoogleMapsUrl } from "../lib/maps";
 
 export default function LessonDetailModal({

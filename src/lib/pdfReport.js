@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import { formatSGD } from "./paymentNotice";
 import { reportFilenameBase } from "./monthlyReport";
+import { formatMonth } from "../utils/dateFormat";
 
 // jsPDF's built-in fonts only support WinAnsi encoding, which has no emoji
 // glyphs — render them as mangled bytes instead of failing silently, so
@@ -18,10 +19,7 @@ export function downloadMonthlyReportPdf(monthDate, tutorName, report) {
   const margin = 48;
   let y = 56;
 
-  const monthLabel = monthDate.toLocaleDateString("en-SG", {
-    month: "long",
-    year: "numeric",
-  });
+  const monthLabel = formatMonth(monthDate);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);

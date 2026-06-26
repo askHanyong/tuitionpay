@@ -2,7 +2,8 @@ import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
-import { formatDate, toDateKey } from "../lib/date";
+import { toDateKey } from "../lib/date";
+import { formatDate } from "../utils/dateFormat";
 
 const WEEKDAYS = [
   "Monday",

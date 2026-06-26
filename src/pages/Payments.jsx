@@ -3,7 +3,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { formatSGD } from "../lib/paymentNotice";
-import { formatDate } from "../lib/date";
+import { formatDate, formatDateFull, formatMonth } from "../utils/dateFormat";
 import {
   buildPaidReceiptMessage,
   buildPaymentRequestMessage,
@@ -96,11 +96,8 @@ export default function Payments() {
       tutorName: tutorProfile.full_name,
       paynowNumber: tutorProfile.paynow_number,
       paymentMode: cycle.students?.payment_mode,
-      monthLabel: new Date(`${cycle.period_end}T00:00:00`).toLocaleDateString(
-        "en-SG",
-        { month: "long" },
-      ),
-      dueDateLabel: formatDate(cycle.period_end),
+      monthLabel: formatMonth(cycle.period_end),
+      dueDateLabel: formatDateFull(cycle.period_end),
     });
     setPreview({
       title: "Payment request",

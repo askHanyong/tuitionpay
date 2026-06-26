@@ -4,6 +4,7 @@ import { buildMonthlyReport } from "../lib/monthlyReport";
 import { downloadMonthlyReportPdf } from "../lib/pdfReport";
 import { downloadMonthlyReportImage } from "../lib/imageReport";
 import MonthlyReportTemplate from "./MonthlyReportTemplate";
+import { formatMonth } from "../utils/dateFormat";
 
 function isSameMonth(dateStr, monthDate) {
   if (!dateStr) return false;
@@ -73,10 +74,7 @@ export default function MonthlyRecapCard({
         ? "💪 Solid month! Keep it going!"
         : "📈 Building up — every lesson counts!";
 
-  const monthLabel = monthDate.toLocaleDateString("en-SG", {
-    month: "long",
-    year: "numeric",
-  });
+  const monthLabel = formatMonth(monthDate);
   const prevMonthLabel = prevMonthDate.toLocaleDateString("en-SG", {
     month: "short",
   });

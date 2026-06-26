@@ -5,6 +5,7 @@ import {
   filterLessonsByRange,
 } from "../lib/progressReport";
 import { buildProgressReportMessage, buildWhatsAppLink } from "../lib/whatsapp";
+import { formatMonth } from "../utils/dateFormat";
 
 export default function ProgressReportModal({
   student,
@@ -36,10 +37,7 @@ export default function ProgressReportModal({
   };
 
   const handleShareWhatsApp = () => {
-    const monthLabel = new Date().toLocaleDateString("en-SG", {
-      month: "long",
-      year: "numeric",
-    });
+    const monthLabel = formatMonth(new Date());
     const message = buildProgressReportMessage({
       studentName: student.name,
       monthLabel,

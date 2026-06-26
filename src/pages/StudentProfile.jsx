@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { formatSGD } from "../lib/paymentNotice";
-import { formatDate } from "../lib/date";
+import { formatDate, formatDateFull, formatMonth } from "../utils/dateFormat";
 import { paymentModeLabel } from "../lib/paymentMode";
 import { useToast } from "../contexts/ToastContext";
 import {
@@ -138,11 +138,8 @@ export default function StudentProfile() {
       tutorName: tutorProfile.full_name,
       paynowNumber: tutorProfile.paynow_number,
       paymentMode: student.payment_mode,
-      monthLabel: new Date(`${cycle.period_end}T00:00:00`).toLocaleDateString(
-        "en-SG",
-        { month: "long" },
-      ),
-      dueDateLabel: formatDate(cycle.period_end),
+      monthLabel: formatMonth(cycle.period_end),
+      dueDateLabel: formatDateFull(cycle.period_end),
     });
     setPreview({ title: "Payment request", message, mode: "whatsapp" });
   };

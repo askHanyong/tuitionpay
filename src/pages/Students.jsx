@@ -5,7 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import AppShell from "../components/AppShell";
 import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
-import { formatDate } from "../lib/date";
+import { formatDate } from "../utils/dateFormat";
 import { formatSGD } from "../lib/paymentNotice";
 import { LEVEL_OPTIONS } from "../lib/levels";
 

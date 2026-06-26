@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
-import { formatDate } from "../lib/date";
+import { formatDate } from "../utils/dateFormat";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
 import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import { createCalendarEvent, isGoogleTokenValid } from "../lib/googleCalendar";

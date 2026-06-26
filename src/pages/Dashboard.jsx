@@ -4,7 +4,8 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { formatSGD } from "../lib/paymentNotice";
 import { ordinal } from "../lib/paymentMode";
-import { formatDate, formatLessonTime, toDateKey } from "../lib/date";
+import { formatLessonTime, toDateKey } from "../lib/date";
+import { formatDate, formatMonth, formatRelative } from "../utils/dateFormat";
 import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import { getWeekSummaryKey, showAppNotification } from "../lib/notifications";
 import { buildGoogleMapsUrl } from "../lib/maps";
@@ -189,10 +190,7 @@ export default function Dashboard() {
   }
 
   const now = new Date();
-  const monthLabel = now.toLocaleDateString("en-SG", {
-    month: "long",
-    year: "numeric",
-  });
+  const monthLabel = formatMonth(now);
   const isThisMonth = (dateStr) => {
     if (!dateStr) return false;
     const d = new Date(dateStr);
@@ -470,7 +468,7 @@ export default function Dashboard() {
                       )}
                       <p className="mt-0.5 text-xs text-gray-400">
                         {lastLessonDate
-                          ? `Last lesson: ${formatDate(lastLessonDate)}`
+                          ? `Last lesson: ${formatRelative(lastLessonDate, { includeTime: false })}`
                           : "No lessons yet"}
                       </p>
                     </div>
