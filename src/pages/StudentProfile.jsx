@@ -83,6 +83,7 @@ export default function StudentProfile() {
   const isMonthlyBilled =
     student?.payment_mode === "monthly" ||
     student?.payment_mode === "custom_date";
+  const isPerLesson = student?.payment_mode === "per_lesson";
 
   const lessonPosition = useMemo(() => {
     const groupKey = (l) =>
@@ -104,11 +105,14 @@ export default function StudentProfile() {
             : 0,
       );
       sorted.forEach((l, i) =>
-        positions.set(l.id, isMonthlyBilled ? i + 1 : (i % cycleCount) + 1),
+        positions.set(
+          l.id,
+          isMonthlyBilled || isPerLesson ? i + 1 : (i % cycleCount) + 1,
+        ),
       );
     }
     return positions;
-  }, [lessons, isMonthlyBilled, student?.payment_cycle_count]);
+  }, [lessons, isMonthlyBilled, isPerLesson, student?.payment_cycle_count]);
 
   const lessonAmount =
     (student?.hourly_rate ?? 0) * (student?.lesson_duration_hours ?? 0);
@@ -141,6 +145,11 @@ export default function StudentProfile() {
     }).length;
   }, [lessons]);
   const monthLabel = formatMonth(new Date());
+  const unpaidPerLessonCycles = cycles.filter((c) => c.status === "pending");
+  const unpaidPerLessonAmount = unpaidPerLessonCycles.reduce(
+    (sum, c) => sum + Number(c.amount_due),
+    0,
+  );
 
   const lessonDatesByCycle = useMemo(() => {
     const map = new Map();
@@ -336,6 +345,18 @@ export default function StudentProfile() {
                 {formatSGD(openCountThisMonth * lessonAmount)} accrued so far
               </p>
             </>
+          ) : isPerLesson ? (
+            <>
+              <p className="text-2xl font-semibold text-gray-900">
+                {unpaidPerLessonCycles.length} unpaid
+              </p>
+              <p className="mt-1 text-xs font-medium text-gray-500">
+                Billed after each lesson
+              </p>
+              <p className="mt-1 text-xs text-gray-400">
+                {formatSGD(unpaidPerLessonAmount)} outstanding
+              </p>
+            </>
           ) : (
             <>
               <p className="text-2xl font-semibold text-gray-900">
@@ -377,9 +398,13 @@ export default function StudentProfile() {
                         ? `Lesson ${lessonPosition.get(l.id) ?? "?"} · ${formatMonth(
                             new Date(`${l.lesson_date}T00:00:00`),
                           )}`
-                        : `Lesson ${lessonPosition.get(l.id) ?? "?"} of ${
-                            student?.payment_cycle_count ?? 4
-                          }`}
+                        : isPerLesson
+                          ? `Lesson ${lessonPosition.get(l.id) ?? "?"} · ${formatDate(
+                              l.lesson_date,
+                            )}`
+                          : `Lesson ${lessonPosition.get(l.id) ?? "?"} of ${
+                              student?.payment_cycle_count ?? 4
+                            }`}
                     </span>
                     <button
                       onClick={() =>

@@ -1,16 +1,20 @@
 import { formatLessonTime } from "../lib/date";
 import { formatDate } from "../utils/dateFormat";
 import { buildGoogleMapsUrl } from "../lib/maps";
+import { formatSGD } from "../lib/paymentNotice";
 
 export default function LessonDetailModal({
   lesson,
   lessonLabel,
+  paymentCycle,
   onClose,
   onEdit,
   onMarkDone,
+  onMarkPaid,
 }) {
   const address = lesson.students?.address;
   const isDone = lesson.is_completed;
+  const isPaid = paymentCycle?.status === "paid";
 
   return (
     <div
@@ -67,6 +71,18 @@ export default function LessonDetailModal({
           <p className="mt-3 text-sm italic text-gray-500">{lesson.notes}</p>
         )}
 
+        {paymentCycle && (
+          <p
+            className={`mt-3 text-sm font-medium ${
+              isPaid ? "text-green-700" : "text-red-700"
+            }`}
+          >
+            {isPaid
+              ? "Paid ✓"
+              : `Unpaid — collect ${formatSGD(paymentCycle.amount_due)}`}
+          </p>
+        )}
+
         <div className="mt-5 flex flex-wrap gap-2">
           <button
             onClick={onEdit}
@@ -80,6 +96,14 @@ export default function LessonDetailModal({
               className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
             >
               ✅ Mark as Done
+            </button>
+          )}
+          {paymentCycle && !isPaid && (
+            <button
+              onClick={() => onMarkPaid(paymentCycle.id)}
+              className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
+            >
+              💰 Mark as Paid
             </button>
           )}
         </div>

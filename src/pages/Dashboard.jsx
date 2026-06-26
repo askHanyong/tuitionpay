@@ -224,6 +224,28 @@ export default function Dashboard() {
     const mode = studentsLookup.get(studentId)?.payment_mode ?? "lessons";
     return mode === "monthly" || mode === "custom_date";
   };
+  const isPerLesson = (studentId) =>
+    (studentsLookup.get(studentId)?.payment_mode ?? "lessons") === "per_lesson";
+
+  // Per-lesson billing has no fixed cycle size, so a lesson's position is
+  // simply its cumulative place among all of that student's lessons.
+  const perLessonPosition = new Map();
+  const perLessonGroups = new Map();
+  for (const lesson of [...lessons, ...scheduledLessons]) {
+    if (!perLessonGroups.has(lesson.student_id))
+      perLessonGroups.set(lesson.student_id, []);
+    perLessonGroups.get(lesson.student_id).push(lesson);
+  }
+  for (const group of perLessonGroups.values()) {
+    const sorted = [...group].sort((a, b) =>
+      a.lesson_date < b.lesson_date
+        ? -1
+        : a.lesson_date > b.lesson_date
+          ? 1
+          : 0,
+    );
+    sorted.forEach((lesson, i) => perLessonPosition.set(lesson.id, i + 1));
+  }
 
   const openCountByStudent = new Map();
   for (const lesson of lessons) {
@@ -386,6 +408,13 @@ export default function Dashboard() {
         ? formatMonth(new Date(`${lesson.lesson_date}T00:00:00`))
         : "";
       return `Lesson ${pos} · ${monthLabel}`;
+    }
+    if (isPerLesson(lesson.student_id)) {
+      const pos = perLessonPosition.get(lesson.id) ?? "?";
+      const dateLabel = lesson.lesson_date
+        ? formatDate(lesson.lesson_date)
+        : "";
+      return `Lesson ${pos} · ${dateLabel}`;
     }
     return `Lesson ${todayLessonNumber(lesson)} of ${
       cycleCountByStudent.get(lesson.student_id) ?? 4

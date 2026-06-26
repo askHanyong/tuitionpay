@@ -12,6 +12,14 @@ import AppShell from "../components/AppShell";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+const daysAgo = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+};
+
+const PAGE_SIZE = 20;
+
 const emptyForm = (students, prefillDate, defaultTime) => ({
   student_id: students[0]?.id ?? "",
   lesson_date: prefillDate ?? today(),
@@ -111,6 +119,30 @@ export default function Lessons() {
   const [copied, setCopied] = useState(false);
   const [editingId, setEditingId] = useState(null);
 
+  const [defaultDateFrom] = useState(() => daysAgo(30));
+  const [defaultDateTo] = useState(() => today());
+  const [studentFilter, setStudentFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState(defaultDateFrom);
+  const [dateTo, setDateTo] = useState(defaultDateTo);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filtersActive =
+    studentFilter !== "all" ||
+    dateFrom !== defaultDateFrom ||
+    dateTo !== defaultDateTo ||
+    statusFilter !== "all" ||
+    searchQuery.trim() !== "";
+
+  const handleClearFilters = () => {
+    setStudentFilter("all");
+    setDateFrom(defaultDateFrom);
+    setDateTo(defaultDateTo);
+    setStatusFilter("all");
+    setSearchQuery("");
+    setVisibleCount(PAGE_SIZE);
+  };
+
   useEffect(() => {
     const load = async () => {
       const [
@@ -125,7 +157,7 @@ export default function Lessons() {
           )
           .order("lesson_date", { ascending: false })
           .order("created_at", { ascending: false })
-          .limit(50),
+          .limit(1000),
       ]);
       if (studentsError) setError(studentsError.message);
       if (lessonsError) setError(lessonsError.message);
@@ -165,7 +197,7 @@ export default function Lessons() {
       )
       .order("lesson_date", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(1000);
     if (error) setError(error.message);
     setLessons(data ?? []);
   };
@@ -179,6 +211,8 @@ export default function Lessons() {
       const mode = lesson.students?.payment_mode ?? "lessons";
       return mode === "monthly" || mode === "custom_date";
     };
+    const isPerLesson = (lesson) =>
+      (lesson.students?.payment_mode ?? "lessons") === "per_lesson";
     const groupKey = (lesson) =>
       isMonthlyBilled(lesson)
         ? `${lesson.student_id}|${lesson.lesson_date?.slice(0, 7)}`
@@ -193,6 +227,7 @@ export default function Lessons() {
     for (const group of lessonsByGroup.values()) {
       const cycleCount = group[0]?.students?.payment_cycle_count ?? 4;
       const monthly = isMonthlyBilled(group[0]);
+      const perLesson = isPerLesson(group[0]);
       const sorted = [...group].sort((a, b) =>
         a.lesson_date < b.lesson_date
           ? -1
@@ -201,11 +236,53 @@ export default function Lessons() {
             : 0,
       );
       sorted.forEach((lesson, i) =>
-        positions.set(lesson.id, monthly ? i + 1 : (i % cycleCount) + 1),
+        positions.set(
+          lesson.id,
+          monthly || perLesson ? i + 1 : (i % cycleCount) + 1,
+        ),
       );
     }
     return positions;
   }, [lessons]);
+
+  const filteredLessons = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return lessons.filter((l) => {
+      if (studentFilter !== "all" && l.student_id !== studentFilter)
+        return false;
+      if (dateFrom && l.lesson_date < dateFrom) return false;
+      if (dateTo && l.lesson_date > dateTo) return false;
+      if (statusFilter === "completed" && !l.is_completed) return false;
+      if (statusFilter === "scheduled" && l.is_completed) return false;
+      if (q) {
+        const name = l.students?.name?.toLowerCase() ?? "";
+        const dateLabel = formatDate(l.lesson_date).toLowerCase();
+        if (
+          !name.includes(q) &&
+          !dateLabel.includes(q) &&
+          !l.lesson_date.includes(q)
+        )
+          return false;
+      }
+      return true;
+    });
+  }, [lessons, studentFilter, dateFrom, dateTo, statusFilter, searchQuery]);
+
+  const filterKey = JSON.stringify([
+    studentFilter,
+    dateFrom,
+    dateTo,
+    statusFilter,
+    searchQuery,
+  ]);
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setVisibleCount(PAGE_SIZE);
+  }
+
+  const displayedLessons = filteredLessons.slice(0, visibleCount);
 
   const handleAddToCalendar = (lesson) => {
     const ics = buildLessonIcs({
@@ -240,9 +317,11 @@ export default function Lessons() {
     const end = new Date(start.getTime() + durationMinutes * 60000);
     const mode = student?.payment_mode ?? "lessons";
     const isMonthlyBilled = mode === "monthly" || mode === "custom_date";
-    const lessonLabel = isMonthlyBilled
-      ? `Lesson ${lessonNumber}`
-      : `Lesson ${lessonNumber} of ${student?.payment_cycle_count ?? 4}`;
+    const isPerLesson = mode === "per_lesson";
+    const lessonLabel =
+      isMonthlyBilled || isPerLesson
+        ? `Lesson ${lessonNumber}`
+        : `Lesson ${lessonNumber} of ${student?.payment_cycle_count ?? 4}`;
     try {
       await createCalendarEvent(tutor.google_access_token, {
         summary: `${student?.name ?? "Lesson"} - ${student?.subject || "Lesson"} (${lessonLabel})`,
@@ -621,6 +700,102 @@ export default function Lessons() {
         <h2 className="mb-3 text-base font-semibold text-gray-900">
           Recent lessons
         </h2>
+
+        {!loading && lessons.length > 0 && (
+          <div className="mb-4 space-y-3 rounded-md border border-gray-200 bg-white p-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  Student
+                </label>
+                <select
+                  value={studentFilter}
+                  onChange={(e) => setStudentFilter(e.target.value)}
+                  className="min-h-11 w-full rounded-md border border-gray-300 px-2 text-sm"
+                >
+                  <option value="all">All students</option>
+                  {students.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  From
+                </label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="min-h-11 w-full rounded-md border border-gray-300 px-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  To
+                </label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="min-h-11 w-full rounded-md border border-gray-300 px-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  Search
+                </label>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Student name or date"
+                  className="min-h-11 w-full rounded-md border border-gray-300 px-2 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex gap-1">
+                {[
+                  { value: "all", label: "All" },
+                  { value: "completed", label: "Completed" },
+                  { value: "scheduled", label: "Scheduled" },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setStatusFilter(opt.value)}
+                    className={`min-h-9 rounded-md px-3 text-sm font-medium transition ${
+                      statusFilter === opt.value
+                        ? "bg-green-600 text-white"
+                        : "border border-gray-300 text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {filtersActive && (
+                <button
+                  type="button"
+                  onClick={handleClearFilters}
+                  className="text-sm font-medium text-green-700 hover:text-green-800"
+                >
+                  Clear all filters
+                </button>
+              )}
+            </div>
+
+            <p className="text-xs text-gray-500">
+              Showing {displayedLessons.length} of {filteredLessons.length}{" "}
+              lesson{filteredLessons.length === 1 ? "" : "s"}
+            </p>
+          </div>
+        )}
+
         {loading ? (
           <p className="text-sm text-gray-500">Loading...</p>
         ) : lessons.length === 0 ? (
@@ -643,10 +818,24 @@ export default function Lessons() {
               Log Lesson
             </a>
           </div>
+        ) : filteredLessons.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-white px-6 py-12 text-center shadow-sm">
+            <p className="mb-4 text-5xl">🔍</p>
+            <p className="mb-6 max-w-sm text-sm text-gray-600">
+              No lessons match your filters.
+            </p>
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="flex min-h-11 items-center rounded-md bg-green-600 px-5 text-sm font-medium text-white hover:bg-green-700"
+            >
+              Clear all filters
+            </button>
+          </div>
         ) : (
           <>
             <ul className="space-y-3 sm:hidden">
-              {lessons.map((l) => (
+              {displayedLessons.map((l) => (
                 <li
                   key={l.id}
                   className="rounded-md border border-gray-200 bg-white p-4"
@@ -713,7 +902,7 @@ export default function Lessons() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {lessons.map((l) => (
+                  {displayedLessons.map((l) => (
                     <tr key={l.id} className="transition hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-900">
                         {formatDateTime(l.lesson_date, l.lesson_time)}
@@ -768,6 +957,17 @@ export default function Lessons() {
                 </tbody>
               </table>
             </div>
+            {visibleCount < filteredLessons.length && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                  className="min-h-11 rounded-md border border-gray-300 px-5 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  Load more
+                </button>
+              </div>
+            )}
           </>
         )}
       </section>

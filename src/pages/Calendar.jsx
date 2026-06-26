@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
 import { formatLessonTime } from "../lib/date";
-import { formatDateFull, formatMonth } from "../utils/dateFormat";
+import { formatDate, formatDateFull, formatMonth } from "../utils/dateFormat";
 import AppShell from "../components/AppShell";
 import LessonDetailModal from "../components/LessonDetailModal";
 
@@ -79,7 +79,7 @@ export default function Calendar() {
     const { data } = await supabase
       .from("lessons")
       .select(
-        "*, students(name, subject, hourly_rate, address, payment_mode, payment_cycle_count)",
+        "*, students(name, subject, hourly_rate, address, payment_mode, payment_cycle_count), payment_cycles(id, status, amount_due)",
       )
       .order("created_at", { ascending: true });
     setLessons(data ?? []);
@@ -96,6 +96,11 @@ export default function Calendar() {
   const isMonthlyBilled = (lesson) => {
     const mode = lesson.students?.payment_mode ?? "lessons";
     return mode === "monthly" || mode === "custom_date";
+  };
+
+  const isPerLesson = (lesson) => {
+    const mode = lesson.students?.payment_mode ?? "lessons";
+    return mode === "per_lesson";
   };
 
   // Position each lesson within its running billing sequence (sized to the
@@ -149,6 +154,29 @@ export default function Calendar() {
     return positions;
   }, [lessons]);
 
+  // Cumulative position across ALL of the student's lessons, chronological by
+  // lesson_date -- used for per-lesson billing, which has no fixed cycle size.
+  const perLessonPosition = useMemo(() => {
+    const lessonsByStudent = new Map();
+    for (const lesson of lessons) {
+      if (!lessonsByStudent.has(lesson.student_id))
+        lessonsByStudent.set(lesson.student_id, []);
+      lessonsByStudent.get(lesson.student_id).push(lesson);
+    }
+    const positions = new Map();
+    for (const group of lessonsByStudent.values()) {
+      const sorted = [...group].sort((a, b) =>
+        a.lesson_date < b.lesson_date
+          ? -1
+          : a.lesson_date > b.lesson_date
+            ? 1
+            : 0,
+      );
+      sorted.forEach((lesson, i) => positions.set(lesson.id, i + 1));
+    }
+    return positions;
+  }, [lessons]);
+
   const lessonBadgeLabel = (lesson) => {
     if (isMonthlyBilled(lesson)) {
       const pos = monthlyLessonPosition.get(lesson.id) ?? "?";
@@ -156,6 +184,13 @@ export default function Calendar() {
         ? formatMonth(new Date(`${lesson.lesson_date}T00:00:00`))
         : "";
       return `Lesson ${pos} · ${monthLabel}`;
+    }
+    if (isPerLesson(lesson)) {
+      const pos = perLessonPosition.get(lesson.id) ?? "?";
+      const dateLabel = lesson.lesson_date
+        ? formatDate(lesson.lesson_date)
+        : "";
+      return `Lesson ${pos} · ${dateLabel}`;
     }
     const cycleCount = lesson.students?.payment_cycle_count ?? 4;
     return `Lesson ${lessonPosition.get(lesson.id) ?? "?"} of ${cycleCount}`;
@@ -244,6 +279,19 @@ export default function Calendar() {
       .from("lessons")
       .update({ is_completed: true })
       .eq("id", lesson.id);
+    if (error) {
+      window.alert(error.message);
+      return;
+    }
+    await reloadLessons();
+  };
+
+  const handleMarkPaid = async (cycleId) => {
+    setDetailLesson(null);
+    const { error } = await supabase
+      .from("payment_cycles")
+      .update({ status: "paid", paid_at: new Date().toISOString() })
+      .eq("id", cycleId);
     if (error) {
       window.alert(error.message);
       return;
@@ -453,12 +501,16 @@ export default function Calendar() {
         <LessonDetailModal
           lesson={detailLesson}
           lessonLabel={detailLesson ? lessonBadgeLabel(detailLesson) : null}
+          paymentCycle={
+            isPerLesson(detailLesson) ? detailLesson.payment_cycles : null
+          }
           onClose={() => setDetailLesson(null)}
           onEdit={() => {
             setDetailLesson(null);
             handleEditLesson(detailLesson);
           }}
           onMarkDone={() => handleMarkDone(detailLesson)}
+          onMarkPaid={handleMarkPaid}
         />
       )}
     </AppShell>
