@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
@@ -43,62 +44,92 @@ function isLessonCompleted(lesson) {
 
 function LessonActionsMenu({ onAddToCalendar, onEdit, onDelete }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const [menuPos, setMenuPos] = useState(null);
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
     const handleClickOutside = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target) &&
+        menuRef.current &&
+        !menuRef.current.contains(e.target)
+      ) {
+        setOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
+  const toggleOpen = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const menuHeight = 124;
+      const openUpward = rect.bottom + menuHeight > window.innerHeight;
+      setMenuPos({
+        left: rect.right - 176,
+        top: openUpward ? rect.top - menuHeight : rect.bottom + 4,
+      });
+    }
+    setOpen((o) => !o);
+  };
+
   return (
-    <div ref={ref} className="relative inline-block text-left">
+    <>
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggleOpen}
         aria-label="Lesson actions"
         className="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700"
       >
         ⋯
       </button>
-      {open && (
-        <div className="absolute right-0 z-10 mt-1 w-44 rounded-md border border-gray-200 bg-white py-1 shadow-lg">
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              onAddToCalendar();
-            }}
-            className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+      {open &&
+        menuPos &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{ position: "fixed", left: menuPos.left, top: menuPos.top }}
+            className="z-50 w-44 rounded-md border border-gray-200 bg-white py-1 shadow-lg"
           >
-            📅 Add to Calendar
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              onEdit();
-            }}
-            className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              onDelete();
-            }}
-            className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-50"
-          >
-            Delete
-          </button>
-        </div>
-      )}
-    </div>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onAddToCalendar();
+              }}
+              className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+            >
+              📅 Add to Calendar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onEdit();
+              }}
+              className="block w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onDelete();
+              }}
+              className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-gray-50"
+            >
+              Delete
+            </button>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
