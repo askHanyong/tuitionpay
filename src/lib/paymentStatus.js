@@ -1,5 +1,6 @@
 import { formatSGD } from "./paymentNotice";
 import { formatDate, formatMonth } from "../utils/dateFormat";
+import { ordinal } from "./paymentMode";
 
 const TIER_RANK = { red: 0, amber: 1, blue: 2, grey: 2, green: 3 };
 
@@ -68,8 +69,26 @@ function sortByDueDesc(cycles) {
   );
 }
 
+function sortLessonsByWhen(lessons) {
+  return [...lessons].sort((a, b) => {
+    if (a.lesson_date !== b.lesson_date) {
+      return a.lesson_date < b.lesson_date ? -1 : 1;
+    }
+    const at = a.lesson_time ?? "";
+    const bt = b.lesson_time ?? "";
+    return at < bt ? -1 : at > bt ? 1 : 0;
+  });
+}
+
 export function computeStudentPaymentStatus(student, ctx) {
-  const { pendingCycles, paidCycles, completedLessons, openCount, now } = ctx;
+  const {
+    pendingCycles,
+    paidCycles,
+    completedLessons,
+    scheduledLessons,
+    openCount,
+    now,
+  } = ctx;
   const rate = student.hourly_rate ?? 0;
   const duration = student.lesson_duration_hours ?? 0;
   const lessonAmount = rate * duration;
@@ -242,48 +261,86 @@ export function computeStudentPaymentStatus(student, ctx) {
   const amountDue = pending.reduce((sum, c) => sum + Number(c.amount_due), 0);
   const progressFraction = Math.min(openCount, cycleCount) / cycleCount;
 
+  const scheduledNeeded = Math.max(cycleCount - openCount, 0);
+  const upcoming = sortLessonsByWhen(scheduledLessons ?? []);
+  const scheduledInCycle = upcoming.slice(0, scheduledNeeded);
+  const scheduledCount = scheduledInCycle.length;
+  const fourthLessonDate =
+    scheduledCount === scheduledNeeded && scheduledNeeded > 0
+      ? scheduledInCycle[scheduledCount - 1].lesson_date
+      : null;
+
   if (pending.length > 0) {
+    const completedDate = pending[0].period_end;
     return {
       tier: "red",
       amountDue,
-      label: "🔴 Payment due — collect now!",
+      label: `🔴 ${cycleCount} lessons completed on ${formatDate(completedDate)} · Payment due now — ${formatSGD(amountDue)}`,
       showProgressBar: true,
       progressFraction: 1,
       collectCycle: pending[0],
+      completedCount: cycleCount,
+      scheduledCount: 0,
+      nextPaymentInfo: {
+        text: `💰 Payment due — ${formatSGD(amountDue)} · ${ordinal(cycleCount)} lesson was on ${formatDate(completedDate)}`,
+        tone: "red",
+      },
     };
   }
+
+  const nextPaymentInfo = fourthLessonDate
+    ? {
+        text: `📅 Next payment due after lesson on ${formatDate(fourthLessonDate)}`,
+        tone: "blue",
+      }
+    : scheduledCount === 0
+      ? { text: "📅 No upcoming lessons scheduled", tone: "blue" }
+      : {
+          text: `📅 ${scheduledCount} of ${scheduledNeeded} more lesson${scheduledNeeded === 1 ? "" : "s"} scheduled`,
+          tone: "blue",
+        };
 
   if (openCount === 0) {
     const hasPaidBefore = paidCycles.length > 0;
+    const label = hasPaidBefore
+      ? "✅ Paid"
+      : scheduledCount > 0
+        ? `0/${cycleCount} lessons · ${scheduledCount} scheduled`
+        : `0/${cycleCount} lessons`;
     return {
       tier: hasPaidBefore ? "green" : "grey",
       amountDue: 0,
-      label: hasPaidBefore ? "✅ Paid" : `0/${cycleCount} lessons`,
+      label,
       showProgressBar: true,
       progressFraction: 0,
       collectCycle: null,
+      completedCount: 0,
+      scheduledCount,
+      nextPaymentInfo,
     };
   }
 
-  if (openCount === cycleCount - 1) {
-    return {
-      tier: "amber",
-      amountDue: openCount * lessonAmount,
-      label: "⚠️ Next lesson triggers payment",
-      showProgressBar: true,
-      progressFraction,
-      collectCycle: null,
-    };
-  }
+  const tier =
+    openCount === cycleCount - 1
+      ? "amber"
+      : openCount >= cycleCount / 2
+        ? "blue"
+        : "grey";
 
-  const tier = openCount >= cycleCount / 2 ? "blue" : "grey";
+  const label = fourthLessonDate
+    ? `${openCount} lesson${openCount === 1 ? "" : "s"} done · Payment due after lesson ${cycleCount} on ${formatDate(fourthLessonDate)}`
+    : `${openCount}/${cycleCount} lessons · ${formatSGD(openCount * lessonAmount)} due at completion`;
+
   return {
     tier,
     amountDue: openCount * lessonAmount,
-    label: `${openCount}/${cycleCount} lessons · ${formatSGD(openCount * lessonAmount)} due at completion`,
+    label,
     showProgressBar: true,
     progressFraction,
     collectCycle: null,
+    completedCount: openCount,
+    scheduledCount,
+    nextPaymentInfo,
   };
 }
 

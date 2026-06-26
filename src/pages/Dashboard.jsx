@@ -9,7 +9,6 @@ import {
   computeStudentPaymentStatus,
   tierRank,
   TIER_BADGE_CLASSES,
-  TIER_BAR_CLASSES,
 } from "../lib/paymentStatus";
 import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import { getWeekSummaryKey, showAppNotification } from "../lib/notifications";
@@ -33,6 +32,7 @@ export default function Dashboard() {
   const [paymentCycles, setPaymentCycles] = useState([]);
   const [todayLessons, setTodayLessons] = useState([]);
   const [tomorrowLessons, setTomorrowLessons] = useState([]);
+  const [scheduledLessons, setScheduledLessons] = useState([]);
   const [hasScheduledLesson, setHasScheduledLesson] = useState(false);
   const [checklistDismissed, setChecklistDismissed] = useState(true);
   const [loading, setLoading] = useState(true);
@@ -58,7 +58,7 @@ export default function Dashboard() {
       { data: cyclesData },
       { data: todayData },
       { data: tomorrowData },
-      { count: scheduledCount },
+      { data: scheduledData },
     ] = await Promise.all([
       supabase
         .from("students")
@@ -85,7 +85,7 @@ export default function Dashboard() {
         .order("lesson_time", { ascending: true }),
       supabase
         .from("lessons")
-        .select("id", { count: "exact", head: true })
+        .select("id, student_id, lesson_date, lesson_time")
         .eq("status", "scheduled"),
     ]);
     setStudents(studentsData ?? []);
@@ -93,7 +93,8 @@ export default function Dashboard() {
     setPaymentCycles(cyclesData ?? []);
     setTodayLessons(todayData ?? []);
     setTomorrowLessons(tomorrowData ?? []);
-    setHasScheduledLesson((scheduledCount ?? 0) > 0);
+    setScheduledLessons(scheduledData ?? []);
+    setHasScheduledLesson((scheduledData ?? []).length > 0);
     setLoading(false);
   };
 
@@ -201,6 +202,13 @@ export default function Dashboard() {
     }
   }
 
+  const scheduledLessonsByStudent = new Map();
+  for (const lesson of scheduledLessons) {
+    if (!scheduledLessonsByStudent.has(lesson.student_id))
+      scheduledLessonsByStudent.set(lesson.student_id, []);
+    scheduledLessonsByStudent.get(lesson.student_id).push(lesson);
+  }
+
   const pendingCyclesByStudent = new Map();
   const paidCyclesByStudent = new Map();
   for (const c of paymentCycles) {
@@ -239,6 +247,7 @@ export default function Dashboard() {
         pendingCycles: pendingCyclesByStudent.get(s.id) ?? [],
         paidCycles: paidCyclesByStudent.get(s.id) ?? [],
         completedLessons: lessonsByStudent.get(s.id) ?? [],
+        scheduledLessons: scheduledLessonsByStudent.get(s.id) ?? [],
         openCount: openCountByStudent.get(s.id) ?? 0,
         now,
       }),
@@ -563,33 +572,65 @@ export default function Dashboard() {
                           : "No lessons yet"}
                       </p>
                     </div>
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                      <div className="flex items-center gap-3">
-                        {status.showProgressBar && (
-                          <div className="h-2 w-full max-w-40 flex-1 overflow-hidden rounded-full bg-gray-100 sm:w-24 sm:flex-none">
-                            <div
-                              className={`h-full rounded-full ${TIER_BAR_CLASSES[status.tier]}`}
-                              style={{
-                                width: `${(status.progressFraction ?? 0) * 100}%`,
-                              }}
-                            />
-                          </div>
+                    <div className="flex flex-col gap-1.5 sm:items-end">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <div className="flex items-center gap-3">
+                          {status.showProgressBar &&
+                            (() => {
+                              const cycleCount = s.payment_cycle_count ?? 4;
+                              const completedFrac =
+                                Math.min(
+                                  status.completedCount ?? 0,
+                                  cycleCount,
+                                ) / cycleCount;
+                              const scheduledFrac =
+                                Math.min(
+                                  (status.completedCount ?? 0) +
+                                    (status.scheduledCount ?? 0),
+                                  cycleCount,
+                                ) /
+                                  cycleCount -
+                                completedFrac;
+                              return (
+                                <div className="flex h-2 w-full max-w-40 flex-1 overflow-hidden rounded-full bg-gray-100 sm:w-24 sm:flex-none">
+                                  <div
+                                    className="h-full bg-green-600"
+                                    style={{ width: `${completedFrac * 100}%` }}
+                                  />
+                                  <div
+                                    className="h-full bg-green-200"
+                                    style={{
+                                      width: `${scheduledFrac * 100}%`,
+                                      backgroundImage:
+                                        "repeating-linear-gradient(45deg, #16a34a 0, #16a34a 2px, transparent 2px, transparent 6px)",
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })()}
+                          <span
+                            className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${TIER_BADGE_CLASSES[status.tier]}`}
+                          >
+                            {status.label}
+                          </span>
+                        </div>
+                        {status.collectCycle && (
+                          <button
+                            onClick={() =>
+                              handleCollectPayment(status.collectCycle.id)
+                            }
+                            className="min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 hover:shadow"
+                          >
+                            Collect Payment
+                          </button>
                         )}
-                        <span
-                          className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${TIER_BADGE_CLASSES[status.tier]}`}
-                        >
-                          {status.label}
-                        </span>
                       </div>
-                      {status.collectCycle && (
-                        <button
-                          onClick={() =>
-                            handleCollectPayment(status.collectCycle.id)
-                          }
-                          className="min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 hover:shadow"
+                      {status.nextPaymentInfo && (
+                        <p
+                          className={`text-xs ${status.nextPaymentInfo.tone === "red" ? "text-red-700" : "text-gray-500"}`}
                         >
-                          Collect Payment
-                        </button>
+                          {status.nextPaymentInfo.text}
+                        </p>
                       )}
                     </div>
                   </li>
