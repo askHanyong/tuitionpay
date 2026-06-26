@@ -15,18 +15,34 @@ function isSameMonth(dateStr, monthDate) {
   );
 }
 
-function computeForMonth(monthDate, lessons, paymentCycles) {
+function computeForMonth(monthDate, lessons, paymentCycles, students) {
   const monthLessons = lessons.filter((l) =>
     isSameMonth(l.lesson_date, monthDate),
   );
   const collected = paymentCycles
     .filter((c) => c.status === "paid" && isSameMonth(c.period_end, monthDate))
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
-  const pending = paymentCycles
+  const pendingFromCycles = paymentCycles
     .filter(
       (c) => c.status === "pending" && isSameMonth(c.period_end, monthDate),
     )
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
+  // A payment cycle only gets created once its full lesson group has
+  // landed, so a student mid-cycle (e.g. 3 of 4 lessons done) has no
+  // payment_cycles row yet -- their accumulating amount has to come from
+  // completed-but-unbilled lessons (payment_cycle_id is null) directly, or
+  // it's invisible here even though it's money already earned this month.
+  const studentsById = new Map(students.map((s) => [s.id, s]));
+  const pendingFromMidCycleLessons = monthLessons
+    .filter((l) => !l.payment_cycle_id)
+    .reduce((sum, l) => {
+      const student = studentsById.get(l.student_id);
+      if (!student) return sum;
+      const lessonAmount =
+        (student.hourly_rate ?? 0) * (student.lesson_duration_hours ?? 0);
+      return sum + lessonAmount;
+    }, 0);
+  const pending = pendingFromCycles + pendingFromMidCycleLessons;
 
   return {
     totalLessons: monthLessons.length,
@@ -54,12 +70,12 @@ export default function MonthlyRecapCard({
   );
 
   const current = useMemo(
-    () => computeForMonth(monthDate, lessons, paymentCycles),
-    [monthDate, lessons, paymentCycles],
+    () => computeForMonth(monthDate, lessons, paymentCycles, students),
+    [monthDate, lessons, paymentCycles, students],
   );
   const previous = useMemo(
-    () => computeForMonth(prevMonthDate, lessons, paymentCycles),
-    [prevMonthDate, lessons, paymentCycles],
+    () => computeForMonth(prevMonthDate, lessons, paymentCycles, students),
+    [prevMonthDate, lessons, paymentCycles, students],
   );
 
   const change =
