@@ -30,6 +30,15 @@ const PAYMENT_MODE_OPTIONS = [
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+const SORT_OPTIONS = [
+  { value: "payment_due", label: "Payment due soonest" },
+  { value: "name_asc", label: "Name A–Z" },
+  { value: "name_desc", label: "Name Z–A" },
+  { value: "recent_lesson", label: "Most recent lesson" },
+  { value: "rate_high", label: "Highest hourly rate" },
+  { value: "rate_low", label: "Lowest hourly rate" },
+];
+
 export default function Students() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -46,6 +55,10 @@ export default function Students() {
   const [lessonsLoading, setLessonsLoading] = useState(false);
   const [scheduleStudent, setScheduleStudent] = useState(null);
   const [rateBenchmark, setRateBenchmark] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("payment_due");
+  const [dueDateByStudent, setDueDateByStudent] = useState({});
+  const [lastLessonByStudent, setLastLessonByStudent] = useState({});
 
   const refreshLessonsFor = async (studentId) => {
     const { data } = await supabase
@@ -74,6 +87,32 @@ export default function Students() {
     }
   };
 
+  const loadSortSupportData = async () => {
+    const [{ data: cyclesData }, { data: lessonsData }] = await Promise.all([
+      supabase
+        .from("payment_cycles")
+        .select("student_id, period_end")
+        .eq("status", "pending")
+        .order("period_end", { ascending: true }),
+      supabase
+        .from("lessons")
+        .select("student_id, lesson_date")
+        .order("lesson_date", { ascending: false }),
+    ]);
+    const dueMap = {};
+    for (const c of cyclesData ?? []) {
+      if (!dueMap[c.student_id]) dueMap[c.student_id] = c.period_end;
+    }
+    setDueDateByStudent(dueMap);
+    const lastLessonMap = {};
+    for (const l of lessonsData ?? []) {
+      if (!lastLessonMap[l.student_id]) {
+        lastLessonMap[l.student_id] = l.lesson_date;
+      }
+    }
+    setLastLessonByStudent(lastLessonMap);
+  };
+
   const loadStudents = async () => {
     const { data, error } = await supabase
       .from("students")
@@ -82,6 +121,7 @@ export default function Students() {
     if (error) setError(error.message);
     setStudents(data ?? []);
     setLoading(false);
+    loadSortSupportData();
   };
 
   const handleEdit = (student) => {
@@ -108,6 +148,7 @@ export default function Students() {
       if (error) setError(error.message);
       setStudents(data ?? []);
       setLoading(false);
+      loadSortSupportData();
       const editStudentId = location.state?.editStudentId;
       if (editStudentId) {
         const target = (data ?? []).find((s) => s.id === editStudentId);
@@ -207,6 +248,50 @@ export default function Students() {
     await loadStudents();
     showToast("Student deleted.");
   };
+
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredStudents = normalizedSearch
+    ? students.filter(
+        (s) =>
+          s.name?.toLowerCase().includes(normalizedSearch) ||
+          s.subject?.toLowerCase().includes(normalizedSearch),
+      )
+    : students;
+
+  const sortedStudents = [...filteredStudents].sort((a, b) => {
+    switch (sortBy) {
+      case "name_asc":
+        return a.name.localeCompare(b.name);
+      case "name_desc":
+        return b.name.localeCompare(a.name);
+      case "rate_high":
+      case "rate_low": {
+        const aRate = a.hourly_rate;
+        const bRate = b.hourly_rate;
+        if (aRate == null && bRate == null) return 0;
+        if (aRate == null) return 1;
+        if (bRate == null) return -1;
+        return sortBy === "rate_high" ? bRate - aRate : aRate - bRate;
+      }
+      case "recent_lesson": {
+        const aDate = lastLessonByStudent[a.id];
+        const bDate = lastLessonByStudent[b.id];
+        if (!aDate && !bDate) return 0;
+        if (!aDate) return 1;
+        if (!bDate) return -1;
+        return aDate > bDate ? -1 : 1;
+      }
+      case "payment_due":
+      default: {
+        const aDue = dueDateByStudent[a.id];
+        const bDue = dueDateByStudent[b.id];
+        if (!aDue && !bDue) return a.name.localeCompare(b.name);
+        if (!aDue) return 1;
+        if (!bDue) return -1;
+        return aDue < bDue ? -1 : 1;
+      }
+    }
+  });
 
   return (
     <AppShell>
@@ -413,14 +498,62 @@ export default function Students() {
         <h2 className="mb-3 text-base font-semibold text-gray-900">
           Your students
         </h2>
+
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
+              🔍
+            </span>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search students by name or subject..."
+              className="min-h-11 w-full rounded-md border border-gray-300 px-9 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                aria-label="Clear search"
+                className="absolute inset-y-0 right-2 flex items-center px-1 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="min-h-11 rounded-md border border-gray-300 px-3 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 sm:w-56"
+          >
+            {SORT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {normalizedSearch && !loading && (
+          <p className="mb-4 inline-block rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
+            Showing {sortedStudents.length} of {students.length} students
+          </p>
+        )}
+
         {loading ? (
           <p className="text-sm text-gray-500">Loading...</p>
         ) : students.length === 0 ? (
           <p className="text-sm text-gray-500">No students yet.</p>
+        ) : sortedStudents.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            🔍 No students found for &quot;{searchTerm.trim()}&quot; — try a
+            different name or subject.
+          </p>
         ) : (
           <>
             <ul className="space-y-3 sm:hidden">
-              {students.map((s) => (
+              {sortedStudents.map((s) => (
                 <li
                   key={s.id}
                   className="rounded-md border border-gray-200 bg-white p-4"
@@ -488,7 +621,7 @@ export default function Students() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {students.map((s) => (
+                  {sortedStudents.map((s) => (
                     <Fragment key={s.id}>
                       <tr className="transition hover:bg-gray-50">
                         <td className="px-4 py-3 text-gray-900">
