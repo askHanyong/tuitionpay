@@ -647,6 +647,7 @@ export default function Dashboard() {
         lessons={lessons}
         paymentCycles={paymentCycles}
         students={students}
+        scheduledLessons={scheduledLessons}
         tutorName={user?.user_metadata?.full_name}
       />
 

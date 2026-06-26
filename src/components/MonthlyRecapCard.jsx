@@ -16,7 +16,13 @@ function isSameMonth(dateStr, monthDate) {
   );
 }
 
-function computeForMonth(monthDate, lessons, paymentCycles, students) {
+function computeForMonth(
+  monthDate,
+  lessons,
+  paymentCycles,
+  students,
+  scheduledLessons,
+) {
   const monthLessons = lessons.filter((l) =>
     isSameMonth(l.lesson_date, monthDate),
   );
@@ -45,6 +51,13 @@ function computeForMonth(monthDate, lessons, paymentCycles, students) {
   const midCycleStudentIds = new Set(
     monthLessons.filter((l) => !l.payment_cycle_id).map((l) => l.student_id),
   );
+  const scheduledLessonsByStudent = new Map();
+  for (const l of scheduledLessons ?? []) {
+    if (!scheduledLessonsByStudent.has(l.student_id))
+      scheduledLessonsByStudent.set(l.student_id, []);
+    scheduledLessonsByStudent.get(l.student_id).push(l);
+  }
+  const now = new Date();
   const pendingFromMidCycleLessons = [...midCycleStudentIds].reduce(
     (sum, studentId) => {
       const student = studentsById.get(studentId);
@@ -56,6 +69,20 @@ function computeForMonth(monthDate, lessons, paymentCycles, students) {
       // mode billing). Sum each lesson's actual duration_minutes * rate
       // rather than assuming a fixed per-lesson amount.
       if (mode === "monthly" || mode === "custom_date") {
+        // Monthly/custom-date students are still "accumulating" for most of
+        // the month -- only start showing them as pending once the month is
+        // almost over (last 3 days).
+        const endOfMonth = new Date(
+          monthDate.getFullYear(),
+          monthDate.getMonth() + 1,
+          0,
+        );
+        const daysToEnd = Math.round(
+          (endOfMonth -
+            new Date(now.getFullYear(), now.getMonth(), now.getDate())) /
+            (1000 * 60 * 60 * 24),
+        );
+        if (daysToEnd > 3) return sum;
         const unbilledThisMonthLessons = monthLessons.filter(
           (l) => l.student_id === studentId && !l.payment_cycle_id,
         );
@@ -68,6 +95,20 @@ function computeForMonth(monthDate, lessons, paymentCycles, students) {
       const cycleCount = student.payment_cycle_count ?? 4;
       const unbilledCount = unbilledCountByStudent.get(studentId) ?? 0;
       if (unbilledCount < cycleCount - 1) return sum;
+      // The cycle is only "imminent" enough to count toward this month's
+      // pending if the scheduled lesson that would complete it actually
+      // falls within this month.
+      const nextScheduled = (scheduledLessonsByStudent.get(studentId) ?? [])
+        .slice()
+        .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1));
+      const lessonsNeeded = cycleCount - unbilledCount;
+      const completingLesson = nextScheduled[lessonsNeeded - 1];
+      if (
+        completingLesson &&
+        !isSameMonth(completingLesson.lesson_date, monthDate)
+      ) {
+        return sum;
+      }
       const unbilledLessons = lessons
         .filter(
           (l) =>
@@ -89,7 +130,6 @@ function computeForMonth(monthDate, lessons, paymentCycles, students) {
     },
     0,
   );
-  const now = new Date();
   const isCurrentMonth =
     monthDate.getFullYear() === now.getFullYear() &&
     monthDate.getMonth() === now.getMonth();
@@ -112,6 +152,7 @@ export default function MonthlyRecapCard({
   lessons,
   paymentCycles,
   students = [],
+  scheduledLessons = [],
   tutorName,
 }) {
   const [monthDate, setMonthDate] = useState(
@@ -126,12 +167,26 @@ export default function MonthlyRecapCard({
   );
 
   const current = useMemo(
-    () => computeForMonth(monthDate, lessons, paymentCycles, students),
-    [monthDate, lessons, paymentCycles, students],
+    () =>
+      computeForMonth(
+        monthDate,
+        lessons,
+        paymentCycles,
+        students,
+        scheduledLessons,
+      ),
+    [monthDate, lessons, paymentCycles, students, scheduledLessons],
   );
   const previous = useMemo(
-    () => computeForMonth(prevMonthDate, lessons, paymentCycles, students),
-    [prevMonthDate, lessons, paymentCycles, students],
+    () =>
+      computeForMonth(
+        prevMonthDate,
+        lessons,
+        paymentCycles,
+        students,
+        scheduledLessons,
+      ),
+    [prevMonthDate, lessons, paymentCycles, students, scheduledLessons],
   );
 
   const change =
