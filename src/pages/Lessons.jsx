@@ -118,6 +118,8 @@ export default function Lessons() {
   const [newCycle, setNewCycle] = useState(null);
   const [copied, setCopied] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [defaultDateFrom] = useState(() => daysAgo(30));
   const [defaultDateTo] = useState(() => today());
@@ -507,18 +509,28 @@ export default function Lessons() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this lesson? This cannot be undone.")) return;
+  const handleDelete = (id) => {
+    setDeleteTarget(id);
+  };
+
+  const confirmDelete = async () => {
+    const id = deleteTarget;
+    if (!id) return;
+    setDeleting(true);
     setError(null);
     const { error } = await supabase.from("lessons").delete().eq("id", id);
+    setDeleting(false);
     if (error) {
       setError(error.message);
       showToast(error.message, "error");
+      setDeleteTarget(null);
       return;
     }
     if (editingId === id) resetForm();
+    setLessons((prev) => prev.filter((l) => l.id !== id));
+    setDeleteTarget(null);
     await reloadLessons();
-    showToast("Lesson deleted.");
+    showToast("Lesson deleted successfully");
   };
 
   return (
@@ -971,6 +983,41 @@ export default function Lessons() {
           </>
         )}
       </section>
+
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-sm text-gray-700">
+              Are you sure you want to delete this lesson? This cannot be
+              undone.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="min-h-11 rounded-md bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }
