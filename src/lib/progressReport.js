@@ -67,9 +67,7 @@ export function downloadProgressReportPdf({
     .filter((c) => c.status === "paid")
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   const latestCycle = cycles[0] ?? null;
-  const completedInRange = rangeLessons.filter(
-    (l) => l.status === "completed",
-  ).length;
+  const completedInRange = rangeLessons.filter((l) => l.is_completed).length;
 
   // Header
   doc.setFont("helvetica", "bold");

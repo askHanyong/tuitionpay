@@ -93,7 +93,7 @@ export default function StudentProfile() {
     return positions;
   }, [lessons]);
 
-  const completedLessons = lessons.filter((l) => l.status === "completed");
+  const completedLessons = lessons.filter((l) => l.is_completed);
   const totalLessons = completedLessons.length;
   const totalEarned = cycles
     .filter((c) => c.status === "paid")
@@ -123,7 +123,7 @@ export default function StudentProfile() {
         lessons
           .filter(
             (l) =>
-              l.status === "completed" &&
+              l.is_completed &&
               l.lesson_date >= c.period_start &&
               l.lesson_date <= c.period_end,
           )
@@ -323,7 +323,7 @@ export default function StudentProfile() {
                     <span className="text-sm font-medium text-gray-900">
                       {formatDate(l.lesson_date)}
                     </span>
-                    {l.status === "scheduled" && (
+                    {!l.is_completed && (
                       <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
                         Scheduled
                       </span>

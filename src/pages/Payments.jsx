@@ -46,7 +46,7 @@ export default function Payments() {
         .from("lessons")
         .select("student_id, lesson_date")
         .in("student_id", studentIds)
-        .eq("status", "completed")
+        .eq("is_completed", true)
         .order("lesson_date", { ascending: true });
       const map = {};
       for (const c of data ?? []) {

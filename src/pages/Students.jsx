@@ -28,8 +28,6 @@ const PAYMENT_MODE_OPTIONS = [
   { value: "custom_date", label: "On a specific day each month" },
 ];
 
-const todayStr = () => new Date().toISOString().slice(0, 10);
-
 const SORT_OPTIONS = [
   { value: "payment_due", label: "Payment due soonest" },
   { value: "name_asc", label: "Name A–Z" },
@@ -706,10 +704,10 @@ function StudentLessonsPanel({ loading, lessons }) {
   }
 
   const upcoming = lessons
-    .filter((l) => l.status === "scheduled" || l.lesson_date > todayStr())
+    .filter((l) => !l.is_completed)
     .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1));
   const past = lessons
-    .filter((l) => l.status !== "scheduled" && l.lesson_date <= todayStr())
+    .filter((l) => l.is_completed)
     .sort((a, b) => (a.lesson_date > b.lesson_date ? -1 : 1));
 
   if (lessons.length === 0) {

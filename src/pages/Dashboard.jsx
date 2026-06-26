@@ -10,7 +10,6 @@ import {
   tierRank,
   TIER_BADGE_CLASSES,
 } from "../lib/paymentStatus";
-import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import { getWeekSummaryKey, showAppNotification } from "../lib/notifications";
 import { buildGoogleMapsUrl } from "../lib/maps";
 import { useToast } from "../contexts/ToastContext";
@@ -51,7 +50,6 @@ export default function Dashboard() {
     !loading && students.length === 0 && !onboardingDismissed;
 
   const loadAll = async () => {
-    await autoCompletePastLessons();
     const [
       { data: studentsData },
       { data: lessonsData },
@@ -67,7 +65,7 @@ export default function Dashboard() {
       supabase
         .from("lessons")
         .select("*, students(name)")
-        .eq("status", "completed")
+        .eq("is_completed", true)
         .order("created_at", { ascending: true }),
       supabase
         .from("payment_cycles")
@@ -86,7 +84,7 @@ export default function Dashboard() {
       supabase
         .from("lessons")
         .select("id, student_id, lesson_date, lesson_time")
-        .eq("status", "scheduled"),
+        .eq("is_completed", false),
     ]);
     setStudents(studentsData ?? []);
     setLessons(lessonsData ?? []);
@@ -121,7 +119,7 @@ export default function Dashboard() {
     const timers = [];
     const now = Date.now();
     for (const lesson of todayLessons) {
-      if (lesson.status === "completed" || !lesson.lesson_time) continue;
+      if (lesson.is_completed || !lesson.lesson_time) continue;
       const [h, m] = lesson.lesson_time.split(":").map(Number);
       const lessonTime = new Date();
       lessonTime.setHours(h, m, 0, 0);
@@ -273,7 +271,7 @@ export default function Dashboard() {
   const upToDateCount = students.length - overdueCount - dueSoonCount;
 
   const todayLessonNumber = (lesson) =>
-    lesson.status === "completed"
+    lesson.is_completed
       ? (lessonPosition.get(lesson.id) ?? "?")
       : ((openCountByStudent.get(lesson.student_id) ?? 0) % 4) + 1;
 
@@ -282,16 +280,16 @@ export default function Dashboard() {
       paymentCycles.filter((c) => c.status === "pending").map((c) => c.id),
     );
     setTodayLessons((prev) =>
-      prev.map((l) => (l.id === lessonId ? { ...l, status: "completed" } : l)),
+      prev.map((l) => (l.id === lessonId ? { ...l, is_completed: true } : l)),
     );
     const { error } = await supabase
       .from("lessons")
-      .update({ status: "completed" })
+      .update({ is_completed: true })
       .eq("id", lessonId);
     if (error) {
       setTodayLessons((prev) =>
         prev.map((l) =>
-          l.id === lessonId ? { ...l, status: "scheduled" } : l,
+          l.id === lessonId ? { ...l, is_completed: false } : l,
         ),
       );
       showToast(error.message, "error");
@@ -389,7 +387,7 @@ export default function Dashboard() {
         ) : (
           <ul className="space-y-3">
             {todayLessons.map((l) => {
-              const done = l.status === "completed";
+              const done = l.is_completed;
               return (
                 <li
                   key={l.id}

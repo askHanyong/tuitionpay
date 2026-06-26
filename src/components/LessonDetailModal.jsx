@@ -10,7 +10,7 @@ export default function LessonDetailModal({
   onMarkDone,
 }) {
   const address = lesson.students?.address;
-  const isDone = lesson.status === "completed";
+  const isDone = lesson.is_completed;
 
   return (
     <div

@@ -183,7 +183,7 @@ export default function Calendar() {
     setDetailLesson(null);
     const { error } = await supabase
       .from("lessons")
-      .update({ status: "completed" })
+      .update({ is_completed: true })
       .eq("id", lesson.id);
     if (error) {
       window.alert(error.message);

@@ -6,7 +6,6 @@ import { useToast } from "../contexts/ToastContext";
 import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
 import { formatDate, formatDateTime } from "../utils/dateFormat";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
-import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import { createCalendarEvent, isGoogleTokenValid } from "../lib/googleCalendar";
 import { showAppNotification } from "../lib/notifications";
 import AppShell from "../components/AppShell";
@@ -31,7 +30,7 @@ function mostRecentLessonTime(lessons, studentId) {
 }
 
 function isLessonCompleted(lesson) {
-  return lesson.status === "scheduled" ? lesson.lesson_date <= today() : true;
+  return lesson.is_completed;
 }
 
 function LessonActionsMenu({ onAddToCalendar, onEdit, onDelete }) {
@@ -114,7 +113,6 @@ export default function Lessons() {
 
   useEffect(() => {
     const load = async () => {
-      await autoCompletePastLessons();
       const [
         { data: studentsData, error: studentsError },
         { data: lessonsData, error: lessonsError },
@@ -288,6 +286,7 @@ export default function Lessons() {
       const durationHours = Number(form.duration_hours);
       const isFuture = form.lesson_date > today();
       const status = isFuture ? "scheduled" : "completed";
+      const is_completed = !isFuture;
 
       if (editingId) {
         const { error } = await supabase
@@ -300,6 +299,7 @@ export default function Lessons() {
             rate: form.rate === "" ? null : Number(form.rate),
             notes: form.notes.trim() || null,
             status,
+            is_completed,
           })
           .eq("id", editingId);
         if (error) throw error;
@@ -314,7 +314,7 @@ export default function Lessons() {
         .select("id", { count: "exact", head: true })
         .eq("student_id", form.student_id)
         .is("payment_cycle_id", null)
-        .eq("status", "completed");
+        .eq("is_completed", true);
 
       const { error } = await supabase.from("lessons").insert({
         tutor_id: user.id,
@@ -325,6 +325,7 @@ export default function Lessons() {
         rate: form.rate === "" ? null : Number(form.rate),
         notes: form.notes.trim() || null,
         status,
+        is_completed,
       });
       if (error) throw error;
 
