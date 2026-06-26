@@ -3,9 +3,14 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { formatSGD } from "../lib/paymentNotice";
-import { ordinal } from "../lib/paymentMode";
 import { formatLessonTime, toDateKey } from "../lib/date";
 import { formatDate, formatMonth, formatRelative } from "../utils/dateFormat";
+import {
+  computeStudentPaymentStatus,
+  tierRank,
+  TIER_BADGE_CLASSES,
+  TIER_BAR_CLASSES,
+} from "../lib/paymentStatus";
 import { autoCompletePastLessons } from "../lib/autoCompleteLessons";
 import { getWeekSummaryKey, showAppNotification } from "../lib/notifications";
 import { buildGoogleMapsUrl } from "../lib/maps";
@@ -188,17 +193,26 @@ export default function Dashboard() {
 
   const recentLessons = [...lessons].slice(-3).reverse();
 
-  const pendingCycleByStudent = new Map();
-  for (const c of paymentCycles) {
-    if (c.status === "pending") pendingCycleByStudent.set(c.student_id, c);
-  }
-
   const lastLessonByStudent = new Map();
   for (const lesson of lessons) {
     const existing = lastLessonByStudent.get(lesson.student_id);
     if (!existing || lesson.lesson_date > existing) {
       lastLessonByStudent.set(lesson.student_id, lesson.lesson_date);
     }
+  }
+
+  const pendingCyclesByStudent = new Map();
+  const paidCyclesByStudent = new Map();
+  for (const c of paymentCycles) {
+    const map =
+      c.status === "pending"
+        ? pendingCyclesByStudent
+        : c.status === "paid"
+          ? paidCyclesByStudent
+          : null;
+    if (!map) continue;
+    if (!map.has(c.student_id)) map.set(c.student_id, []);
+    map.get(c.student_id).push(c);
   }
 
   const now = new Date();
@@ -216,6 +230,38 @@ export default function Dashboard() {
   const pendingThisMonth = paymentCycles
     .filter((c) => c.status === "pending" && isThisMonth(c.period_end))
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
+
+  const paymentStatusByStudent = new Map();
+  for (const s of students) {
+    paymentStatusByStudent.set(
+      s.id,
+      computeStudentPaymentStatus(s, {
+        pendingCycles: pendingCyclesByStudent.get(s.id) ?? [],
+        paidCycles: paidCyclesByStudent.get(s.id) ?? [],
+        completedLessons: lessonsByStudent.get(s.id) ?? [],
+        openCount: openCountByStudent.get(s.id) ?? 0,
+        now,
+      }),
+    );
+  }
+
+  const sortedStudents = [...students].sort((a, b) => {
+    const sa = paymentStatusByStudent.get(a.id);
+    const sb = paymentStatusByStudent.get(b.id);
+    const rankDiff = tierRank(sa.tier) - tierRank(sb.tier);
+    if (rankDiff !== 0) return rankDiff;
+    if (sb.amountDue !== sa.amountDue) return sb.amountDue - sa.amountDue;
+    return a.name.localeCompare(b.name);
+  });
+
+  const overdueStudents = sortedStudents.filter(
+    (s) => paymentStatusByStudent.get(s.id).tier === "red",
+  );
+  const dueSoonCount = sortedStudents.filter(
+    (s) => paymentStatusByStudent.get(s.id).tier === "amber",
+  ).length;
+  const overdueCount = overdueStudents.length;
+  const upToDateCount = students.length - overdueCount - dueSoonCount;
 
   const todayLessonNumber = (lesson) =>
     lesson.status === "completed"
@@ -401,16 +447,44 @@ export default function Dashboard() {
         tutorName={user?.user_metadata?.full_name}
       />
 
-      {!loading && pendingCycleByStudent.size > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 shadow-sm">
-          <span className="font-semibold">⚠️ Payment due:</span>{" "}
-          {[...pendingCycleByStudent.values()]
-            .map(
-              (c) =>
-                `${c.students?.name} (${formatSGD(c.amount_due)}, due ${formatDate(c.period_end)})`,
-            )
-            .join(", ")}{" "}
-          — 4 lessons completed.
+      {!loading && overdueStudents.length > 0 && (
+        <div className="rounded-xl border border-red-200 bg-red-50/60 p-5 shadow-sm">
+          <h2 className="mb-3 text-base font-semibold text-red-800">
+            ⚠️ Action needed — payments overdue
+          </h2>
+          <ul className="divide-y divide-red-200/70">
+            {overdueStudents.map((s) => {
+              const status = paymentStatusByStudent.get(s.id);
+              return (
+                <li
+                  key={s.id}
+                  className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <Link
+                      to={`/students/${s.id}`}
+                      className="text-sm font-medium text-gray-900 hover:text-green-700"
+                    >
+                      {s.name}
+                    </Link>
+                    <p className="mt-0.5 text-xs text-red-800">
+                      {status.label}
+                    </p>
+                  </div>
+                  {status.collectCycle && (
+                    <button
+                      onClick={() =>
+                        handleCollectPayment(status.collectCycle.id)
+                      }
+                      className="min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 hover:shadow"
+                    >
+                      Collect Payment
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
 
@@ -427,38 +501,38 @@ export default function Dashboard() {
               Manage students →
             </Link>
           </div>
+          {!loading && students.length > 0 && (
+            <p className="mb-3 text-sm">
+              {overdueCount === 0 && dueSoonCount === 0 ? (
+                <span className="font-medium text-green-700">
+                  ✅ All payments up to date
+                </span>
+              ) : (
+                <>
+                  <span className="font-medium text-red-600">
+                    🔴 {overdueCount} overdue
+                  </span>{" "}
+                  ·{" "}
+                  <span className="font-medium text-amber-600">
+                    ⚠️ {dueSoonCount} due soon
+                  </span>{" "}
+                  ·{" "}
+                  <span className="font-medium text-green-700">
+                    ✅ {upToDateCount} up to date
+                  </span>
+                </>
+              )}
+            </p>
+          )}
           {loading ? (
             <p className="text-sm text-gray-500">Loading...</p>
           ) : students.length === 0 ? (
             <p className="text-sm text-gray-500">No students yet.</p>
           ) : (
             <ul className="divide-y divide-gray-100">
-              {students.map((s) => {
-                const completed = openCountByStudent.get(s.id) ?? 0;
-                const pendingCycle = pendingCycleByStudent.get(s.id);
-                const paymentDue = Boolean(pendingCycle);
-                const cycleCount = s.payment_cycle_count ?? 4;
-                const expectedAmount =
-                  s.hourly_rate != null && s.lesson_duration_hours != null
-                    ? s.hourly_rate *
-                      s.lesson_duration_hours *
-                      (s.payment_mode === "per_lesson" ? 1 : cycleCount)
-                    : null;
+              {sortedStudents.map((s) => {
+                const status = paymentStatusByStudent.get(s.id);
                 const lastLessonDate = lastLessonByStudent.get(s.id);
-                const progressLabel = (() => {
-                  if (s.payment_mode === "per_lesson") {
-                    return completed > 0
-                      ? `${completed} lesson${completed === 1 ? "" : "s"} unpaid${expectedAmount != null ? ` · ${formatSGD(completed * (s.hourly_rate ?? 0) * (s.lesson_duration_hours ?? 0))} due` : ""}`
-                      : "No unpaid lessons";
-                  }
-                  if (s.payment_mode === "monthly") {
-                    return `${monthLabel.split(" ")[0]}: ${completed} lesson${completed === 1 ? "" : "s"}${expectedAmount != null ? ` · ${formatSGD(completed * (s.hourly_rate ?? 0) * (s.lesson_duration_hours ?? 0))} due ${formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0))}` : ""}`;
-                  }
-                  if (s.payment_mode === "custom_date") {
-                    return `${completed} lesson${completed === 1 ? "" : "s"}${expectedAmount != null ? ` · ${formatSGD(completed * (s.hourly_rate ?? 0) * (s.lesson_duration_hours ?? 0))} due on ${ordinal(s.payment_custom_day ?? 1)}` : ""}`;
-                  }
-                  return `${completed}/${cycleCount} lessons${expectedAmount != null ? ` · ${formatSGD(expectedAmount)} due at completion` : ""}`;
-                })();
                 return (
                   <li
                     key={s.id}
@@ -477,13 +551,6 @@ export default function Dashboard() {
                             {s.subject}
                           </span>
                         )}
-                        {paymentDue && (
-                          <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
-                            Payment Due{" "}
-                            {pendingCycle.period_end &&
-                              `(${formatDate(pendingCycle.period_end)})`}
-                          </span>
-                        )}
                       </div>
                       {(s.level || s.subject) && (
                         <p className="mt-0.5 text-xs text-gray-400">
@@ -498,26 +565,27 @@ export default function Dashboard() {
                     </div>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                       <div className="flex items-center gap-3">
-                        {s.payment_mode === "lessons" ||
-                        s.payment_mode == null ? (
+                        {status.showProgressBar && (
                           <div className="h-2 w-full max-w-40 flex-1 overflow-hidden rounded-full bg-gray-100 sm:w-24 sm:flex-none">
                             <div
-                              className={`h-full rounded-full ${paymentDue ? "bg-red-500" : "bg-green-500"}`}
+                              className={`h-full rounded-full ${TIER_BAR_CLASSES[status.tier]}`}
                               style={{
-                                width: `${Math.min(completed, cycleCount) * (100 / cycleCount)}%`,
+                                width: `${(status.progressFraction ?? 0) * 100}%`,
                               }}
                             />
                           </div>
-                        ) : null}
+                        )}
                         <span
-                          className={`text-xs font-medium ${s.payment_mode === "per_lesson" && completed > 0 ? "text-amber-700" : "text-gray-500"}`}
+                          className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${TIER_BADGE_CLASSES[status.tier]}`}
                         >
-                          {progressLabel}
+                          {status.label}
                         </span>
                       </div>
-                      {paymentDue && (
+                      {status.collectCycle && (
                         <button
-                          onClick={() => handleCollectPayment(pendingCycle.id)}
+                          onClick={() =>
+                            handleCollectPayment(status.collectCycle.id)
+                          }
                           className="min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 hover:shadow"
                         >
                           Collect Payment
