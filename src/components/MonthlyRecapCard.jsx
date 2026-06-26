@@ -59,7 +59,16 @@ function computeForMonth(monthDate, lessons, paymentCycles, students) {
     },
     0,
   );
-  const pending = pendingFromCycles + pendingFromMidCycleLessons;
+  const now = new Date();
+  const isCurrentMonth =
+    monthDate.getFullYear() === now.getFullYear() &&
+    monthDate.getMonth() === now.getMonth();
+  // Pending amounts only make sense for the month that's still in progress --
+  // a month that has already ended is fully settled or already reflected in
+  // history, so it should never display a pending balance.
+  const pending = isCurrentMonth
+    ? pendingFromCycles + pendingFromMidCycleLessons
+    : 0;
 
   return {
     totalLessons: monthLessons.length,

@@ -661,7 +661,9 @@ export default function Lessons() {
                     {(l.duration_minutes / 60).toFixed(2)}h
                     {l.rate != null && ` · $${l.rate}/hr`}
                     {" · "}
-                    {l.payment_cycle_id ? (
+                    {!isLessonCompleted(l) ? (
+                      <span className="text-gray-400">—</span>
+                    ) : l.payment_cycle_id ? (
                       <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
                         Paid
                       </span>
@@ -719,7 +721,9 @@ export default function Lessons() {
                         {l.rate != null ? `$${l.rate}` : "—"}
                       </td>
                       <td className="px-4 py-3">
-                        {l.payment_cycle_id ? (
+                        {!isLessonCompleted(l) ? (
+                          <span className="text-gray-400">—</span>
+                        ) : l.payment_cycle_id ? (
                           <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
                             Paid
                           </span>

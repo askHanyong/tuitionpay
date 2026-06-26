@@ -57,6 +57,8 @@ export default function Students() {
   const [sortBy, setSortBy] = useState("payment_due");
   const [dueDateByStudent, setDueDateByStudent] = useState({});
   const [lastLessonByStudent, setLastLessonByStudent] = useState({});
+  const [openCountByStudent, setOpenCountByStudent] = useState({});
+  const [pendingStudentIds, setPendingStudentIds] = useState(new Set());
 
   const refreshLessonsFor = async (studentId) => {
     const { data } = await supabase
@@ -86,17 +88,19 @@ export default function Students() {
   };
 
   const loadSortSupportData = async () => {
-    const [{ data: cyclesData }, { data: lessonsData }] = await Promise.all([
-      supabase
-        .from("payment_cycles")
-        .select("student_id, period_end")
-        .eq("status", "pending")
-        .order("period_end", { ascending: true }),
-      supabase
-        .from("lessons")
-        .select("student_id, lesson_date")
-        .order("lesson_date", { ascending: false }),
-    ]);
+    const [{ data: cyclesData }, { data: lessonsData }, { data: allCycles }] =
+      await Promise.all([
+        supabase
+          .from("payment_cycles")
+          .select("student_id, period_end")
+          .eq("status", "pending")
+          .order("period_end", { ascending: true }),
+        supabase
+          .from("lessons")
+          .select("student_id, lesson_date, payment_cycle_id, is_completed")
+          .order("lesson_date", { ascending: false }),
+        supabase.from("payment_cycles").select("student_id, status"),
+      ]);
     const dueMap = {};
     for (const c of cyclesData ?? []) {
       if (!dueMap[c.student_id]) dueMap[c.student_id] = c.period_end;
@@ -109,6 +113,21 @@ export default function Students() {
       }
     }
     setLastLessonByStudent(lastLessonMap);
+
+    const openCountMap = {};
+    for (const l of lessonsData ?? []) {
+      if (l.is_completed && !l.payment_cycle_id) {
+        openCountMap[l.student_id] = (openCountMap[l.student_id] ?? 0) + 1;
+      }
+    }
+    setOpenCountByStudent(openCountMap);
+    setPendingStudentIds(
+      new Set(
+        (allCycles ?? [])
+          .filter((c) => c.status === "pending")
+          .map((c) => c.student_id),
+      ),
+    );
   };
 
   const loadStudents = async () => {
@@ -120,6 +139,27 @@ export default function Students() {
     setStudents(data ?? []);
     setLoading(false);
     loadSortSupportData();
+  };
+
+  const progressFor = (student) => {
+    if (pendingStudentIds.has(student.id)) {
+      return { label: "Payment due", classes: "bg-red-100 text-red-800" };
+    }
+    const openCount = openCountByStudent[student.id] ?? 0;
+    const cycleCount = student.payment_cycle_count ?? 4;
+    if (openCount === 0) {
+      return { label: "Paid ✓", classes: "bg-green-100 text-green-800" };
+    }
+    if (openCount >= cycleCount - 1) {
+      return {
+        label: `${openCount}/${cycleCount} lessons`,
+        classes: "bg-amber-100 text-amber-800",
+      };
+    }
+    return {
+      label: `${openCount}/${cycleCount} lessons`,
+      classes: "bg-blue-100 text-blue-800",
+    };
   };
 
   const handleEdit = (student) => {
@@ -567,11 +607,16 @@ export default function Students() {
                       {s.hourly_rate != null ? `$${s.hourly_rate}/hr` : "—"}
                     </span>
                   </div>
-                  <p className="mb-3 text-sm text-gray-500">
+                  <p className="mb-2 text-sm text-gray-500">
                     {s.subject || "—"}
                     {s.lesson_duration_hours != null &&
                       ` · ${s.lesson_duration_hours}h lessons`}
                   </p>
+                  <span
+                    className={`mb-3 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${progressFor(s).classes}`}
+                  >
+                    {progressFor(s).label}
+                  </span>
                   <div className="flex flex-wrap gap-3">
                     <button
                       onClick={() => toggleLessons(s.id)}
@@ -615,6 +660,7 @@ export default function Students() {
                     <th className="px-4 py-2 font-medium">Subject</th>
                     <th className="px-4 py-2 font-medium">Rate (SGD/hr)</th>
                     <th className="px-4 py-2 font-medium">Duration (hrs)</th>
+                    <th className="px-4 py-2 font-medium">Progress</th>
                     <th className="px-4 py-2 font-medium"></th>
                   </tr>
                 </thead>
@@ -638,6 +684,13 @@ export default function Students() {
                         </td>
                         <td className="px-4 py-3 text-gray-700">
                           {s.lesson_duration_hours ?? "—"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${progressFor(s).classes}`}
+                          >
+                            {progressFor(s).label}
+                          </span>
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button

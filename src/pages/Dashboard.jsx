@@ -208,20 +208,24 @@ export default function Dashboard() {
     );
   }
 
-  // Recent Lessons must span every student, not just whichever rows happen
-  // to be last in `lessons` (which is ordered by insertion time, not
-  // lesson_date) -- so pull from both completed and scheduled lessons and
-  // sort by lesson_date/lesson_time ourselves, across all students.
-  const recentLessons = [...lessons, ...scheduledLessons]
+  // Upcoming Lessons only shows future, scheduled lessons within the next 7
+  // days, soonest first -- past lessons (completed or not) are excluded
+  // entirely.
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const sevenDaysOut = new Date(today);
+  sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
+  const sevenDaysOutStr = sevenDaysOut.toISOString().slice(0, 10);
+  const upcomingLessons = scheduledLessons
+    .filter((l) => l.lesson_date > todayStr && l.lesson_date <= sevenDaysOutStr)
     .sort((a, b) => {
       if (a.lesson_date !== b.lesson_date) {
-        return a.lesson_date < b.lesson_date ? 1 : -1;
+        return a.lesson_date < b.lesson_date ? -1 : 1;
       }
       const aTime = a.lesson_time ?? "";
       const bTime = b.lesson_time ?? "";
-      return aTime < bTime ? 1 : aTime > bTime ? -1 : 0;
-    })
-    .slice(0, 5);
+      return aTime < bTime ? -1 : aTime > bTime ? 1 : 0;
+    });
 
   const lastLessonByStudent = new Map();
   for (const lesson of lessons) {
@@ -726,7 +730,7 @@ export default function Dashboard() {
           <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md xl:order-1">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-semibold text-gray-900">
-                Recent lessons
+                Upcoming Lessons
               </h2>
               <Link
                 to="/lessons"
@@ -737,11 +741,13 @@ export default function Dashboard() {
             </div>
             {loading ? (
               <p className="text-sm text-gray-500">Loading...</p>
-            ) : recentLessons.length === 0 ? (
-              <p className="text-sm text-gray-500">No lessons logged yet.</p>
+            ) : upcomingLessons.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                No upcoming lessons this week 🎉
+              </p>
             ) : (
               <ul className="divide-y divide-gray-100">
-                {recentLessons.map((l) => (
+                {upcomingLessons.map((l) => (
                   <li
                     key={l.id}
                     className="flex items-center justify-between rounded-lg px-2 py-3 transition hover:bg-gray-50"
@@ -754,21 +760,10 @@ export default function Dashboard() {
                         {formatDate(l.lesson_date)}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                        Lesson {lessonPosition.get(l.id) ?? "?"} of{" "}
-                        {cycleCountByStudent.get(l.student_id) ?? 4}
-                      </span>
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                          l.is_completed
-                            ? "bg-blue-50 text-blue-700"
-                            : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {l.is_completed ? "Completed" : "Scheduled"}
-                      </span>
-                    </div>
+                    <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                      Lesson {lessonPosition.get(l.id) ?? "?"} of{" "}
+                      {cycleCountByStudent.get(l.student_id) ?? 4}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -797,7 +792,10 @@ export default function Dashboard() {
           <p className="text-sm text-gray-500">No payment cycles yet.</p>
         ) : (
           <ul className="divide-y divide-gray-100">
-            {paymentCycles.map((c) => (
+            {[
+              ...paymentCycles.filter((c) => c.status !== "paid"),
+              ...paymentCycles.filter((c) => c.status === "paid"),
+            ].map((c) => (
               <li
                 key={c.id}
                 className="flex items-center justify-between gap-3 rounded-lg px-2 py-3 transition hover:bg-gray-50"

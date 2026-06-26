@@ -19,6 +19,19 @@ const PALETTE = [
   "bg-teal-100 text-teal-700",
 ];
 
+// Lighter, muted counterpart for each PALETTE entry, used for lessons that
+// are scheduled but not yet completed, paired with a dotted border so
+// tutors can tell done vs upcoming apart at a glance.
+const MUTED_PALETTE = [
+  "bg-green-50 text-green-500 border border-dashed border-green-300",
+  "bg-green-50 text-green-500 border border-dashed border-green-300",
+  "bg-amber-50 text-amber-500 border border-dashed border-amber-300",
+  "bg-pink-50 text-pink-500 border border-dashed border-pink-300",
+  "bg-blue-50 text-blue-500 border border-dashed border-blue-300",
+  "bg-rose-50 text-rose-500 border border-dashed border-rose-300",
+  "bg-teal-50 text-teal-500 border border-dashed border-teal-300",
+];
+
 const toDateKey = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -102,12 +115,12 @@ export default function Calendar() {
     return positions;
   }, [lessons]);
 
-  const studentColor = useMemo(() => {
+  const studentColorIndex = useMemo(() => {
     const colors = new Map();
     let i = 0;
     for (const lesson of lessons) {
       if (!colors.has(lesson.student_id)) {
-        colors.set(lesson.student_id, PALETTE[i % PALETTE.length]);
+        colors.set(lesson.student_id, i % PALETTE.length);
         i++;
       }
     }
@@ -289,7 +302,15 @@ export default function Calendar() {
                                 e.stopPropagation();
                                 setDetailLesson(l);
                               }}
-                              className={`truncate rounded px-1 py-0.5 text-left text-[10px] font-medium lg:rounded-md lg:px-1.5 lg:py-1 lg:text-xs ${studentColor.get(l.student_id) ?? "bg-gray-100 text-gray-700"}`}
+                              className={`truncate rounded px-1 py-0.5 text-left text-[10px] font-medium lg:rounded-md lg:px-1.5 lg:py-1 lg:text-xs ${
+                                l.is_completed
+                                  ? PALETTE[
+                                      studentColorIndex.get(l.student_id) ?? 0
+                                    ]
+                                  : MUTED_PALETTE[
+                                      studentColorIndex.get(l.student_id) ?? 0
+                                    ]
+                              }`}
                             >
                               {label}
                               <span className="hidden lg:inline">

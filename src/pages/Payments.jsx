@@ -18,24 +18,27 @@ export default function Payments() {
   const [cycles, setCycles] = useState([]);
   const [lessonDatesByCycle, setLessonDatesByCycle] = useState({});
   const [tutorProfile, setTutorProfile] = useState({});
+  const [cycleProgress, setCycleProgress] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [preview, setPreview] = useState(null);
 
   const load = async () => {
-    const [{ data, error }, { data: tutorData }] = await Promise.all([
-      supabase
-        .from("payment_cycles")
-        .select(
-          "*, students(name, subject, guardian_name, guardian_contact, payment_mode, payment_cycle_count, payment_custom_day)",
-        )
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("tutors")
-        .select("full_name, paynow_number")
-        .eq("id", user.id)
-        .single(),
-    ]);
+    const [{ data, error }, { data: tutorData }, { data: studentsData }] =
+      await Promise.all([
+        supabase
+          .from("payment_cycles")
+          .select(
+            "*, students(name, subject, guardian_name, guardian_contact, payment_mode, payment_cycle_count, payment_custom_day)",
+          )
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("tutors")
+          .select("full_name, paynow_number")
+          .eq("id", user.id)
+          .single(),
+        supabase.from("students").select("*"),
+      ]);
     if (error) setError(error.message);
     setCycles(data ?? []);
     setTutorProfile(tutorData ?? {});
@@ -61,6 +64,60 @@ export default function Payments() {
       }
       setLessonDatesByCycle(map);
     }
+
+    // "Due soon" / "in progress" students are mid-cycle: they have unbilled
+    // completed lessons but haven't hit their full payment_cycle_count yet,
+    // so no payment_cycles row exists for them at all. Compute that directly
+    // from lessons rather than relying on payment_cycles, since that table
+    // only gets a row once the whole cycle has landed.
+    const students = studentsData ?? [];
+    const pendingStudentIds = new Set(
+      (data ?? [])
+        .filter((c) => c.status === "pending")
+        .map((c) => c.student_id),
+    );
+    if (students.length > 0) {
+      const allStudentIds = students.map((s) => s.id);
+      const { data: allLessons } = await supabase
+        .from("lessons")
+        .select("student_id, lesson_date, payment_cycle_id, is_completed")
+        .in("student_id", allStudentIds);
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const result = [];
+      for (const student of students) {
+        if (pendingStudentIds.has(student.id)) continue;
+        const studentLessons = (allLessons ?? []).filter(
+          (l) => l.student_id === student.id,
+        );
+        const openCount = studentLessons.filter(
+          (l) => l.is_completed && !l.payment_cycle_id,
+        ).length;
+        const cycleCount = student.payment_cycle_count ?? 4;
+        if (openCount === 0) continue;
+
+        const nextLesson = studentLessons
+          .filter((l) => !l.is_completed && l.lesson_date > todayStr)
+          .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1))[0];
+
+        const cycleAmount =
+          (student.hourly_rate ?? 0) *
+          (student.lesson_duration_hours ?? 0) *
+          cycleCount;
+
+        result.push({
+          studentId: student.id,
+          studentName: student.name,
+          openCount,
+          cycleCount,
+          expectedAmount: cycleAmount,
+          nextLessonDate: nextLesson?.lesson_date ?? null,
+          isFullyDue: openCount >= cycleCount,
+        });
+      }
+      setCycleProgress(result);
+    }
+
     setLoading(false);
   };
 
@@ -123,6 +180,14 @@ export default function Payments() {
 
   const pending = cycles.filter((c) => c.status === "pending");
   const settled = cycles.filter((c) => c.status !== "pending");
+  const fullyDue = cycleProgress.filter((p) => p.isFullyDue);
+  const dueSoon = cycleProgress.filter(
+    (p) => !p.isFullyDue && p.openCount === p.cycleCount - 1,
+  );
+  const inProgress = cycleProgress.filter(
+    (p) => !p.isFullyDue && p.openCount < p.cycleCount - 1,
+  );
+  const noticesCount = pending.length + fullyDue.length + dueSoon.length;
 
   return (
     <AppShell>
@@ -130,11 +195,11 @@ export default function Payments() {
 
       <section>
         <h2 className="mb-3 text-base font-semibold text-gray-900">
-          Payment notices due {pending.length > 0 && `(${pending.length})`}
+          Payment notices due {noticesCount > 0 && `(${noticesCount})`}
         </h2>
         {loading ? (
           <p className="text-sm text-gray-500">Loading...</p>
-        ) : pending.length === 0 && settled.length === 0 ? (
+        ) : noticesCount === 0 && settled.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-white px-6 py-12 text-center shadow-sm">
             <p className="mb-4 text-5xl">💰</p>
             <p className="max-w-sm text-sm text-gray-600">
@@ -142,13 +207,55 @@ export default function Payments() {
               lessons.
             </p>
           </div>
-        ) : pending.length === 0 ? (
+        ) : noticesCount === 0 ? (
           <p className="text-sm text-gray-500">
             No payments due. A notice appears here automatically once a student
             accumulates 4 lessons.
           </p>
         ) : (
           <ul className="space-y-3">
+            {fullyDue.map((p) => (
+              <li
+                key={`fullydue-${p.studentId}`}
+                className="rounded-md border border-red-200 bg-red-50 p-4 transition hover:shadow-md"
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-2 font-medium text-gray-900">
+                    {p.studentName}
+                    <StatusBadge status="overdue" />
+                  </span>
+                  <span className="font-semibold text-gray-900">
+                    {formatSGD(p.expectedAmount)}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600">
+                  All {p.cycleCount} lessons completed · Payment due now
+                </p>
+              </li>
+            ))}
+            {dueSoon.map((p) => (
+              <li
+                key={`duesoon-${p.studentId}`}
+                className="rounded-md border border-amber-200 bg-amber-50 p-4 transition hover:shadow-md"
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-2 font-medium text-gray-900">
+                    {p.studentName}
+                    <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                      Payment due soon
+                    </span>
+                  </span>
+                  <span className="font-semibold text-gray-900">
+                    {formatSGD(p.expectedAmount)}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600">
+                  {p.openCount}/{p.cycleCount} lessons completed
+                  {p.nextLessonDate &&
+                    ` · Final lesson on ${formatDate(p.nextLessonDate)}`}
+                </p>
+              </li>
+            ))}
             {pending.map((c) => (
               <li
                 key={c.id}
@@ -187,6 +294,36 @@ export default function Payments() {
           </ul>
         )}
       </section>
+
+      {inProgress.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-base font-semibold text-gray-900">
+            Current cycles in progress
+          </h2>
+          <ul className="space-y-3">
+            {inProgress.map((p) => (
+              <li
+                key={`inprogress-${p.studentId}`}
+                className="rounded-md border border-blue-200 bg-blue-50 p-4"
+              >
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="font-medium text-gray-900">
+                    {p.studentName}
+                  </span>
+                  <span className="font-semibold text-gray-900">
+                    {formatSGD(p.expectedAmount)}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600">
+                  {p.openCount}/{p.cycleCount} lessons completed
+                  {p.nextLessonDate &&
+                    ` · Next lesson on ${formatDate(p.nextLessonDate)}`}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section>
         <h2 className="mb-3 text-base font-semibold text-gray-900">History</h2>
