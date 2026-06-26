@@ -257,6 +257,7 @@ export function computeStudentPaymentStatus(student, ctx) {
 
   // "lessons" mode (every N lessons) — default
   const cycleCount = student.payment_cycle_count ?? 4;
+  const cycleAmount = cycleCount * lessonAmount;
   const pending = sortByDueAsc(pendingCycles);
   const amountDue = pending.reduce((sum, c) => sum + Number(c.amount_due), 0);
   const progressFraction = Math.min(openCount, cycleCount) / cycleCount;
@@ -275,6 +276,7 @@ export function computeStudentPaymentStatus(student, ctx) {
     return {
       tier: "red",
       amountDue,
+      cycleAmount,
       label: `🔴 ${cycleCount} lessons completed on ${formatDate(completedDate)} · Payment due now — ${formatSGD(amountDue)}`,
       showProgressBar: true,
       progressFraction: 1,
@@ -310,6 +312,7 @@ export function computeStudentPaymentStatus(student, ctx) {
     return {
       tier: hasPaidBefore ? "green" : "grey",
       amountDue: 0,
+      cycleAmount,
       label,
       showProgressBar: true,
       progressFraction: 0,
@@ -329,11 +332,12 @@ export function computeStudentPaymentStatus(student, ctx) {
 
   const label = fourthLessonDate
     ? `${openCount} lesson${openCount === 1 ? "" : "s"} done · Payment due after lesson ${cycleCount} on ${formatDate(fourthLessonDate)}`
-    : `${openCount}/${cycleCount} lessons · ${formatSGD(openCount * lessonAmount)} due at completion`;
+    : `${openCount}/${cycleCount} lessons · ${formatSGD(cycleAmount)} due at completion`;
 
   return {
     tier,
     amountDue: openCount * lessonAmount,
+    cycleAmount,
     label,
     showProgressBar: true,
     progressFraction,

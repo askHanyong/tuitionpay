@@ -99,7 +99,12 @@ export default function StudentProfile() {
     .filter((c) => c.status === "paid")
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   const openCount = completedLessons.filter((l) => !l.payment_cycle_id).length;
-  const currentCycleProgress = `Lesson ${Math.min(openCount, 4)} of 4`;
+  const cycleCount = student?.payment_cycle_count ?? 4;
+  const cycleAmount =
+    (student?.hourly_rate ?? 0) *
+    (student?.lesson_duration_hours ?? 0) *
+    cycleCount;
+  const currentCycleProgress = `Lesson ${Math.min(openCount, cycleCount)} of ${cycleCount}`;
   const lessonsThisMonth = useMemo(() => {
     const now = new Date();
     return lessons.filter((l) => {
@@ -292,10 +297,13 @@ export default function StudentProfile() {
         </div>
         <div className="rounded-xl border border-gray-100 bg-white p-5 text-center shadow-sm transition hover:shadow-md">
           <p className="text-2xl font-semibold text-gray-900">
-            {Math.min(openCount, 4)}/4
+            {Math.min(openCount, cycleCount)}/{cycleCount}
           </p>
           <p className="mt-1 text-xs font-medium text-gray-500">
             Current cycle progress
+          </p>
+          <p className="mt-1 text-xs text-gray-400">
+            {formatSGD(cycleAmount)} due at completion
           </p>
         </div>
       </div>

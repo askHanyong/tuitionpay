@@ -592,7 +592,10 @@ export default function Dashboard() {
                                   cycleCount -
                                 completedFrac;
                               return (
-                                <div className="flex h-2 w-full max-w-40 flex-1 overflow-hidden rounded-full bg-gray-100 sm:w-24 sm:flex-none">
+                                <div
+                                  title={`${formatSGD(status.cycleAmount ?? 0)} due at completion`}
+                                  className="flex h-2 w-full max-w-40 flex-1 overflow-hidden rounded-full bg-gray-100 sm:w-24 sm:flex-none"
+                                >
                                   <div
                                     className="h-full bg-green-600"
                                     style={{ width: `${completedFrac * 100}%` }}
