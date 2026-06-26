@@ -28,12 +28,19 @@ function computeForMonth(monthDate, lessons, paymentCycles, students) {
     )
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   // A payment cycle only gets created once its full lesson group has
-  // landed, so a student mid-cycle (e.g. 3 of 4 lessons done) has no
-  // payment_cycles row yet. Once at least one of this month's lessons has
-  // landed unbilled (payment_cycle_id is null), the FULL cycle amount is
-  // what's actually pending -- that's what gets collected the moment the
-  // last lesson in the cycle is logged, not just the lessons-so-far amount.
+  // landed, so a student mid-cycle has no payment_cycles row yet. Their full
+  // cycle amount only counts as pending once the cycle is far enough along
+  // to be imminent -- at least (payment_cycle_count - 1) completed unbilled
+  // lessons -- not from the very first lesson of the cycle.
   const studentsById = new Map(students.map((s) => [s.id, s]));
+  const unbilledCountByStudent = new Map();
+  for (const l of lessons) {
+    if (l.payment_cycle_id) continue;
+    unbilledCountByStudent.set(
+      l.student_id,
+      (unbilledCountByStudent.get(l.student_id) ?? 0) + 1,
+    );
+  }
   const midCycleStudentIds = new Set(
     monthLessons.filter((l) => !l.payment_cycle_id).map((l) => l.student_id),
   );
@@ -41,10 +48,13 @@ function computeForMonth(monthDate, lessons, paymentCycles, students) {
     (sum, studentId) => {
       const student = studentsById.get(studentId);
       if (!student) return sum;
+      const cycleCount = student.payment_cycle_count ?? 4;
+      const unbilledCount = unbilledCountByStudent.get(studentId) ?? 0;
+      if (unbilledCount < cycleCount - 1) return sum;
       const cycleAmount =
         (student.hourly_rate ?? 0) *
         (student.lesson_duration_hours ?? 0) *
-        (student.payment_cycle_count ?? 4);
+        cycleCount;
       return sum + cycleAmount;
     },
     0,

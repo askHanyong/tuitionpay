@@ -266,11 +266,10 @@ export default function Dashboard() {
     .filter((c) => c.status === "paid" && isThisMonth(c.period_end))
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   // A cycle only exists once its full lesson group has landed, so a student
-  // mid-cycle (e.g. 3 of 4 lessons done) has no payment_cycles row at all
-  // yet. Once at least one of this month's lessons has landed unbilled
-  // (payment_cycle_id is null), the FULL cycle amount is what's actually
-  // pending -- that's what gets collected the moment the last lesson in the
-  // cycle is logged, not just the lessons-so-far amount.
+  // mid-cycle has no payment_cycles row at all yet. Their full cycle amount
+  // only counts as pending once the cycle is far enough along to be
+  // imminent -- at least (payment_cycle_count - 1) completed unbilled
+  // lessons -- not from the very first lesson of the cycle.
   const pendingFromCyclesThisMonth = paymentCycles
     .filter((c) => c.status === "pending" && isThisMonth(c.period_end))
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
@@ -284,10 +283,13 @@ export default function Dashboard() {
   ].reduce((sum, studentId) => {
     const student = studentsById.get(studentId);
     if (!student) return sum;
+    const cycleCount = student.payment_cycle_count ?? 4;
+    const unbilledCount = openCountByStudent.get(studentId) ?? 0;
+    if (unbilledCount < cycleCount - 1) return sum;
     const cycleAmount =
       (student.hourly_rate ?? 0) *
       (student.lesson_duration_hours ?? 0) *
-      (student.payment_cycle_count ?? 4);
+      cycleCount;
     return sum + cycleAmount;
   }, 0);
   const pendingThisMonth =
