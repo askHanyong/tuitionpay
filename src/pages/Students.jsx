@@ -154,10 +154,20 @@ export default function Students() {
       return { label: "Payment due", classes: "bg-red-100 text-red-800" };
     }
     const openCount = openCountByStudent[student.id] ?? 0;
-    const cycleCount = student.payment_cycle_count ?? 4;
     if (openCount === 0) {
       return { label: "Paid ✓", classes: "bg-green-100 text-green-800" };
     }
+    const mode = student.payment_mode ?? "lessons";
+    if (mode === "monthly" || mode === "custom_date") {
+      // payment_cycle_count is only meaningful for "lessons" mode -- monthly
+      // and custom-date billing has no fixed lesson count per cycle, so the
+      // "X/4 lessons" fraction badge doesn't apply here.
+      return {
+        label: `${openCount} lesson${openCount === 1 ? "" : "s"} accumulating`,
+        classes: "bg-blue-100 text-blue-800",
+      };
+    }
+    const cycleCount = student.payment_cycle_count ?? 4;
     if (openCount >= cycleCount - 1) {
       return {
         label: `${openCount}/${cycleCount} lessons`,
