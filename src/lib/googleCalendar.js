@@ -72,12 +72,32 @@ export async function disconnectGoogleCalendar(tutorId) {
   if (error) throw error;
 }
 
+// Lists every calendar the tutor has access to (primary, secondary, shared)
+// so the free/busy check below isn't limited to just their primary
+// calendar. Falls back to ["primary"] if this lookup fails.
+async function listCalendarIds(accessToken) {
+  try {
+    const res = await fetch(
+      "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!res.ok) return ["primary"];
+    const { items = [] } = await res.json();
+    const ids = items.map((cal) => cal.id).filter(Boolean);
+    return ids.length > 0 ? ids : ["primary"];
+  } catch {
+    return ["primary"];
+  }
+}
+
 // Uses the free/busy API (rather than listing events on a single calendar)
 // so the check covers every calendar the tutor has access to -- secondary,
 // shared, etc. -- not just their primary one. free/busy only reports
 // busy/free slots, not event details, so callers get a boolean rather than
 // an event title.
 export async function findCalendarConflict(accessToken, startISO, endISO) {
+  const calendarIds = await listCalendarIds(accessToken);
+
   const res = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
     method: "POST",
     headers: {
@@ -88,7 +108,7 @@ export async function findCalendarConflict(accessToken, startISO, endISO) {
       timeMin: startISO,
       timeMax: endISO,
       timeZone: "Asia/Singapore",
-      items: [{ id: "primary" }],
+      items: calendarIds.map((id) => ({ id })),
     }),
   });
   if (!res.ok) {
@@ -98,13 +118,13 @@ export async function findCalendarConflict(accessToken, startISO, endISO) {
     );
   }
   const { calendars = {} } = await res.json();
-  const busy = calendars.primary?.busy ?? [];
-  const hasConflict = busy.some(
-    (slot) =>
-      new Date(slot.start) < new Date(endISO) &&
-      new Date(slot.end) > new Date(startISO),
+  return Object.values(calendars).some((calendar) =>
+    (calendar.busy ?? []).some(
+      (slot) =>
+        new Date(slot.start) < new Date(endISO) &&
+        new Date(slot.end) > new Date(startISO),
+    ),
   );
-  return hasConflict;
 }
 
 export async function createCalendarEvent(
