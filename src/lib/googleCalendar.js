@@ -72,39 +72,39 @@ export async function disconnectGoogleCalendar(tutorId) {
   if (error) throw error;
 }
 
-// Looks for any existing Google Calendar event overlapping [startISO, endISO).
-// Returns the first conflicting event ({ title, start }) or null.
+// Uses the free/busy API (rather than listing events on a single calendar)
+// so the check covers every calendar the tutor has access to -- secondary,
+// shared, etc. -- not just their primary one. free/busy only reports
+// busy/free slots, not event details, so callers get a boolean rather than
+// an event title.
 export async function findCalendarConflict(accessToken, startISO, endISO) {
-  const params = new URLSearchParams({
-    timeMin: startISO,
-    timeMax: endISO,
-    singleEvents: "true",
+  const res = await fetch("https://www.googleapis.com/calendar/v3/freeBusy", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      timeMin: startISO,
+      timeMax: endISO,
+      timeZone: "Asia/Singapore",
+      items: [{ id: "primary" }],
+    }),
   });
-  const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } },
-  );
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(
       body.error?.message || "Failed to check Google Calendar for conflicts.",
     );
   }
-  const { items = [] } = await res.json();
-  const conflict = items.find((event) => {
-    const eventStart = event.start?.dateTime || event.start?.date;
-    const eventEnd = event.end?.dateTime || event.end?.date;
-    if (!eventStart || !eventEnd) return false;
-    return (
-      new Date(eventStart) < new Date(endISO) &&
-      new Date(eventEnd) > new Date(startISO)
-    );
-  });
-  if (!conflict) return null;
-  return {
-    title: conflict.summary || "Untitled event",
-    start: conflict.start?.dateTime || conflict.start?.date,
-  };
+  const { calendars = {} } = await res.json();
+  const busy = calendars.primary?.busy ?? [];
+  const hasConflict = busy.some(
+    (slot) =>
+      new Date(slot.start) < new Date(endISO) &&
+      new Date(slot.end) > new Date(startISO),
+  );
+  return hasConflict;
 }
 
 export async function createCalendarEvent(

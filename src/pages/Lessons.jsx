@@ -795,16 +795,8 @@ export default function Lessons() {
           {conflictWarning && (
             <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3">
               <p className="text-sm text-amber-800">
-                ⚠️ Conflict detected: {conflictWarning.title}
-                {conflictWarning.time &&
-                  ` at ${new Date(conflictWarning.time).toLocaleString(
-                    "en-SG",
-                    {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    },
-                  )}`}
-                . Save anyway?
+                ⚠️ You have a conflict at that time in your Google Calendar.
+                Save anyway?
               </p>
               <div className="flex flex-wrap gap-2">
                 <button
