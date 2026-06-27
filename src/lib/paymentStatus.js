@@ -156,7 +156,15 @@ export function computeStudentPaymentStatus(student, ctx) {
     const dueIn = daysUntil(dueDate, now);
 
     const recentPaid = sortByDueDesc(paidCycles)[0];
-    if (recentPaid && isPrevCalendarMonth(recentPaid.period_end, now)) {
+    // Only show the "accumulating" green state if we're not yet in the
+    // due-soon window -- once dueIn drops to 3 days or fewer, the amber
+    // "payment due soon" check below should take over even if last month
+    // was already paid.
+    if (
+      recentPaid &&
+      isPrevCalendarMonth(recentPaid.period_end, now) &&
+      !(dueIn >= 0 && dueIn <= 3)
+    ) {
       const prevMonthLabel = formatMonth(recentPaid.period_end);
       return {
         tier: "green",
