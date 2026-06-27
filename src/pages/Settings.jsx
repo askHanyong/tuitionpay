@@ -5,9 +5,9 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import AppShell from "../components/AppShell";
 import {
-  isGoogleTokenValid,
-  requestGoogleCalendarAccess,
-  revokeGoogleCalendarAccess,
+  buildGoogleAuthUrl,
+  disconnectGoogleCalendar,
+  isGoogleConnected,
 } from "../lib/googleCalendar";
 import {
   buildFeedbackMailtoLink,
@@ -40,7 +40,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [googleTutor, setGoogleTutor] = useState(null);
-  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [notifyPrefs, setNotifyPrefs] = useState({
     notify_lesson_reminders: true,
     notify_payment_due: true,
@@ -50,7 +50,7 @@ export default function Settings() {
   const loadGoogleStatus = async () => {
     const { data } = await supabase
       .from("tutors")
-      .select("google_access_token, google_token_expiry")
+      .select("google_calendar_tokens")
       .eq("id", user.id)
       .single();
     setGoogleTutor(data ?? null);
@@ -61,7 +61,7 @@ export default function Settings() {
       const { data, error } = await supabase
         .from("tutors")
         .select(
-          "paynow_number, google_access_token, google_token_expiry, notify_lesson_reminders, notify_payment_due, notify_weekly_summary",
+          "paynow_number, google_calendar_tokens, notify_lesson_reminders, notify_payment_due, notify_weekly_summary",
         )
         .eq("id", user.id)
         .single();
@@ -95,42 +95,25 @@ export default function Settings() {
     showToast("Notification preferences saved.");
   };
 
-  const handleConnectGoogle = async () => {
-    setConnecting(true);
-    try {
-      const { accessToken, expiresAt } = await requestGoogleCalendarAccess();
-      const { error } = await supabase
-        .from("tutors")
-        .update({
-          google_access_token: accessToken,
-          google_token_expiry: expiresAt,
-        })
-        .eq("id", user.id);
-      if (error) throw error;
-      await loadGoogleStatus();
-      showToast("Google Calendar connected.");
-    } catch (err) {
-      showToast(err.message, "error");
-    } finally {
-      setConnecting(false);
-    }
+  const handleConnectGoogle = () => {
+    window.location.href = buildGoogleAuthUrl();
   };
 
   const handleDisconnectGoogle = async () => {
-    revokeGoogleCalendarAccess(googleTutor?.google_access_token);
-    const { error } = await supabase
-      .from("tutors")
-      .update({ google_access_token: null, google_token_expiry: null })
-      .eq("id", user.id);
-    if (error) {
-      showToast(error.message, "error");
-      return;
+    setDisconnecting(true);
+    try {
+      await disconnectGoogleCalendar(user.id);
+      await loadGoogleStatus();
+      showToast("Google Calendar disconnected.");
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setDisconnecting(false);
     }
-    await loadGoogleStatus();
-    showToast("Google Calendar disconnected.");
   };
 
-  const googleConnected = isGoogleTokenValid(googleTutor);
+  const googleConnected = isGoogleConnected(googleTutor);
+  const googleEmail = googleTutor?.google_calendar_tokens?.email;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -199,22 +182,22 @@ export default function Settings() {
         {googleConnected ? (
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-              ✓ Connected
+              ✓ Connected{googleEmail ? ` as ${googleEmail}` : ""}
             </span>
             <button
               onClick={handleDisconnectGoogle}
-              className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+              disabled={disconnecting}
+              className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
             >
-              Disconnect
+              {disconnecting ? "Disconnecting..." : "Disconnect"}
             </button>
           </div>
         ) : (
           <button
             onClick={handleConnectGoogle}
-            disabled={connecting}
-            className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow disabled:opacity-50"
+            className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
           >
-            {connecting ? "Connecting..." : "Connect Google Calendar"}
+            Connect Google Calendar
           </button>
         )}
       </section>

@@ -14,6 +14,7 @@ import Payments from "./pages/Payments";
 import Calendar from "./pages/Calendar";
 import StudentProfile from "./pages/StudentProfile";
 import Settings from "./pages/Settings";
+import GoogleCallback from "./pages/auth/GoogleCallback";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import About from "./pages/About";
@@ -82,6 +83,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Settings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/auth/google/callback"
+              element={
+                <ProtectedRoute>
+                  <GoogleCallback />
                 </ProtectedRoute>
               }
             />

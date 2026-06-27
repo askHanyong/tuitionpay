@@ -3,6 +3,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
+import {
+  deleteCalendarEvent,
+  getValidAccessToken,
+} from "../lib/googleCalendar";
 import { formatLessonTime } from "../lib/date";
 import { formatDateFull, formatMonth } from "../utils/dateFormat";
 import AppShell from "../components/AppShell";
@@ -267,8 +271,29 @@ export default function Calendar() {
     navigate("/lessons", { state: { editLessonId: lesson.id } });
   };
 
+  // Best-effort: deleting the Google Calendar event must never block
+  // deleting the lesson from Supabase, even if the tutor's token is stale
+  // or Google's API errors out.
+  const deleteFromGoogleCalendar = async (lesson) => {
+    if (!lesson?.google_event_id) return;
+    try {
+      const { data: tutor } = await supabase
+        .from("tutors")
+        .select("google_calendar_tokens")
+        .eq("id", user.id)
+        .single();
+      const tokens = tutor?.google_calendar_tokens;
+      if (!tokens?.access_token) return;
+      const accessToken = await getValidAccessToken(user.id, tokens);
+      await deleteCalendarEvent(accessToken, lesson.google_event_id);
+    } catch {
+      // ignore -- proceed with Supabase delete regardless
+    }
+  };
+
   const handleDeleteLesson = async (lesson) => {
     if (!window.confirm("Delete this lesson? This cannot be undone.")) return;
+    await deleteFromGoogleCalendar(lesson);
     await supabase
       .from("lessons")
       .delete()
@@ -278,6 +303,7 @@ export default function Calendar() {
   };
 
   const handleDeleteLessonFromModal = async (lessonId) => {
+    await deleteFromGoogleCalendar(lessons.find((l) => l.id === lessonId));
     const { error } = await supabase
       .from("lessons")
       .delete()

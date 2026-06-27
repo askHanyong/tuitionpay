@@ -7,7 +7,12 @@ import { useToast } from "../contexts/ToastContext";
 import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
 import { formatDate, formatDateTime } from "../utils/dateFormat";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
-import { createCalendarEvent, isGoogleTokenValid } from "../lib/googleCalendar";
+import {
+  createCalendarEvent,
+  deleteCalendarEvent,
+  findCalendarConflict,
+  getValidAccessToken,
+} from "../lib/googleCalendar";
 import { showAppNotification } from "../lib/notifications";
 import AppShell from "../components/AppShell";
 
@@ -151,6 +156,8 @@ export default function Lessons() {
   const [editingId, setEditingId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [conflictWarning, setConflictWarning] = useState(null);
+  const [checkingConflict, setCheckingConflict] = useState(false);
 
   const [defaultDateFrom] = useState(() => daysAgo(30));
   const [defaultDateTo] = useState(() => today());
@@ -337,19 +344,51 @@ export default function Lessons() {
     );
   };
 
-  const addLessonToGoogleCalendar = async ({
+  const getTutorGoogleTokens = async () => {
+    const { data: tutor } = await supabase
+      .from("tutors")
+      .select("google_calendar_tokens")
+      .eq("id", user.id)
+      .single();
+    return tutor?.google_calendar_tokens ?? null;
+  };
+
+  // Looks for a conflicting Google Calendar event at the proposed lesson
+  // time. Returns null if Google Calendar isn't connected, or if the check
+  // itself fails -- a failed conflict check should never block logging a
+  // lesson, since the conflict warning is only an extra confirmation step.
+  const checkGoogleConflict = async ({
+    lessonDate,
+    lessonTime,
+    durationMinutes,
+  }) => {
+    try {
+      const tokens = await getTutorGoogleTokens();
+      if (!tokens?.access_token) return null;
+      const accessToken = await getValidAccessToken(user.id, tokens);
+      const start = new Date(`${lessonDate}T${lessonTime || "09:00"}:00`);
+      const end = new Date(start.getTime() + durationMinutes * 60000);
+      return await findCalendarConflict(
+        accessToken,
+        start.toISOString(),
+        end.toISOString(),
+      );
+    } catch {
+      return null;
+    }
+  };
+
+  const pushLessonToGoogleCalendar = async ({
+    lessonId,
     studentId,
     lessonDate,
     lessonTime,
     durationMinutes,
+    notes,
     lessonNumber,
   }) => {
-    const { data: tutor } = await supabase
-      .from("tutors")
-      .select("google_access_token, google_token_expiry")
-      .eq("id", user.id)
-      .single();
-    if (!isGoogleTokenValid(tutor)) return;
+    const tokens = await getTutorGoogleTokens();
+    if (!tokens?.access_token) return;
 
     const student = students.find((s) => s.id === studentId);
     const start = new Date(`${lessonDate}T${lessonTime || "09:00"}:00`);
@@ -361,18 +400,46 @@ export default function Lessons() {
       isMonthlyBilled || isPerLesson
         ? `Lesson ${lessonNumber}`
         : `Lesson ${lessonNumber} of ${student?.payment_cycle_count ?? 4}`;
-    try {
-      await createCalendarEvent(tutor.google_access_token, {
-        summary: `${student?.name ?? "Lesson"} - ${student?.subject || "Lesson"} (${lessonLabel})`,
-        description: `${lessonLabel} for ${student?.name ?? "student"}`,
+
+    const attempt = async () => {
+      const accessToken = await getValidAccessToken(user.id, tokens);
+      const event = await createCalendarEvent(accessToken, {
+        summary: `${student?.name ?? "Lesson"} — ${student?.subject || "Lesson"}`,
+        description:
+          notes || `${lessonLabel} for ${student?.name ?? "student"}`,
         start: start.toISOString(),
         end: end.toISOString(),
       });
-    } catch (err) {
-      showToast(
-        `Lesson logged, but Google Calendar event failed: ${err.message}`,
-        "error",
-      );
+      await supabase
+        .from("lessons")
+        .update({ google_event_id: event.id })
+        .eq("id", lessonId)
+        .eq("tutor_id", user.id);
+    };
+
+    try {
+      await attempt();
+    } catch {
+      // Retry once in case the access token expired between the read above
+      // and the create call (e.g. a stale token cached client-side).
+      try {
+        await attempt();
+      } catch {
+        showToast("Lesson saved, but Google Calendar sync failed.", "error");
+      }
+    }
+  };
+
+  const deleteLessonFromGoogleCalendar = async (lesson) => {
+    if (!lesson?.google_event_id) return;
+    try {
+      const tokens = await getTutorGoogleTokens();
+      if (!tokens?.access_token) return;
+      const accessToken = await getValidAccessToken(user.id, tokens);
+      await deleteCalendarEvent(accessToken, lesson.google_event_id);
+    } catch {
+      // Best-effort -- proceed with deleting the lesson from Supabase
+      // regardless of whether the Google Calendar event was removed.
     }
   };
 
@@ -421,6 +488,30 @@ export default function Lessons() {
     setError(null);
     setInfo(null);
     setNewCycle(null);
+
+    if (!editingId) {
+      setCheckingConflict(true);
+      const conflict = await checkGoogleConflict({
+        lessonDate: form.lesson_date,
+        lessonTime: form.lesson_time,
+        durationMinutes: Math.round(Number(form.duration_hours) * 60),
+      });
+      setCheckingConflict(false);
+      if (conflict) {
+        setConflictWarning(conflict);
+        return;
+      }
+    }
+
+    await proceedSave();
+  };
+
+  const handleConfirmSaveAnyway = async () => {
+    setConflictWarning(null);
+    await proceedSave();
+  };
+
+  const proceedSave = async () => {
     setSubmitting(true);
 
     try {
@@ -471,24 +562,30 @@ export default function Lessons() {
         .is("payment_cycle_id", null)
         .eq("is_completed", true);
 
-      const { error } = await supabase.from("lessons").insert({
-        tutor_id: user.id,
-        student_id: form.student_id,
-        lesson_date: form.lesson_date,
-        lesson_time: form.lesson_time || null,
-        duration_minutes: Math.round(durationHours * 60),
-        rate: form.rate === "" ? null : Number(form.rate),
-        notes: form.notes.trim() || null,
-        status,
-        is_completed,
-      });
+      const { data: inserted, error } = await supabase
+        .from("lessons")
+        .insert({
+          tutor_id: user.id,
+          student_id: form.student_id,
+          lesson_date: form.lesson_date,
+          lesson_time: form.lesson_time || null,
+          duration_minutes: Math.round(durationHours * 60),
+          rate: form.rate === "" ? null : Number(form.rate),
+          notes: form.notes.trim() || null,
+          status,
+          is_completed,
+        })
+        .select()
+        .single();
       if (error) throw error;
 
-      await addLessonToGoogleCalendar({
+      await pushLessonToGoogleCalendar({
+        lessonId: inserted.id,
         studentId: form.student_id,
         lessonDate: form.lesson_date,
         lessonTime: form.lesson_time,
         durationMinutes: Math.round(durationHours * 60),
+        notes: form.notes.trim(),
         lessonNumber: ((beforeCount ?? 0) % 4) + 1,
       });
 
@@ -558,6 +655,7 @@ export default function Lessons() {
     if (!id) return;
     setDeleting(true);
     setError(null);
+    await deleteLessonFromGoogleCalendar(lessons.find((l) => l.id === id));
     const { error } = await supabase
       .from("lessons")
       .delete()
@@ -694,20 +792,57 @@ export default function Lessons() {
           {error && <p className="text-sm text-red-600">{error}</p>}
           {info && <p className="text-sm text-green-600">{info}</p>}
 
+          {conflictWarning && (
+            <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm text-amber-800">
+                ⚠️ Conflict detected: {conflictWarning.title}
+                {conflictWarning.time &&
+                  ` at ${new Date(conflictWarning.time).toLocaleString(
+                    "en-SG",
+                    {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    },
+                  )}`}
+                . Save anyway?
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConflictWarning(null)}
+                  disabled={submitting}
+                  className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSaveAnyway}
+                  disabled={submitting}
+                  className="min-h-11 rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {submitting ? "Saving..." : "Yes, save anyway"}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || checkingConflict}
               className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow disabled:opacity-50"
               id="log-lesson-form-submit"
             >
-              {submitting
-                ? editingId
-                  ? "Saving..."
-                  : "Logging..."
-                : editingId
-                  ? "Save changes"
-                  : "Log lesson"}
+              {checkingConflict
+                ? "Checking calendar..."
+                : submitting
+                  ? editingId
+                    ? "Saving..."
+                    : "Logging..."
+                  : editingId
+                    ? "Save changes"
+                    : "Log lesson"}
             </button>
             {editingId && (
               <button
