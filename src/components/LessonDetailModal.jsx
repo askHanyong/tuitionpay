@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { formatLessonTime } from "../lib/date";
 import { formatDate } from "../utils/dateFormat";
 import { buildGoogleMapsUrl } from "../lib/maps";
@@ -12,6 +13,7 @@ export default function LessonDetailModal({
   onEdit,
   onMarkDone,
   onMarkPaid,
+  onDelete,
 }) {
   const address = lesson.students?.address;
   const isDone = lesson.is_completed;
@@ -19,6 +21,22 @@ export default function LessonDetailModal({
   const amountDue = paymentCycle
     ? Number(paymentCycle.amount_due)
     : lessonAmount(lesson, lesson.students);
+
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+
+  const handleConfirmDelete = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDelete(lesson.id);
+    } catch (err) {
+      setDeleteError(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div
@@ -85,33 +103,67 @@ export default function LessonDetailModal({
           </p>
         )}
 
-        <div className="mt-5 flex flex-wrap gap-2">
-          <button
-            onClick={onEdit}
-            className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
-          >
-            Edit lesson
-          </button>
-          {!isDone && (
-            <button
-              onClick={onMarkDone}
-              className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
-            >
-              ✅ Mark as Done
-            </button>
-          )}
-          {isDone &&
-            lesson.students?.payment_mode === "per_lesson" &&
-            !isPaid &&
-            paymentCycle && (
+        {confirmingDelete ? (
+          <div className="mt-5 space-y-3 rounded-md border border-red-200 bg-red-50 p-3">
+            <p className="text-sm text-red-800">
+              Are you sure you want to delete this lesson? This cannot be
+              undone.
+            </p>
+            {deleteError && (
+              <p className="text-sm text-red-600">{deleteError}</p>
+            )}
+            <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => onMarkPaid(paymentCycle.id)}
+                onClick={() => setConfirmingDelete(false)}
+                disabled={deleting}
+                className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                className="min-h-11 rounded-md bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Yes, delete"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button
+              onClick={onEdit}
+              className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+            >
+              Edit lesson
+            </button>
+            {!isDone && (
+              <button
+                onClick={onMarkDone}
                 className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
               >
-                💰 Mark as Paid
+                ✅ Mark as Done
               </button>
             )}
-        </div>
+            {isDone &&
+              lesson.students?.payment_mode === "per_lesson" &&
+              !isPaid &&
+              paymentCycle && (
+                <button
+                  onClick={() => onMarkPaid(paymentCycle.id)}
+                  className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
+                >
+                  💰 Mark as Paid
+                </button>
+              )}
+            <button
+              onClick={() => setConfirmingDelete(true)}
+              className="min-h-11 rounded-md border border-red-300 px-4 text-sm font-medium text-red-600 transition hover:bg-red-50"
+            >
+              Delete lesson
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

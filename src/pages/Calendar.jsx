@@ -277,6 +277,18 @@ export default function Calendar() {
     await reloadLessons();
   };
 
+  const handleDeleteLessonFromModal = async (lessonId) => {
+    const { error } = await supabase
+      .from("lessons")
+      .delete()
+      .eq("id", lessonId)
+      .eq("tutor_id", user.id);
+    if (error) throw new Error(error.message);
+    setLessons((prev) => prev.filter((l) => l.id !== lessonId));
+    setDetailLesson(null);
+    await reloadLessons();
+  };
+
   const handleMarkDone = async (lesson) => {
     setDetailLesson(null);
     const { error } = await supabase
@@ -505,6 +517,7 @@ export default function Calendar() {
 
       {detailLesson && (
         <LessonDetailModal
+          key={detailLesson.id}
           lesson={detailLesson}
           lessonLabel={detailLesson ? lessonBadgeLabel(detailLesson) : null}
           paymentCycle={
@@ -517,6 +530,7 @@ export default function Calendar() {
           }}
           onMarkDone={() => handleMarkDone(detailLesson)}
           onMarkPaid={handleMarkPaid}
+          onDelete={handleDeleteLessonFromModal}
         />
       )}
     </AppShell>
