@@ -19,24 +19,6 @@ const WEEKDAYS = [
   "Sunday",
 ];
 
-// Singapore public holidays for 2026, flagged in the preview list so tutors
-// can spot and skip them without needing to cross-check a separate calendar.
-const SG_PUBLIC_HOLIDAYS_2026 = new Map([
-  ["2026-01-01", "New Year's Day"],
-  ["2026-01-29", "Chinese New Year"],
-  ["2026-01-30", "Chinese New Year"],
-  ["2026-03-31", "Hari Raya Puasa"],
-  ["2026-05-01", "Labour Day"],
-  ["2026-05-02", "Vesak Day"],
-  ["2026-05-31", "Hari Raya Haji"],
-  ["2026-08-03", "Public Holiday"],
-  ["2026-08-09", "National Day"],
-  ["2026-08-11", "Public Holiday"],
-  ["2026-10-20", "Deepavali"],
-  ["2026-12-25", "Christmas Day"],
-  ["2026-12-26", "Public Holiday"],
-]);
-
 function formatDateWithDay(dateKey, time) {
   const d = new Date(`${dateKey}T00:00:00`);
   const dayName = d.toLocaleDateString("en-SG", { weekday: "short" });
@@ -225,8 +207,7 @@ export default function ScheduleLessonsModal({
         date,
         conflict: existingByDate.get(date) ?? null,
         action: "skip",
-        holidayName: SG_PUBLIC_HOLIDAYS_2026.get(date) ?? null,
-        excluded: SG_PUBLIC_HOLIDAYS_2026.has(date),
+        excluded: false,
       })),
     );
   };
@@ -491,21 +472,14 @@ export default function ScheduleLessonsModal({
                   className={`flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm ${
                     item.excluded
                       ? "border-gray-200 bg-gray-100 opacity-60"
-                      : item.holidayName
-                        ? "border-blue-200 bg-blue-50"
-                        : item.conflict
-                          ? "border-amber-200 bg-amber-50"
-                          : "border-gray-100 bg-gray-50"
+                      : item.conflict
+                        ? "border-amber-200 bg-amber-50"
+                        : "border-gray-100 bg-gray-50"
                   }`}
                 >
                   <span className="flex items-center gap-1.5 text-gray-700">
                     <span aria-hidden="true">{item.excluded ? "●" : "○"}</span>
                     {formatDateWithDay(item.date, time)}
-                    {item.holidayName && (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-                        🇸🇬 Public holiday — {item.holidayName}
-                      </span>
-                    )}
                     {item.excluded && (
                       <span className="rounded-full bg-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700">
                         Skipped
