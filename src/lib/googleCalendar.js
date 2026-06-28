@@ -129,7 +129,7 @@ export async function findCalendarConflict(accessToken, startISO, endISO) {
 
 export async function createCalendarEvent(
   accessToken,
-  { summary, description, start, end, timeZone = "Asia/Singapore" },
+  { summary, description, location, start, end, timeZone = "Asia/Singapore" },
 ) {
   const res = await fetch(
     "https://www.googleapis.com/calendar/v3/calendars/primary/events",
@@ -142,6 +142,7 @@ export async function createCalendarEvent(
       body: JSON.stringify({
         summary,
         description,
+        ...(location ? { location } : {}),
         start: { dateTime: start, timeZone },
         end: { dateTime: end, timeZone },
       }),
@@ -151,6 +152,41 @@ export async function createCalendarEvent(
     const body = await res.json().catch(() => ({}));
     throw new Error(
       body.error?.message || "Failed to create Google Calendar event.",
+    );
+  }
+  return res.json();
+}
+
+// PATCHes an existing event. location is always included (even as an empty
+// string) so that clearing a student's address removes it from the event --
+// PATCH only touches fields present in the body, so omitting it would leave
+// a stale address behind.
+export async function updateCalendarEvent(
+  accessToken,
+  eventId,
+  { summary, description, location, start, end, timeZone = "Asia/Singapore" },
+) {
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        summary,
+        description,
+        location: location || "",
+        start: { dateTime: start, timeZone },
+        end: { dateTime: end, timeZone },
+      }),
+    },
+  );
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(
+      body.error?.message || "Failed to update Google Calendar event.",
     );
   }
   return res.json();

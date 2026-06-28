@@ -12,6 +12,7 @@ import {
   deleteCalendarEvent,
   findCalendarConflict,
   getValidAccessToken,
+  updateCalendarEvent,
 } from "../lib/googleCalendar";
 import { showAppNotification } from "../lib/notifications";
 import AppShell from "../components/AppShell";
@@ -407,6 +408,7 @@ export default function Lessons() {
         summary: `${student?.name ?? "Lesson"} — ${student?.subject || "Lesson"}`,
         description:
           notes || `${lessonLabel} for ${student?.name ?? "student"}`,
+        location: student?.address || undefined,
         start: start.toISOString(),
         end: end.toISOString(),
       });
@@ -422,6 +424,45 @@ export default function Lessons() {
     } catch {
       // Retry once in case the access token expired between the read above
       // and the create call (e.g. a stale token cached client-side).
+      try {
+        await attempt();
+      } catch {
+        showToast("Lesson saved, but Google Calendar sync failed.", "error");
+      }
+    }
+  };
+
+  const updateLessonInGoogleCalendar = async ({
+    eventId,
+    studentId,
+    lessonDate,
+    lessonTime,
+    durationMinutes,
+    notes,
+    lessonLabel,
+  }) => {
+    const tokens = await getTutorGoogleTokens();
+    if (!tokens?.access_token) return;
+
+    const student = students.find((s) => s.id === studentId);
+    const start = new Date(`${lessonDate}T${lessonTime || "09:00"}:00`);
+    const end = new Date(start.getTime() + durationMinutes * 60000);
+
+    const attempt = async () => {
+      const accessToken = await getValidAccessToken(user.id, tokens);
+      await updateCalendarEvent(accessToken, eventId, {
+        summary: `${student?.name ?? "Lesson"} — ${student?.subject || "Lesson"}`,
+        description:
+          notes || lessonLabel || `Lesson for ${student?.name ?? "student"}`,
+        location: student?.address || "",
+        start: start.toISOString(),
+        end: end.toISOString(),
+      });
+    };
+
+    try {
+      await attempt();
+    } catch {
       try {
         await attempt();
       } catch {
@@ -548,6 +589,18 @@ export default function Lessons() {
           .eq("id", editingId)
           .eq("tutor_id", user.id);
         if (error) throw error;
+
+        if (original?.google_event_id) {
+          await updateLessonInGoogleCalendar({
+            eventId: original.google_event_id,
+            studentId: form.student_id,
+            lessonDate: form.lesson_date,
+            lessonTime: form.lesson_time,
+            durationMinutes: Math.round(durationHours * 60),
+            notes: form.notes.trim(),
+          });
+        }
+
         setInfo("Lesson updated.");
         resetForm();
         await reloadLessons();

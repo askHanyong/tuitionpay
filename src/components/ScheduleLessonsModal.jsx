@@ -129,6 +129,7 @@ export default function ScheduleLessonsModal({
       const event = await createCalendarEvent(accessToken, {
         summary: `${student.name} — ${student.subject || "Lesson"}`,
         description: `Lesson for ${student.name}`,
+        location: student.address || undefined,
         start: start.toISOString(),
         end: end.toISOString(),
       });
