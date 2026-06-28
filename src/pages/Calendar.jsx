@@ -257,7 +257,7 @@ export default function Calendar() {
     const ics = buildLessonIcs({
       lesson,
       studentName: lesson.students?.name ?? "Lesson",
-      subject: lesson.students?.subject,
+      subject: lesson.subject ?? lesson.students?.subject,
       lessonNumber: lessonPosition.get(lesson.id) ?? 1,
       rate: lesson.rate ?? lesson.students?.hourly_rate ?? null,
     });
@@ -506,7 +506,8 @@ export default function Calendar() {
                   </Link>
                   <p className="mb-2 text-xs text-gray-500">
                     {l.lesson_time && `${formatLessonTime(l.lesson_time)} · `}
-                    {l.students?.subject || "—"} · {lessonBadgeLabel(l)} ·{" "}
+                    {l.subject ?? l.students?.subject ?? "—"} ·{" "}
+                    {lessonBadgeLabel(l)} ·{" "}
                     {(l.duration_minutes / 60).toFixed(2)}h
                   </p>
                   {l.notes && (

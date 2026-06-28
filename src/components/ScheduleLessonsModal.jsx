@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
@@ -92,6 +92,28 @@ export default function ScheduleLessonsModal({
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [subjects, setSubjects] = useState([]);
+  const [subjectId, setSubjectId] = useState("");
+
+  useEffect(() => {
+    const loadSubjects = async () => {
+      const { data } = await supabase
+        .from("student_subjects")
+        .select("*")
+        .eq("student_id", student.id)
+        .eq("tutor_id", user.id)
+        .order("created_at", { ascending: true });
+      setSubjects(data ?? []);
+      setSubjectId(data?.[0]?.id ?? "");
+    };
+    loadSubjects();
+  }, [student.id, user.id]);
+
+  const selectedSubject = subjects.find((s) => s.id === subjectId);
+  const durationHours =
+    selectedSubject?.lesson_duration_hours ?? student.lesson_duration_hours;
+  const rate = selectedSubject?.hourly_rate ?? student.hourly_rate;
+  const subjectText = selectedSubject?.subject ?? student.subject;
 
   const handleDayChange = (value) => {
     setDayOfWeek(value);
@@ -101,10 +123,12 @@ export default function ScheduleLessonsModal({
   const buildRow = (date) => ({
     tutor_id: user.id,
     student_id: student.id,
+    student_subject_id: subjectId || null,
+    subject: subjectText ?? null,
     lesson_date: date,
     lesson_time: time || null,
-    duration_minutes: Math.round(Number(student.lesson_duration_hours) * 60),
-    rate: student.hourly_rate ?? null,
+    duration_minutes: Math.round(Number(durationHours) * 60),
+    rate: rate ?? null,
     status: date > todayKey() ? "scheduled" : "completed",
     is_completed: false,
   });
@@ -129,7 +153,7 @@ export default function ScheduleLessonsModal({
     const attempt = async () => {
       const accessToken = await getValidAccessToken(user.id, tokens);
       const event = await createCalendarEvent(accessToken, {
-        summary: `${student.name} — ${student.subject || "Lesson"}`,
+        summary: `${student.name} — ${subjectText || "Lesson"}`,
         description: `Lesson for ${student.name}`,
         location: student.address || undefined,
         start: start.toISOString(),
@@ -156,7 +180,7 @@ export default function ScheduleLessonsModal({
 
   const handlePreview = async () => {
     setError(null);
-    if (student.lesson_duration_hours == null) {
+    if (durationHours == null) {
       setError(
         "Set this student's lesson duration in their profile before scheduling.",
       );
@@ -334,6 +358,25 @@ export default function ScheduleLessonsModal({
 
         {!preview ? (
           <div className="space-y-4">
+            {subjects.length > 1 && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Subject
+                </label>
+                <select
+                  value={subjectId}
+                  onChange={(e) => setSubjectId(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                >
+                  {subjects.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.subject}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
                 Day of week

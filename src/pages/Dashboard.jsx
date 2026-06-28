@@ -645,7 +645,8 @@ export default function Dashboard() {
                     <p className="text-sm font-medium text-gray-900">
                       {l.students?.name}
                       {l.lesson_time && ` · ${formatLessonTime(l.lesson_time)}`}
-                      {l.students?.subject && ` · ${l.students.subject}`}
+                      {(l.subject ?? l.students?.subject) &&
+                        ` · ${l.subject ?? l.students?.subject}`}
                     </p>
                     <p className="mt-0.5 text-xs text-gray-500">
                       {lessonBadgeLabel(l)}

@@ -6,7 +6,6 @@ import { useToast } from "../contexts/ToastContext";
 import AppShell from "../components/AppShell";
 import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
 import { formatDate } from "../utils/dateFormat";
-import { formatSGD } from "../lib/paymentNotice";
 import { LEVEL_OPTIONS } from "../lib/levels";
 import {
   computeStudentPaymentStatus,
@@ -14,12 +13,17 @@ import {
   TIER_BADGE_CLASSES,
 } from "../lib/paymentStatus";
 
-const emptyForm = {
-  name: "",
+const emptySubjectRow = () => ({
+  id: null,
   subject: "",
   level: "",
   hourly_rate: "",
   lesson_duration_hours: "",
+});
+
+const emptyForm = {
+  name: "",
+  subjects: [emptySubjectRow()],
   address: "",
   payment_mode: "lessons",
   payment_cycle_count: "4",
@@ -57,7 +61,7 @@ export default function Students() {
   const [lessonsByStudent, setLessonsByStudent] = useState({});
   const [lessonsLoading, setLessonsLoading] = useState(false);
   const [scheduleStudent, setScheduleStudent] = useState(null);
-  const [rateBenchmark, setRateBenchmark] = useState(null);
+  const [subjectsByStudent, setSubjectsByStudent] = useState({});
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("payment_due");
   const [lastLessonByStudent, setLastLessonByStudent] = useState({});
@@ -162,6 +166,20 @@ export default function Students() {
     setPaymentStatusByStudent(statusMap);
   };
 
+  const loadSubjectsByStudent = async () => {
+    const { data } = await supabase
+      .from("student_subjects")
+      .select("student_id, subject")
+      .eq("tutor_id", user.id)
+      .order("created_at", { ascending: true });
+    const map = {};
+    for (const row of data ?? []) {
+      if (!map[row.student_id]) map[row.student_id] = [];
+      map[row.student_id].push(row.subject);
+    }
+    setSubjectsByStudent(map);
+  };
+
   const loadStudents = async () => {
     const { data, error } = await supabase
       .from("students")
@@ -172,6 +190,7 @@ export default function Students() {
     setStudents(data ?? []);
     setLoading(false);
     loadSortSupportData(data ?? []);
+    loadSubjectsByStudent();
   };
 
   const progressFor = (student) => {
@@ -185,19 +204,60 @@ export default function Students() {
     };
   };
 
-  const handleEdit = (student) => {
+  const handleEdit = async (student) => {
     setEditingId(student.id);
+    const { data: subjectRows } = await supabase
+      .from("student_subjects")
+      .select("*")
+      .eq("student_id", student.id)
+      .eq("tutor_id", user.id)
+      .order("created_at", { ascending: true });
+    const subjects = (subjectRows ?? []).map((row) => ({
+      id: row.id,
+      subject: row.subject ?? "",
+      level: row.level ?? "",
+      hourly_rate: row.hourly_rate ?? "",
+      lesson_duration_hours: row.lesson_duration_hours ?? "",
+    }));
     setForm({
       name: student.name ?? "",
-      subject: student.subject ?? "",
-      level: student.level ?? "",
-      hourly_rate: student.hourly_rate ?? "",
-      lesson_duration_hours: student.lesson_duration_hours ?? "",
+      subjects:
+        subjects.length > 0
+          ? subjects
+          : [
+              {
+                id: null,
+                subject: student.subject ?? "",
+                level: student.level ?? "",
+                hourly_rate: student.hourly_rate ?? "",
+                lesson_duration_hours: student.lesson_duration_hours ?? "",
+              },
+            ],
       address: student.address ?? "",
       payment_mode: student.payment_mode ?? "lessons",
       payment_cycle_count: String(student.payment_cycle_count ?? 4),
       payment_custom_day: String(student.payment_custom_day ?? 1),
     });
+  };
+
+  const handleSubjectRowChange = (index, field, value) => {
+    setForm((f) => ({
+      ...f,
+      subjects: f.subjects.map((row, i) =>
+        i === index ? { ...row, [field]: value } : row,
+      ),
+    }));
+  };
+
+  const handleAddSubjectRow = () => {
+    setForm((f) => ({ ...f, subjects: [...f.subjects, emptySubjectRow()] }));
+  };
+
+  const handleRemoveSubjectRow = (index) => {
+    setForm((f) => ({
+      ...f,
+      subjects: f.subjects.filter((_, i) => i !== index),
+    }));
   };
 
   useEffect(() => {
@@ -211,10 +271,11 @@ export default function Students() {
       setStudents(data ?? []);
       setLoading(false);
       loadSortSupportData(data ?? []);
+      loadSubjectsByStudent();
       const editStudentId = location.state?.editStudentId;
       if (editStudentId) {
         const target = (data ?? []).find((s) => s.id === editStudentId);
-        if (target) handleEdit(target);
+        if (target) await handleEdit(target);
         navigate(location.pathname, { replace: true, state: {} });
       }
     };
@@ -222,31 +283,9 @@ export default function Students() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const subject = form.subject.trim();
-    const level = form.level;
-    let cancelled = false;
-    const fetchBenchmark = async () => {
-      if (!subject || !level) {
-        if (!cancelled) setRateBenchmark(null);
-        return;
-      }
-      const { data } = await supabase.rpc("rate_benchmark", {
-        p_subject: subject,
-        p_level: level,
-      });
-      if (!cancelled) setRateBenchmark(data?.[0] ?? null);
-    };
-    fetchBenchmark();
-    return () => {
-      cancelled = true;
-    };
-  }, [form.subject, form.level]);
-
   const resetForm = () => {
     setForm(emptyForm);
     setEditingId(null);
-    setRateBenchmark(null);
   };
 
   const handleSubmit = async (e) => {
@@ -254,15 +293,19 @@ export default function Students() {
     setError(null);
     setSubmitting(true);
 
+    const subjectRows = form.subjects.filter((row) => row.subject.trim());
+    const primary = subjectRows[0] ?? emptySubjectRow();
+
     const payload = {
       name: form.name.trim(),
-      subject: form.subject.trim() || null,
-      level: form.level || null,
-      hourly_rate: form.hourly_rate === "" ? null : Number(form.hourly_rate),
+      subject: primary.subject.trim() || null,
+      level: primary.level || null,
+      hourly_rate:
+        primary.hourly_rate === "" ? null : Number(primary.hourly_rate),
       lesson_duration_hours:
-        form.lesson_duration_hours === ""
+        primary.lesson_duration_hours === ""
           ? null
-          : Number(form.lesson_duration_hours),
+          : Number(primary.lesson_duration_hours),
       address: form.address.trim() || null,
       payment_mode: form.payment_mode,
       payment_cycle_count:
@@ -274,6 +317,7 @@ export default function Students() {
     };
 
     try {
+      let studentId = editingId;
       if (editingId) {
         const { error } = await supabase
           .from("students")
@@ -282,11 +326,57 @@ export default function Students() {
           .eq("tutor_id", user.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("students")
-          .insert({ ...payload, tutor_id: user.id });
+          .insert({ ...payload, tutor_id: user.id })
+          .select()
+          .single();
         if (error) throw error;
+        studentId = data.id;
       }
+
+      const keptIds = subjectRows.map((row) => row.id).filter(Boolean);
+      if (editingId) {
+        let deleteQuery = supabase
+          .from("student_subjects")
+          .delete()
+          .eq("student_id", studentId)
+          .eq("tutor_id", user.id);
+        deleteQuery =
+          keptIds.length > 0
+            ? deleteQuery.not("id", "in", `(${keptIds.join(",")})`)
+            : deleteQuery;
+        const { error: deleteError } = await deleteQuery;
+        if (deleteError) throw deleteError;
+      }
+
+      for (const row of subjectRows) {
+        const rowPayload = {
+          student_id: studentId,
+          tutor_id: user.id,
+          subject: row.subject.trim(),
+          level: row.level || null,
+          hourly_rate: row.hourly_rate === "" ? null : Number(row.hourly_rate),
+          lesson_duration_hours:
+            row.lesson_duration_hours === ""
+              ? null
+              : Number(row.lesson_duration_hours),
+        };
+        if (row.id) {
+          const { error: updateError } = await supabase
+            .from("student_subjects")
+            .update(rowPayload)
+            .eq("id", row.id)
+            .eq("tutor_id", user.id);
+          if (updateError) throw updateError;
+        } else {
+          const { error: insertError } = await supabase
+            .from("student_subjects")
+            .insert(rowPayload);
+          if (insertError) throw insertError;
+        }
+      }
+
       resetForm();
       await loadStudents();
       showToast(editingId ? "Student updated." : "Student added.");
@@ -316,12 +406,22 @@ export default function Students() {
     showToast("Student deleted.");
   };
 
+  const subjectsLabel = (studentId, fallback) =>
+    (subjectsByStudent[studentId]?.length
+      ? subjectsByStudent[studentId]
+      : fallback
+        ? [fallback]
+        : []
+    ).join(" · ");
+
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filteredStudents = normalizedSearch
     ? students.filter(
         (s) =>
           s.name?.toLowerCase().includes(normalizedSearch) ||
-          s.subject?.toLowerCase().includes(normalizedSearch),
+          subjectsLabel(s.id, s.subject)
+            .toLowerCase()
+            .includes(normalizedSearch),
       )
     : students;
 
@@ -375,96 +475,116 @@ export default function Students() {
           {editingId ? "Edit student" : "Add a student"}
         </h2>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Name
-            </label>
-            <input
-              type="text"
-              required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-          </div>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Name
+          </label>
+          <input
+            type="text"
+            required
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 sm:max-w-sm"
+          />
+        </div>
 
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Subject
-            </label>
-            <input
-              type="text"
-              value={form.subject}
-              onChange={(e) => setForm({ ...form, subject: e.target.value })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Level
-            </label>
-            <select
-              value={form.level}
-              onChange={(e) => setForm({ ...form, level: e.target.value })}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-gray-700">
+            Subjects
+          </label>
+          {form.subjects.map((row, index) => (
+            <div
+              key={index}
+              className="grid grid-cols-1 gap-3 rounded-md border border-gray-200 p-3 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] sm:items-end"
             >
-              <option value="">Select level...</option>
-              {LEVEL_OPTIONS.map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Hourly rate (SGD)
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={form.hourly_rate}
-              onChange={(e) =>
-                setForm({ ...form, hourly_rate: e.target.value })
-              }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-            {rateBenchmark &&
-              (rateBenchmark.sample_size >= 3 ? (
-                <p className="mt-1 text-xs text-gray-500">
-                  💡 Tutors charge an average of{" "}
-                  {formatSGD(rateBenchmark.avg_rate)}/hr (range{" "}
-                  {formatSGD(rateBenchmark.min_rate)}–
-                  {formatSGD(rateBenchmark.max_rate)}/hr) for {form.level}{" "}
-                  {form.subject.trim()}.
-                </p>
-              ) : (
-                <p className="mt-1 text-xs text-gray-500">
-                  💡 Not enough data yet for this subject and level —
-                  you&apos;ll be among the first!
-                </p>
-              ))}
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Lesson duration (hours)
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="0.25"
-              value={form.lesson_duration_hours}
-              onChange={(e) =>
-                setForm({ ...form, lesson_duration_hours: e.target.value })
-              }
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
-            />
-          </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  Subject
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={row.subject}
+                  onChange={(e) =>
+                    handleSubjectRowChange(index, "subject", e.target.value)
+                  }
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  Level
+                </label>
+                <select
+                  value={row.level}
+                  onChange={(e) =>
+                    handleSubjectRowChange(index, "level", e.target.value)
+                  }
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                >
+                  <option value="">Select level...</option>
+                  {LEVEL_OPTIONS.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  Hourly rate (SGD)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={row.hourly_rate}
+                  onChange={(e) =>
+                    handleSubjectRowChange(
+                      index,
+                      "hourly_rate",
+                      e.target.value,
+                    )
+                  }
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  Duration (hrs)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.25"
+                  value={row.lesson_duration_hours}
+                  onChange={(e) =>
+                    handleSubjectRowChange(
+                      index,
+                      "lesson_duration_hours",
+                      e.target.value,
+                    )
+                  }
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => handleRemoveSubjectRow(index)}
+                disabled={form.subjects.length <= 1}
+                className="min-h-11 rounded-md border border-gray-300 px-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={handleAddSubjectRow}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+          >
+            + Add another subject
+          </button>
         </div>
 
         <div>
@@ -642,7 +762,7 @@ export default function Students() {
                     </span>
                   </div>
                   <p className="mb-2 text-sm text-gray-500">
-                    {s.subject || "—"}
+                    {subjectsLabel(s.id, s.subject) || "—"}
                     {s.lesson_duration_hours != null &&
                       ` · ${s.lesson_duration_hours}h lessons`}
                   </p>
@@ -711,7 +831,7 @@ export default function Students() {
                           </Link>
                         </td>
                         <td className="px-4 py-3 text-gray-700">
-                          {s.subject || "—"}
+                          {subjectsLabel(s.id, s.subject) || "—"}
                         </td>
                         <td className="px-4 py-3 text-gray-700">
                           {s.hourly_rate != null ? `$${s.hourly_rate}` : "—"}

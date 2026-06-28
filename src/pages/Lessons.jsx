@@ -29,6 +29,7 @@ const PAGE_SIZE = 20;
 
 const emptyForm = (students, prefillDate, defaultTime) => ({
   student_id: students[0]?.id ?? "",
+  subject_id: "",
   lesson_date: prefillDate ?? today(),
   lesson_time: defaultTime ?? "",
   duration_hours: students[0]?.lesson_duration_hours ?? "",
@@ -146,6 +147,7 @@ export default function Lessons() {
   const prefillDate = location.state?.lessonDate;
   const editLessonId = location.state?.editLessonId;
   const [students, setStudents] = useState([]);
+  const [subjectsByStudent, setSubjectsByStudent] = useState({});
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -189,6 +191,7 @@ export default function Lessons() {
       const [
         { data: studentsData, error: studentsError },
         { data: lessonsData, error: lessonsError },
+        { data: subjectsData },
       ] = await Promise.all([
         supabase
           .from("students")
@@ -204,24 +207,44 @@ export default function Lessons() {
           .order("lesson_date", { ascending: false })
           .order("created_at", { ascending: false })
           .limit(1000),
+        supabase
+          .from("student_subjects")
+          .select("*")
+          .eq("tutor_id", user.id)
+          .order("created_at", { ascending: true }),
       ]);
       if (studentsError) setError(studentsError.message);
       if (lessonsError) setError(lessonsError.message);
       setStudents(studentsData ?? []);
       setLessons(lessonsData ?? []);
-      setForm((f) =>
-        emptyForm(
+      const subjectsMap = {};
+      for (const row of subjectsData ?? []) {
+        if (!subjectsMap[row.student_id]) subjectsMap[row.student_id] = [];
+        subjectsMap[row.student_id].push(row);
+      }
+      setSubjectsByStudent(subjectsMap);
+      const firstStudentId = (studentsData ?? [])[0]?.id;
+      const firstSubject = subjectsMap[firstStudentId]?.[0];
+      setForm((f) => ({
+        ...emptyForm(
           studentsData ?? [],
           f.lesson_date,
-          mostRecentLessonTime(lessonsData ?? [], (studentsData ?? [])[0]?.id),
+          mostRecentLessonTime(lessonsData ?? [], firstStudentId),
         ),
-      );
+        subject_id: firstSubject?.id ?? "",
+        duration_hours:
+          firstSubject?.lesson_duration_hours ??
+          (studentsData ?? [])[0]?.lesson_duration_hours ??
+          "",
+        rate: firstSubject?.hourly_rate ?? (studentsData ?? [])[0]?.hourly_rate ?? "",
+      }));
       if (editLessonId) {
         const lesson = (lessonsData ?? []).find((l) => l.id === editLessonId);
         if (lesson) {
           setEditingId(lesson.id);
           setForm({
             student_id: lesson.student_id,
+            subject_id: lesson.student_subject_id ?? "",
             lesson_date: lesson.lesson_date,
             lesson_time: lesson.lesson_time ?? "09:00",
             duration_hours: lesson.duration_minutes / 60,
@@ -335,7 +358,7 @@ export default function Lessons() {
     const ics = buildLessonIcs({
       lesson,
       studentName: lesson.students?.name ?? "Lesson",
-      subject: lesson.students?.subject,
+      subject: lesson.subject ?? lesson.students?.subject,
       lessonNumber: lessonPosition.get(lesson.id) ?? 1,
       rate: lesson.rate ?? lesson.students?.hourly_rate ?? null,
     });
@@ -387,6 +410,7 @@ export default function Lessons() {
     durationMinutes,
     notes,
     lessonNumber,
+    subject,
   }) => {
     const tokens = await getTutorGoogleTokens();
     if (!tokens?.access_token) return;
@@ -407,7 +431,7 @@ export default function Lessons() {
     const attempt = async () => {
       const accessToken = await getValidAccessToken(user.id, tokens);
       const event = await createCalendarEvent(accessToken, {
-        summary: `${student?.name ?? "Lesson"} — ${student?.subject || "Lesson"}`,
+        summary: `${student?.name ?? "Lesson"} — ${subject || student?.subject || "Lesson"}`,
         description:
           notes || `${lessonLabel} for ${student?.name ?? "student"}`,
         location: student?.address || undefined,
@@ -442,6 +466,7 @@ export default function Lessons() {
     durationMinutes,
     notes,
     lessonLabel,
+    subject,
   }) => {
     const tokens = await getTutorGoogleTokens();
     if (!tokens?.access_token) return;
@@ -455,7 +480,7 @@ export default function Lessons() {
     const attempt = async () => {
       const accessToken = await getValidAccessToken(user.id, tokens);
       await updateCalendarEvent(accessToken, eventId, {
-        summary: `${student?.name ?? "Lesson"} — ${student?.subject || "Lesson"}`,
+        summary: `${student?.name ?? "Lesson"} — ${subject || student?.subject || "Lesson"}`,
         description:
           notes || lessonLabel || `Lesson for ${student?.name ?? "student"}`,
         location: student?.address || "",
@@ -490,13 +515,30 @@ export default function Lessons() {
 
   const handleStudentChange = (studentId) => {
     const student = students.find((s) => s.id === studentId);
+    const firstSubject = subjectsByStudent[studentId]?.[0];
     setForm({
       ...form,
       student_id: studentId,
-      duration_hours: student?.lesson_duration_hours ?? "",
-      rate: student?.hourly_rate ?? "",
+      subject_id: firstSubject?.id ?? "",
+      duration_hours:
+        firstSubject?.lesson_duration_hours ??
+        student?.lesson_duration_hours ??
+        "",
+      rate: firstSubject?.hourly_rate ?? student?.hourly_rate ?? "",
       lesson_time: mostRecentLessonTime(lessons, studentId),
     });
+  };
+
+  const handleSubjectChange = (subjectId) => {
+    const subject = (subjectsByStudent[form.student_id] ?? []).find(
+      (s) => s.id === subjectId,
+    );
+    setForm((f) => ({
+      ...f,
+      subject_id: subjectId,
+      duration_hours: subject?.lesson_duration_hours ?? f.duration_hours,
+      rate: subject?.hourly_rate ?? f.rate,
+    }));
   };
 
   const resetForm = () => {
@@ -516,6 +558,7 @@ export default function Lessons() {
     setInfo(null);
     setForm({
       student_id: lesson.student_id,
+      subject_id: lesson.student_subject_id ?? "",
       lesson_date: lesson.lesson_date,
       lesson_time: lesson.lesson_time ?? "09:00",
       duration_hours: lesson.duration_minutes / 60,
@@ -571,6 +614,13 @@ export default function Lessons() {
       const original = editingId
         ? lessons.find((l) => l.id === editingId)
         : null;
+      const selectedSubject = (subjectsByStudent[form.student_id] ?? []).find(
+        (s) => s.id === form.subject_id,
+      );
+      const subjectText =
+        selectedSubject?.subject ??
+        students.find((s) => s.id === form.student_id)?.subject ??
+        null;
       const is_completed = isFuture
         ? false
         : form.lesson_date < today()
@@ -582,6 +632,8 @@ export default function Lessons() {
           .from("lessons")
           .update({
             student_id: form.student_id,
+            student_subject_id: form.subject_id || null,
+            subject: subjectText,
             lesson_date: form.lesson_date,
             lesson_time: form.lesson_time || null,
             duration_minutes: Math.round(durationHours * 60),
@@ -602,6 +654,7 @@ export default function Lessons() {
             lessonTime: form.lesson_time,
             durationMinutes: Math.round(durationHours * 60),
             notes: form.notes.trim(),
+            subject: subjectText,
           });
         }
 
@@ -624,6 +677,8 @@ export default function Lessons() {
         .insert({
           tutor_id: user.id,
           student_id: form.student_id,
+          student_subject_id: form.subject_id || null,
+          subject: subjectText,
           lesson_date: form.lesson_date,
           lesson_time: form.lesson_time || null,
           duration_minutes: Math.round(durationHours * 60),
@@ -644,6 +699,7 @@ export default function Lessons() {
         durationMinutes: Math.round(durationHours * 60),
         notes: form.notes.trim(),
         lessonNumber: ((beforeCount ?? 0) % 4) + 1,
+        subject: subjectText,
       });
 
       if (isFuture) {
@@ -771,6 +827,26 @@ export default function Lessons() {
                 ))}
               </select>
             </div>
+
+            {(subjectsByStudent[form.student_id] ?? []).length > 1 && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Subject
+                </label>
+                <select
+                  required
+                  value={form.subject_id}
+                  onChange={(e) => handleSubjectChange(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                >
+                  {subjectsByStudent[form.student_id].map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.subject}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
