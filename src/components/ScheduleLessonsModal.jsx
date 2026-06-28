@@ -124,6 +124,8 @@ export default function ScheduleLessonsModal({
     );
     const end = new Date(start.getTime() + lesson.duration_minutes * 60000);
 
+    console.log("Student address for calendar:", student.address);
+
     const attempt = async () => {
       const accessToken = await getValidAccessToken(user.id, tokens);
       const event = await createCalendarEvent(accessToken, {

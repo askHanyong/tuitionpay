@@ -402,6 +402,8 @@ export default function Lessons() {
         ? `Lesson ${lessonNumber}`
         : `Lesson ${lessonNumber} of ${student?.payment_cycle_count ?? 4}`;
 
+    console.log("Student address for calendar:", student?.address);
+
     const attempt = async () => {
       const accessToken = await getValidAccessToken(user.id, tokens);
       const event = await createCalendarEvent(accessToken, {
@@ -447,6 +449,8 @@ export default function Lessons() {
     const student = students.find((s) => s.id === studentId);
     const start = new Date(`${lessonDate}T${lessonTime || "09:00"}:00`);
     const end = new Date(start.getTime() + durationMinutes * 60000);
+
+    console.log("Student address for calendar:", student?.address);
 
     const attempt = async () => {
       const accessToken = await getValidAccessToken(user.id, tokens);
