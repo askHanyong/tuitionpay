@@ -21,21 +21,37 @@ const WEEKDAYS = [
 
 // Singapore public holidays for 2026, flagged in the preview list so tutors
 // can spot and skip them without needing to cross-check a separate calendar.
-const SG_PUBLIC_HOLIDAYS_2026 = new Set([
-  "2026-01-01",
-  "2026-01-29",
-  "2026-01-30",
-  "2026-03-31",
-  "2026-05-01",
-  "2026-05-02",
-  "2026-05-31",
-  "2026-08-03",
-  "2026-08-09",
-  "2026-08-11",
-  "2026-10-20",
-  "2026-12-25",
-  "2026-12-26",
+const SG_PUBLIC_HOLIDAYS_2026 = new Map([
+  ["2026-01-01", "New Year's Day"],
+  ["2026-01-29", "Chinese New Year"],
+  ["2026-01-30", "Chinese New Year"],
+  ["2026-03-31", "Hari Raya Puasa"],
+  ["2026-05-01", "Labour Day"],
+  ["2026-05-02", "Vesak Day"],
+  ["2026-05-31", "Hari Raya Haji"],
+  ["2026-08-03", "Public Holiday"],
+  ["2026-08-09", "National Day"],
+  ["2026-08-11", "Public Holiday"],
+  ["2026-10-20", "Deepavali"],
+  ["2026-12-25", "Christmas Day"],
+  ["2026-12-26", "Public Holiday"],
 ]);
+
+function formatDateWithDay(dateKey, time) {
+  const d = new Date(`${dateKey}T00:00:00`);
+  const dayName = d.toLocaleDateString("en-SG", { weekday: "short" });
+  const timeLabel = formatTimeLabel(time);
+  return `${dayName}, ${formatDate(dateKey)}${timeLabel ? `  ${timeLabel}` : ""}`;
+}
+
+function formatTimeLabel(time) {
+  if (!time) return "";
+  const [hStr, mStr] = time.split(":");
+  let hour = Number(hStr);
+  const period = hour >= 12 ? "pm" : "am";
+  hour = hour % 12 || 12;
+  return `${hour}:${(mStr ?? "00").padStart(2, "0")}${period}`;
+}
 
 const todayKey = () => toDateKey(new Date());
 
@@ -209,7 +225,7 @@ export default function ScheduleLessonsModal({
         date,
         conflict: existingByDate.get(date) ?? null,
         action: "skip",
-        isHoliday: SG_PUBLIC_HOLIDAYS_2026.has(date),
+        holidayName: SG_PUBLIC_HOLIDAYS_2026.get(date) ?? null,
         excluded: SG_PUBLIC_HOLIDAYS_2026.has(date),
       })),
     );
@@ -283,7 +299,7 @@ export default function ScheduleLessonsModal({
 
       showToast(
         inserted.length
-          ? `${inserted.length} lesson${inserted.length === 1 ? "" : "s"} created successfully.`
+          ? `✅ ${inserted.length} lesson${inserted.length === 1 ? "" : "s"} scheduled successfully.`
           : "No lessons were scheduled.",
       );
       onScheduled?.();
@@ -457,16 +473,16 @@ export default function ScheduleLessonsModal({
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-sm text-gray-700">{previewSummary}</p>
-            <p className="text-sm text-gray-700">
-              This will create{" "}
-              <span className="font-semibold">
-                {createCount} lesson{createCount === 1 ? "" : "s"}
-              </span>
-              {conflictCount > 0 &&
-                ` (${conflictCount} conflict${conflictCount === 1 ? "" : "s"} found)`}
-              :
+            <p className="text-sm font-medium text-gray-900">
+              Lessons to be scheduled ({preview.length} total):
             </p>
+            <p className="text-xs text-gray-500">{previewSummary}</p>
+            {conflictCount > 0 && (
+              <p className="text-xs text-amber-700">
+                {conflictCount} conflict{conflictCount === 1 ? "" : "s"} found —
+                skip or replace below.
+              </p>
+            )}
 
             <ul className="max-h-72 space-y-2 overflow-y-auto">
               {preview.map((item) => (
@@ -475,18 +491,24 @@ export default function ScheduleLessonsModal({
                   className={`flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm ${
                     item.excluded
                       ? "border-gray-200 bg-gray-100 opacity-60"
-                      : item.isHoliday
+                      : item.holidayName
                         ? "border-blue-200 bg-blue-50"
                         : item.conflict
                           ? "border-amber-200 bg-amber-50"
                           : "border-gray-100 bg-gray-50"
                   }`}
                 >
-                  <span className="flex items-center gap-2 text-gray-700">
-                    {formatDate(item.date)}
-                    {item.isHoliday && (
+                  <span className="flex items-center gap-1.5 text-gray-700">
+                    <span aria-hidden="true">{item.excluded ? "●" : "○"}</span>
+                    {formatDateWithDay(item.date, time)}
+                    {item.holidayName && (
                       <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-                        🇸🇬 Public holiday
+                        🇸🇬 Public holiday — {item.holidayName}
+                      </span>
+                    )}
+                    {item.excluded && (
+                      <span className="rounded-full bg-gray-300 px-2 py-0.5 text-xs font-medium text-gray-700">
+                        Skipped
                       </span>
                     )}
                   </span>
@@ -537,7 +559,7 @@ export default function ScheduleLessonsModal({
                           : "bg-white text-gray-700 hover:bg-gray-100"
                       }`}
                     >
-                      {item.excluded ? "Excluded" : "Skip"}
+                      {item.excluded ? "Skipped" : "Skip"}
                     </button>
                   </span>
                 </li>
@@ -546,22 +568,28 @@ export default function ScheduleLessonsModal({
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setPreview(null)}
-                className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={saving || createCount === 0}
-                className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
-              >
-                {saving ? "Scheduling..." : "Confirm and Schedule"}
-              </button>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">{createCount}</span> lesson
+                {createCount === 1 ? "" : "s"} will be created
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPreview(null)}
+                  className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirm}
+                  disabled={saving || createCount === 0}
+                  className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
+                >
+                  {saving ? "Scheduling..." : "Confirm and Schedule"}
+                </button>
+              </div>
             </div>
           </div>
         )}
