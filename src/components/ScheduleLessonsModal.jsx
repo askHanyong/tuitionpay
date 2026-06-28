@@ -4,6 +4,10 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { toDateKey } from "../lib/date";
 import { formatDate } from "../utils/dateFormat";
+import {
+  createCalendarEvent,
+  getValidAccessToken,
+} from "../lib/googleCalendar";
 
 const WEEKDAYS = [
   "Monday",
@@ -14,6 +18,24 @@ const WEEKDAYS = [
   "Saturday",
   "Sunday",
 ];
+
+// Singapore public holidays for 2026, flagged in the preview list so tutors
+// can spot and skip them without needing to cross-check a separate calendar.
+const SG_PUBLIC_HOLIDAYS_2026 = new Set([
+  "2026-01-01",
+  "2026-01-29",
+  "2026-01-30",
+  "2026-03-31",
+  "2026-05-01",
+  "2026-05-02",
+  "2026-05-31",
+  "2026-08-03",
+  "2026-08-09",
+  "2026-08-11",
+  "2026-10-20",
+  "2026-12-25",
+  "2026-12-26",
+]);
 
 const todayKey = () => toDateKey(new Date());
 
@@ -42,6 +64,18 @@ function generateOccurrences({ startDate, endDate, frequency }) {
   return dates;
 }
 
+function generateOccurrencesByCount({ startDate, frequency, count }) {
+  if (!startDate || !count || count < 1) return [];
+  const stepDays = frequency === "fortnightly" ? 14 : 7;
+  const dates = [];
+  let cur = startDate;
+  for (let i = 0; i < count; i++) {
+    dates.push(cur);
+    cur = addDays(cur, stepDays);
+  }
+  return dates;
+}
+
 export default function ScheduleLessonsModal({
   student,
   onClose,
@@ -53,6 +87,8 @@ export default function ScheduleLessonsModal({
   const [time, setTime] = useState("09:00");
   const [frequency, setFrequency] = useState("weekly");
   const [startDate, setStartDate] = useState(() => nextOccurrence(WEEKDAYS[0]));
+  const [endMode, setEndMode] = useState("count"); // "count" | "date"
+  const [occurrenceCount, setOccurrenceCount] = useState(10);
   const [endDate, setEndDate] = useState("");
   const [preview, setPreview] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -75,6 +111,48 @@ export default function ScheduleLessonsModal({
     is_completed: false,
   });
 
+  const getTutorGoogleTokens = async () => {
+    const { data: tutor } = await supabase
+      .from("tutors")
+      .select("google_calendar_tokens")
+      .eq("id", user.id)
+      .single();
+    return tutor?.google_calendar_tokens ?? null;
+  };
+
+  const pushLessonToGoogleCalendar = async (tokens, lesson) => {
+    const start = new Date(
+      `${lesson.lesson_date}T${lesson.lesson_time || "09:00"}:00`,
+    );
+    const end = new Date(start.getTime() + lesson.duration_minutes * 60000);
+
+    const attempt = async () => {
+      const accessToken = await getValidAccessToken(user.id, tokens);
+      const event = await createCalendarEvent(accessToken, {
+        summary: `${student.name} — ${student.subject || "Lesson"}`,
+        description: `Lesson for ${student.name}`,
+        start: start.toISOString(),
+        end: end.toISOString(),
+      });
+      await supabase
+        .from("lessons")
+        .update({ google_event_id: event.id })
+        .eq("id", lesson.id)
+        .eq("tutor_id", user.id);
+    };
+
+    try {
+      await attempt();
+    } catch {
+      try {
+        await attempt();
+      } catch {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handlePreview = async () => {
     setError(null);
     if (student.lesson_duration_hours == null) {
@@ -83,16 +161,35 @@ export default function ScheduleLessonsModal({
       );
       return;
     }
-    if (!endDate) {
-      setError("Pick an end date.");
+    if (!startDate) {
+      setError("Pick a start date.");
       return;
     }
-    if (endDate < startDate) {
-      setError("End date must be on or after the start date.");
-      return;
+
+    let dates;
+    if (endMode === "count") {
+      if (!occurrenceCount || occurrenceCount < 1) {
+        setError("Enter how many lessons to schedule.");
+        return;
+      }
+      dates = generateOccurrencesByCount({
+        startDate,
+        frequency,
+        count: occurrenceCount,
+      });
+    } else {
+      if (!endDate) {
+        setError("Pick an end date.");
+        return;
+      }
+      if (endDate < startDate) {
+        setError("End date must be on or after the start date.");
+        return;
+      }
+      dates = generateOccurrences({ startDate, endDate, frequency });
     }
+
     setLoadingPreview(true);
-    const dates = generateOccurrences({ startDate, endDate, frequency });
     const { data: existing, error: lookupError } = await supabase
       .from("lessons")
       .select("id, lesson_date")
@@ -112,6 +209,8 @@ export default function ScheduleLessonsModal({
         date,
         conflict: existingByDate.get(date) ?? null,
         action: "skip",
+        isHoliday: SG_PUBLIC_HOLIDAYS_2026.has(date),
+        excluded: SG_PUBLIC_HOLIDAYS_2026.has(date),
       })),
     );
   };
@@ -122,6 +221,14 @@ export default function ScheduleLessonsModal({
     );
   };
 
+  const toggleExcluded = (date) => {
+    setPreview((prev) =>
+      prev.map((item) =>
+        item.date === date ? { ...item, excluded: !item.excluded } : item,
+      ),
+    );
+  };
+
   const handleConfirm = async () => {
     setSaving(true);
     setError(null);
@@ -129,6 +236,7 @@ export default function ScheduleLessonsModal({
       const toDelete = [];
       const toInsert = [];
       for (const item of preview) {
+        if (item.excluded) continue;
         if (item.conflict) {
           if (item.action === "replace") {
             toDelete.push(item.conflict.id);
@@ -146,13 +254,36 @@ export default function ScheduleLessonsModal({
           .eq("tutor_id", user.id);
         if (error) throw error;
       }
+      let inserted = [];
       if (toInsert.length) {
-        const { error } = await supabase.from("lessons").insert(toInsert);
+        const { data, error } = await supabase
+          .from("lessons")
+          .insert(toInsert)
+          .select();
         if (error) throw error;
+        inserted = data ?? [];
       }
+
+      if (inserted.length) {
+        const tokens = await getTutorGoogleTokens();
+        if (tokens?.access_token) {
+          let failures = 0;
+          for (const lesson of inserted) {
+            const ok = await pushLessonToGoogleCalendar(tokens, lesson);
+            if (!ok) failures += 1;
+          }
+          if (failures > 0) {
+            showToast(
+              `Lessons saved, but ${failures} failed to sync to Google Calendar.`,
+              "error",
+            );
+          }
+        }
+      }
+
       showToast(
-        toInsert.length
-          ? `${toInsert.length} lesson${toInsert.length === 1 ? "" : "s"} scheduled.`
+        inserted.length
+          ? `${inserted.length} lesson${inserted.length === 1 ? "" : "s"} created successfully.`
           : "No lessons were scheduled.",
       );
       onScheduled?.();
@@ -167,7 +298,17 @@ export default function ScheduleLessonsModal({
 
   const conflictCount = preview?.filter((p) => p.conflict).length ?? 0;
   const createCount =
-    preview?.filter((p) => !p.conflict || p.action === "replace").length ?? 0;
+    preview?.filter(
+      (p) => !p.excluded && (!p.conflict || p.action === "replace"),
+    ).length ?? 0;
+
+  const previewSummary = (() => {
+    if (!preview || preview.length === 0) return "";
+    const last = preview[preview.length - 1].date;
+    return endMode === "count"
+      ? `${preview.length} lesson${preview.length === 1 ? "" : "s"} scheduled, last on ${formatDate(last)}`
+      : `${preview.length} lesson${preview.length === 1 ? "" : "s"} scheduled between ${formatDate(startDate)} and ${formatDate(endDate)}`;
+  })();
 
   return (
     <div
@@ -237,32 +378,61 @@ export default function ScheduleLessonsModal({
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  Start date
-                </label>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Start date
+              </label>
+              <input
+                type="date"
+                required
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              />
+            </div>
+
+            <div className="space-y-2 rounded-md border border-gray-200 p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
                 <input
-                  type="date"
-                  required
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  type="radio"
+                  name="endMode"
+                  checked={endMode === "count"}
+                  onChange={() => setEndMode("count")}
+                  className="h-4 w-4 text-green-600 focus:ring-green-500"
                 />
-              </div>
-              <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
-                  End date
-                </label>
+                End after ___ lessons
+              </label>
+              {endMode === "count" && (
+                <input
+                  type="number"
+                  min={1}
+                  value={occurrenceCount}
+                  onChange={(e) =>
+                    setOccurrenceCount(parseInt(e.target.value, 10) || "")
+                  }
+                  className="ml-6 w-32 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              )}
+
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input
+                  type="radio"
+                  name="endMode"
+                  checked={endMode === "date"}
+                  onChange={() => setEndMode("date")}
+                  className="h-4 w-4 text-green-600 focus:ring-green-500"
+                />
+                End by date
+              </label>
+              {endMode === "date" && (
                 <input
                   type="date"
-                  required
                   value={endDate}
                   min={startDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="ml-6 w-full max-w-[calc(100%-1.5rem)] rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
                 />
-              </div>
+              )}
             </div>
 
             {error && <p className="text-sm text-red-600">{error}</p>}
@@ -287,6 +457,7 @@ export default function ScheduleLessonsModal({
           </div>
         ) : (
           <div className="space-y-4">
+            <p className="text-sm text-gray-700">{previewSummary}</p>
             <p className="text-sm text-gray-700">
               This will create{" "}
               <span className="font-semibold">
@@ -302,46 +473,73 @@ export default function ScheduleLessonsModal({
                 <li
                   key={item.date}
                   className={`flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm ${
-                    item.conflict
-                      ? "border-amber-200 bg-amber-50"
-                      : "border-gray-100 bg-gray-50"
+                    item.excluded
+                      ? "border-gray-200 bg-gray-100 opacity-60"
+                      : item.isHoliday
+                        ? "border-blue-200 bg-blue-50"
+                        : item.conflict
+                          ? "border-amber-200 bg-amber-50"
+                          : "border-gray-100 bg-gray-50"
                   }`}
                 >
-                  <span className="text-gray-700">{formatDate(item.date)}</span>
-                  {item.conflict ? (
-                    <span className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="text-amber-800">
-                        You already have a lesson with {student.name} on{" "}
-                        {formatDate(item.date)} — skip or replace?
+                  <span className="flex items-center gap-2 text-gray-700">
+                    {formatDate(item.date)}
+                    {item.isHoliday && (
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                        🇸🇬 Public holiday
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setConflictAction(item.date, "skip")}
-                        className={`rounded-full px-2 py-0.5 font-medium ${
-                          item.action === "skip"
-                            ? "bg-gray-700 text-white"
-                            : "bg-white text-gray-700 hover:bg-gray-100"
-                        }`}
-                      >
-                        Skip
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConflictAction(item.date, "replace")}
-                        className={`rounded-full px-2 py-0.5 font-medium ${
-                          item.action === "replace"
-                            ? "bg-red-600 text-white"
-                            : "bg-white text-gray-700 hover:bg-gray-100"
-                        }`}
-                      >
-                        Replace
-                      </button>
-                    </span>
-                  ) : (
-                    <span className="text-xs font-medium text-green-700">
-                      New
-                    </span>
-                  )}
+                    )}
+                  </span>
+                  <span className="flex flex-wrap items-center gap-2 text-xs">
+                    {item.conflict && !item.excluded && (
+                      <>
+                        <span className="text-amber-800">
+                          You already have a lesson with {student.name} on{" "}
+                          {formatDate(item.date)} — skip or replace?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setConflictAction(item.date, "skip")}
+                          className={`rounded-full px-2 py-0.5 font-medium ${
+                            item.action === "skip"
+                              ? "bg-gray-700 text-white"
+                              : "bg-white text-gray-700 hover:bg-gray-100"
+                          }`}
+                        >
+                          Skip
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setConflictAction(item.date, "replace")
+                          }
+                          className={`rounded-full px-2 py-0.5 font-medium ${
+                            item.action === "replace"
+                              ? "bg-red-600 text-white"
+                              : "bg-white text-gray-700 hover:bg-gray-100"
+                          }`}
+                        >
+                          Replace
+                        </button>
+                      </>
+                    )}
+                    {!item.conflict && !item.excluded && (
+                      <span className="text-xs font-medium text-green-700">
+                        New
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => toggleExcluded(item.date)}
+                      className={`rounded-full px-2 py-0.5 font-medium ${
+                        item.excluded
+                          ? "bg-gray-700 text-white"
+                          : "bg-white text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      {item.excluded ? "Excluded" : "Skip"}
+                    </button>
+                  </span>
                 </li>
               ))}
             </ul>
