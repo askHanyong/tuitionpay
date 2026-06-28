@@ -856,11 +856,13 @@ export default function Dashboard() {
                                 </div>
                               );
                             })()}
-                          <span
-                            className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${TIER_BADGE_CLASSES[status.tier]}`}
-                          >
-                            {status.label}
-                          </span>
+                          {status.badge && (
+                            <span
+                              className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${TIER_BADGE_CLASSES[status.tier]}`}
+                            >
+                              {status.badge}
+                            </span>
+                          )}
                         </div>
                         {status.collectCycle && (
                           <button
@@ -873,6 +875,7 @@ export default function Dashboard() {
                           </button>
                         )}
                       </div>
+                      <p className="text-xs text-gray-500">{status.label}</p>
                       {status.nextPaymentInfo && (
                         <p
                           className={`text-xs ${status.nextPaymentInfo.tone === "red" ? "text-red-700" : "text-gray-500"}`}

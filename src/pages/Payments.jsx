@@ -149,13 +149,20 @@ export default function Payments() {
           (sum, l) => sum + lessonAmount(l, student),
           0,
         );
+        // Once only the final lesson of the cycle is left, the tutor needs to
+        // know the full amount that will be due, not just what's accumulated
+        // so far -- project the remaining lesson at the cycle's average rate.
+        const expectedAmount =
+          openCount === cycleCount - 1
+            ? (cycleAmount / openCount) * cycleCount
+            : cycleAmount;
 
         result.push({
           studentId: student.id,
           studentName: student.name,
           openCount,
           cycleCount,
-          expectedAmount: cycleAmount,
+          expectedAmount,
           nextLessonDate: nextLesson?.lesson_date ?? null,
           isFullyDue: openCount >= cycleCount,
         });
@@ -265,19 +272,22 @@ export default function Payments() {
             {fullyDue.map((p) => (
               <li
                 key={`fullydue-${p.studentId}`}
-                className="rounded-md border border-red-200 bg-red-50 p-4 transition hover:shadow-md"
+                className="rounded-md border border-amber-200 bg-amber-50 p-4 transition hover:shadow-md"
               >
                 <div className="mb-2 flex items-center justify-between">
                   <span className="flex items-center gap-2 font-medium text-gray-900">
                     {p.studentName}
-                    <StatusBadge status="overdue" />
+                    <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                      ⚠️ Payment due
+                    </span>
                   </span>
                   <span className="font-semibold text-gray-900">
                     {formatSGD(p.expectedAmount)}
                   </span>
                 </div>
                 <p className="text-sm text-gray-600">
-                  All {p.cycleCount} lessons completed · Payment due now
+                  ⚠️ {formatSGD(p.expectedAmount)} due — {p.cycleCount} lessons
+                  completed
                 </p>
               </li>
             ))}
@@ -290,7 +300,7 @@ export default function Payments() {
                   <span className="flex items-center gap-2 font-medium text-gray-900">
                     {p.studentName}
                     <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
-                      Payment due soon
+                      ⚠️ Due soon
                     </span>
                   </span>
                   <span className="font-semibold text-gray-900">
@@ -298,9 +308,9 @@ export default function Payments() {
                   </span>
                 </div>
                 <p className="text-sm text-gray-600">
-                  {p.openCount}/{p.cycleCount} lessons completed
+                  {p.openCount}/{p.cycleCount} lessons done
                   {p.nextLessonDate &&
-                    ` · Final lesson on ${formatDate(p.nextLessonDate)}`}
+                    ` · Payment due after lesson ${p.cycleCount} on ${formatDate(p.nextLessonDate)}`}
                 </p>
               </li>
             ))}
@@ -364,8 +374,8 @@ export default function Payments() {
                 </div>
                 <p className="text-sm text-gray-600">
                   {p.cycleCount != null
-                    ? `${p.openCount}/${p.cycleCount} lessons completed`
-                    : `${p.monthLabel}: ${p.openCount} lesson${p.openCount === 1 ? "" : "s"} completed`}
+                    ? `${p.openCount}/${p.cycleCount} lessons done`
+                    : `${p.monthLabel}: ${p.openCount} lesson${p.openCount === 1 ? "" : "s"} done`}
                   {p.nextLessonDate &&
                     ` · Next lesson on ${formatDate(p.nextLessonDate)}`}
                 </p>

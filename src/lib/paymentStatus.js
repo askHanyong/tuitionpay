@@ -100,6 +100,7 @@ export function computeStudentPaymentStatus(student, ctx) {
       if (daysSince > 7) {
         return {
           tier: "red",
+          badge: "🔴 Overdue",
           amountDue,
           label: `🔴 ${formatSGD(amountDue)} overdue — lesson on ${lessonDateLabel} unpaid${moreSuffix}`,
           showProgressBar: false,
@@ -109,6 +110,7 @@ export function computeStudentPaymentStatus(student, ctx) {
       }
       return {
         tier: "amber",
+        badge: "⚠️ Payment due",
         amountDue,
         label: `⚠️ ${formatSGD(amountDue)} due — lesson on ${lessonDateLabel} unpaid${moreSuffix}`,
         showProgressBar: false,
@@ -120,6 +122,7 @@ export function computeStudentPaymentStatus(student, ctx) {
     if (completedLessons.length > 0) {
       return {
         tier: "green",
+        badge: "✅ Paid",
         amountDue: 0,
         label: "✅ Paid",
         showProgressBar: false,
@@ -131,6 +134,7 @@ export function computeStudentPaymentStatus(student, ctx) {
     const nextLesson = sortLessonsByWhen(scheduledLessons ?? [])[0];
     return {
       tier: "grey",
+      badge: null,
       amountDue: 0,
       label: nextLesson
         ? `Next lesson on ${formatDayMonth(nextLesson.lesson_date)}`
@@ -150,6 +154,7 @@ export function computeStudentPaymentStatus(student, ctx) {
       const overdueMonthLabel = formatMonthName(pending[0].period_start);
       return {
         tier: "red",
+        badge: "🔴 Overdue",
         amountDue,
         label: `🔴 ${formatSGD(amountDue)} overdue — ${overdueMonthLabel} unpaid`,
         showProgressBar: false,
@@ -162,6 +167,7 @@ export function computeStudentPaymentStatus(student, ctx) {
     if (recentPaid && isSameMonth(recentPaid.period_end, now)) {
       return {
         tier: "green",
+        badge: "✅ Paid",
         amountDue: 0,
         label: `✅ ${monthLabel} paid`,
         showProgressBar: false,
@@ -195,6 +201,7 @@ export function computeStudentPaymentStatus(student, ctx) {
       const total = thisMonthAmount + scheduledAmount;
       return {
         tier: "blue",
+        badge: "Accumulating",
         amountDue: total,
         label: `${thisMonthCount} done · ${scheduledCount} upcoming · ${formatSGD(total)} expected end of ${monthLabel}`,
         showProgressBar: false,
@@ -209,6 +216,7 @@ export function computeStudentPaymentStatus(student, ctx) {
     }
     return {
       tier: "amber",
+      badge: "⚠️ Due soon",
       amountDue: thisMonthAmount,
       label,
       showProgressBar: false,
@@ -315,6 +323,7 @@ export function computeStudentPaymentStatus(student, ctx) {
     if (openCount > 0) {
       return {
         tier: "red",
+        badge: "🔴 Overdue",
         amountDue,
         cycleAmount,
         label: `🔴 ${formatSGD(amountDue)} overdue`,
@@ -331,6 +340,7 @@ export function computeStudentPaymentStatus(student, ctx) {
     }
     return {
       tier: "amber",
+      badge: "⚠️ Payment due",
       amountDue,
       cycleAmount,
       label: `⚠️ ${formatSGD(amountDue)} due — ${cycleCount} lessons completed`,
@@ -367,6 +377,7 @@ export function computeStudentPaymentStatus(student, ctx) {
         : `0/${cycleCount} lessons`;
     return {
       tier: hasPaidBefore ? "green" : "grey",
+      badge: hasPaidBefore ? "✅ Paid" : null,
       amountDue: 0,
       cycleAmount,
       label,
@@ -387,16 +398,26 @@ export function computeStudentPaymentStatus(student, ctx) {
         : "grey";
 
   let label;
+  let badge;
   if (fourthLessonDate) {
-    label = isSameMonth(fourthLessonDate, now)
-      ? `${openCount}/${cycleCount} lessons done · Payment due after lesson ${cycleCount} on ${formatDayMonth(fourthLessonDate)}`
-      : `${openCount}/${cycleCount} lessons done · Next payment due in ${formatMonthName(fourthLessonDate)}`;
+    if (isSameMonth(fourthLessonDate, now)) {
+      label = `${openCount}/${cycleCount} lessons done · Payment due after lesson ${cycleCount} on ${formatDayMonth(fourthLessonDate)}`;
+      badge = "⚠️ Due soon";
+    } else {
+      label = `${openCount}/${cycleCount} lessons done · Payment due in ${formatMonthName(fourthLessonDate)}`;
+      badge = "In progress";
+    }
   } else {
-    label = `${openCount}/${cycleCount} lessons done`;
+    const nextLesson = sortLessonsByWhen(scheduledLessons ?? [])[0];
+    label = nextLesson
+      ? `${openCount}/${cycleCount} lessons done · Next lesson on ${formatDayMonth(nextLesson.lesson_date)}`
+      : `${openCount}/${cycleCount} lessons done`;
+    badge = "In progress";
   }
 
   return {
     tier,
+    badge,
     amountDue: cycleAmount,
     cycleAmount,
     label,
