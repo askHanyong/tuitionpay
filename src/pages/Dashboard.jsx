@@ -27,12 +27,14 @@ const tomorrowKey = () => toDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
 // Update this in one place to ship a new "What's new" banner -- bumping
 // the id makes it reappear for everyone even if they dismissed a past one.
 const ANNOUNCEMENT = {
-  id: "announcement-june-2026",
+  id: "announcement-jul-2026",
   headline: "What's new in ChopeAndPay ✨",
   bullets: [
-    "📅 Google Calendar sync — lessons you log now appear automatically in your Google Calendar. Connect in Settings!",
-    "🗑️ Delete lessons directly from the Calendar view",
-    "📊 Smarter pending calculations — earnings now correctly attributed to the right month",
+    "📅 Google Calendar sync — lessons you log now appear automatically in your Google Calendar, complete with the student's home address. Connect in Settings!",
+    "🗓️ Smarter lesson scheduling — set recurring lessons to end after X lessons or by a specific date, with a preview before confirming",
+    "📤 Export your data — download your full lesson and payment history as CSV from Settings",
+    "🔗 Student payment page — share a payment summary link with your students or parents directly from their profile",
+    "💰 Clearer payment tracking — payment status now shows exactly what's due, what's upcoming, and what's been collected",
   ],
 };
 
