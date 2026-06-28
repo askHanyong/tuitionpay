@@ -144,7 +144,7 @@ export default function Payments() {
               (1000 * 60 * 60 * 24),
           );
 
-          if (daysToEnd <= 3 && openLessons.length > 0) {
+          if (daysToEnd <= 7 && openLessons.length > 0) {
             const dueDateLabel = formatDayMonth(endOfMonth);
             let label = `⚠️ ${formatSGD(completedAmount)} due ${dueDateLabel}`;
             if (scheduledAmount > 0) {
@@ -156,7 +156,7 @@ export default function Payments() {
               openCount: openLessons.length,
               cycleCount: null,
               monthLabel: formatMonth(now),
-              expectedAmount: completedAmount,
+              expectedAmount: completedAmount + scheduledAmount,
               nextLessonDate: nextLesson?.lesson_date ?? null,
               isFullyDue: false,
               isMonthlyDueSoon: true,
@@ -222,6 +222,13 @@ export default function Payments() {
             ? formatMonthName(completingLesson.lesson_date)
             : null;
 
+        const sevenDaysOutStr = new Date(now.getTime() + 7 * 86400000)
+          .toISOString()
+          .slice(0, 10);
+        const isLessonsDueSoon = Boolean(
+          completingLesson && completingLesson.lesson_date <= sevenDaysOutStr,
+        );
+
         result.push({
           studentId: student.id,
           studentName: student.name,
@@ -231,6 +238,7 @@ export default function Payments() {
           nextLessonDate: nextLesson?.lesson_date ?? null,
           completingLessonDate: completingLesson?.lesson_date ?? null,
           completingMonthLabel,
+          isLessonsDueSoon,
           isFullyDue: openCount >= cycleCount,
         });
       }
@@ -302,8 +310,7 @@ export default function Payments() {
   const settled = cycles.filter((c) => c.status !== "pending");
   const fullyDue = cycleProgress.filter((p) => p.isFullyDue);
   const dueSoon = cycleProgress.filter(
-    (p) =>
-      !p.isFullyDue && p.cycleCount != null && p.openCount === p.cycleCount - 1,
+    (p) => !p.isFullyDue && p.cycleCount != null && p.isLessonsDueSoon,
   );
   const monthlyDueSoon = cycleProgress.filter(
     (p) => !p.isFullyDue && p.cycleCount == null && p.isMonthlyDueSoon,
@@ -312,7 +319,7 @@ export default function Payments() {
     (p) =>
       !p.isFullyDue &&
       !p.isMonthlyDueSoon &&
-      (p.cycleCount == null || p.openCount < p.cycleCount - 1),
+      (p.cycleCount == null || !p.isLessonsDueSoon),
   );
   const noticesCount =
     pending.length + fullyDue.length + dueSoon.length + monthlyDueSoon.length;
@@ -398,6 +405,9 @@ export default function Payments() {
                     <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
                       ⚠️ Due soon
                     </span>
+                  </span>
+                  <span className="font-semibold text-gray-900">
+                    {formatSGD(p.expectedAmount)}
                   </span>
                 </div>
                 <p className="text-sm text-gray-600">{p.dueSoonLabel}</p>
