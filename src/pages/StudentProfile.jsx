@@ -35,6 +35,16 @@ export default function StudentProfile() {
   const [preview, setPreview] = useState(null);
   const [reporting, setReporting] = useState(false);
 
+  const handleSharePaymentSummary = async () => {
+    const link = `https://chopeandpay.com/pay/${student.payment_token}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      showToast("Link copied! Share with your student.");
+    } catch {
+      showToast("Couldn't copy the link.", "error");
+    }
+  };
+
   const load = async () => {
     const [
       { data: studentData, error: studentError },
@@ -91,6 +101,7 @@ export default function StudentProfile() {
     student?.payment_mode === "monthly" ||
     student?.payment_mode === "custom_date";
   const isPerLesson = student?.payment_mode === "per_lesson";
+  const paymentCycleCount = student?.payment_cycle_count;
 
   const lessonPosition = useMemo(() => {
     const groupKey = (l) =>
@@ -102,7 +113,7 @@ export default function StudentProfile() {
       groups.get(key).push(l);
     }
     const positions = new Map();
-    const cycleCount = student?.payment_cycle_count ?? 4;
+    const cycleCount = paymentCycleCount ?? 4;
     for (const group of groups.values()) {
       const sorted = [...group].sort((a, b) =>
         a.lesson_date < b.lesson_date
@@ -119,7 +130,7 @@ export default function StudentProfile() {
       );
     }
     return positions;
-  }, [lessons, isMonthlyBilled, isPerLesson, student?.payment_cycle_count]);
+  }, [lessons, isMonthlyBilled, isPerLesson, paymentCycleCount]);
 
   const completedLessons = lessons.filter((l) => l.is_completed);
   const totalLessons = completedLessons.length;
@@ -326,6 +337,13 @@ export default function StudentProfile() {
               className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
             >
               📄 Progress Report
+            </button>
+            <button
+              onClick={handleSharePaymentSummary}
+              disabled={!student.payment_token}
+              className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+            >
+              🔗 Share payment summary
             </button>
           </div>
         </div>

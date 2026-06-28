@@ -19,6 +19,7 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import About from "./pages/About";
 import Faq from "./pages/Faq";
+import PaymentSummary from "./pages/PaymentSummary";
 
 function App() {
   return (
@@ -94,6 +95,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route path="/pay/:token" element={<PaymentSummary />} />
             <Route path="/" element={<Landing />} />
             <Route path="/about" element={<About />} />
             <Route path="/faq" element={<Faq />} />
