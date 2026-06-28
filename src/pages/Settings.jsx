@@ -13,6 +13,51 @@ import {
   buildFeedbackMailtoLink,
   buildFeedbackWhatsAppLink,
 } from "../lib/feedback";
+import { formatDate } from "../utils/dateFormat";
+import { formatLessonTime } from "../lib/date";
+
+const CSV_COLUMN_SEPARATOR = ",";
+
+function csvEscape(value) {
+  const str = value == null ? "" : String(value);
+  if (/[",\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function toCSV(headers, rows) {
+  const lines = [headers.map(csvEscape).join(CSV_COLUMN_SEPARATOR)];
+  for (const row of rows) {
+    lines.push(row.map(csvEscape).join(CSV_COLUMN_SEPARATOR));
+  }
+  return lines.join("\n");
+}
+
+function downloadCSV(filename, csvContent) {
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function todayFilenameSuffix() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatAmount(value) {
+  if (value == null) return "";
+  return Number(value).toFixed(2);
+}
 
 const NOTIFICATION_TYPES = [
   {
@@ -41,6 +86,8 @@ export default function Settings() {
   const [error, setError] = useState(null);
   const [googleTutor, setGoogleTutor] = useState(null);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [exportingLessons, setExportingLessons] = useState(false);
+  const [exportingPayments, setExportingPayments] = useState(false);
   const [notifyPrefs, setNotifyPrefs] = useState({
     notify_lesson_reminders: true,
     notify_payment_due: true,
@@ -130,6 +177,99 @@ export default function Settings() {
       return;
     }
     showToast("Settings saved.");
+  };
+
+  const handleExportLessons = async () => {
+    setExportingLessons(true);
+    try {
+      const { data, error } = await supabase
+        .from("lessons")
+        .select("*, students(name, subject)")
+        .eq("tutor_id", user.id)
+        .order("lesson_date", { ascending: true });
+      if (error) throw error;
+
+      const rows = (data ?? []).map((lesson) => {
+        const durationHours = lesson.duration_minutes
+          ? lesson.duration_minutes / 60
+          : null;
+        const amount =
+          durationHours != null && lesson.rate != null
+            ? durationHours * lesson.rate
+            : null;
+        return [
+          lesson.students?.name ?? "",
+          lesson.students?.subject ?? "",
+          formatDate(lesson.lesson_date),
+          lesson.lesson_time ? formatLessonTime(lesson.lesson_time) : "",
+          durationHours != null ? durationHours.toFixed(2) : "",
+          formatAmount(lesson.rate),
+          formatAmount(amount),
+          lesson.status ?? "",
+          lesson.notes ?? "",
+          lesson.payment_cycle_id ?? "",
+        ];
+      });
+
+      const csv = toCSV(
+        [
+          "Student name",
+          "Subject",
+          "Lesson date",
+          "Lesson time",
+          "Duration (hrs)",
+          "Rate (SGD/hr)",
+          "Amount (SGD)",
+          "Status",
+          "Notes",
+          "Payment cycle ID",
+        ],
+        rows,
+      );
+      downloadCSV(`chopeandpay_lessons_${todayFilenameSuffix()}.csv`, csv);
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setExportingLessons(false);
+    }
+  };
+
+  const handleExportPayments = async () => {
+    setExportingPayments(true);
+    try {
+      const { data, error } = await supabase
+        .from("payment_cycles")
+        .select("*, students(name)")
+        .eq("tutor_id", user.id)
+        .order("period_start", { ascending: true });
+      if (error) throw error;
+
+      const rows = (data ?? []).map((cycle) => [
+        cycle.students?.name ?? "",
+        formatDate(cycle.period_start),
+        formatDate(cycle.period_end),
+        formatAmount(cycle.amount_due),
+        cycle.status ?? "",
+        cycle.paid_at ? formatDate(cycle.paid_at) : "",
+      ]);
+
+      const csv = toCSV(
+        [
+          "Student name",
+          "Period start",
+          "Period end",
+          "Amount due (SGD)",
+          "Status",
+          "Paid at",
+        ],
+        rows,
+      );
+      downloadCSV(`chopeandpay_payments_${todayFilenameSuffix()}.csv`, csv);
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setExportingPayments(false);
+    }
   };
 
   return (
@@ -258,6 +398,36 @@ export default function Settings() {
             ✉️ Send an email
           </a>
         </div>
+      </section>
+
+      <section className="space-y-3 rounded-md border border-gray-200 bg-white p-5">
+        <h2 className="text-base font-semibold text-gray-900">
+          Export my data
+        </h2>
+        <p className="text-sm text-gray-600">
+          Download your lesson and payment history as CSV files.
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={handleExportLessons}
+            disabled={exportingLessons}
+            className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+          >
+            {exportingLessons ? "Preparing..." : "📥 Download lessons"}
+          </button>
+          <button
+            type="button"
+            onClick={handleExportPayments}
+            disabled={exportingPayments}
+            className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+          >
+            {exportingPayments ? "Preparing..." : "📥 Download payments"}
+          </button>
+        </div>
+        <p className="text-xs text-gray-500">
+          Your data is exported as CSV, compatible with Excel and Google Sheets
+        </p>
       </section>
 
       <section className="space-y-3 rounded-md border border-gray-200 bg-white p-5">
