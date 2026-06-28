@@ -3,7 +3,13 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { formatSGD } from "../lib/paymentNotice";
-import { formatDate, formatDateFull, formatMonth } from "../utils/dateFormat";
+import {
+  formatDate,
+  formatDateFull,
+  formatMonth,
+  formatMonthName,
+  formatDayMonth,
+} from "../utils/dateFormat";
 import { lessonAmount } from "../lib/paymentMode";
 import {
   buildPaidReceiptMessage,
@@ -109,26 +115,67 @@ export default function Payments() {
         // separately in `pending`). per_lesson billing gets a real cycle
         // the moment a lesson completes, so it never needs this estimate.
         if (mode === "monthly" || mode === "custom_date") {
+          const thisMonthKey = todayStr.slice(0, 7);
           const openLessons = studentLessons.filter(
             (l) =>
               l.is_completed &&
               !l.payment_cycle_id &&
-              l.lesson_date.slice(0, 7) === todayStr.slice(0, 7),
+              l.lesson_date.slice(0, 7) === thisMonthKey,
           );
-          if (openLessons.length === 0) continue;
-          const expectedAmount = openLessons.reduce(
+          const scheduledThisMonth = studentLessons.filter(
+            (l) =>
+              !l.is_completed && l.lesson_date.slice(0, 7) === thisMonthKey,
+          );
+          if (openLessons.length === 0 && scheduledThisMonth.length === 0)
+            continue;
+          const completedAmount = openLessons.reduce(
             (sum, l) => sum + lessonAmount(l, student),
             0,
           );
+          const scheduledAmount = scheduledThisMonth.reduce(
+            (sum, l) => sum + lessonAmount(l, student),
+            0,
+          );
+
+          const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          const daysToEnd = Math.round(
+            (endOfMonth -
+              new Date(now.getFullYear(), now.getMonth(), now.getDate())) /
+              (1000 * 60 * 60 * 24),
+          );
+
+          if (daysToEnd <= 3 && openLessons.length > 0) {
+            const dueDateLabel = formatDayMonth(endOfMonth);
+            let label = `⚠️ ${formatSGD(completedAmount)} due ${dueDateLabel}`;
+            if (scheduledAmount > 0) {
+              label += ` · +${formatSGD(scheduledAmount)} on ${dueDateLabel}`;
+            }
+            result.push({
+              studentId: student.id,
+              studentName: student.name,
+              openCount: openLessons.length,
+              cycleCount: null,
+              monthLabel: formatMonth(now),
+              expectedAmount: completedAmount,
+              nextLessonDate: nextLesson?.lesson_date ?? null,
+              isFullyDue: false,
+              isMonthlyDueSoon: true,
+              dueSoonLabel: label,
+            });
+            continue;
+          }
+
+          if (openLessons.length === 0) continue;
           result.push({
             studentId: student.id,
             studentName: student.name,
             openCount: openLessons.length,
             cycleCount: null,
             monthLabel: formatMonth(now),
-            expectedAmount,
+            expectedAmount: completedAmount,
             nextLessonDate: nextLesson?.lesson_date ?? null,
             isFullyDue: false,
+            isMonthlyDueSoon: false,
           });
           continue;
         }
@@ -157,6 +204,24 @@ export default function Payments() {
             ? (cycleAmount / openCount) * cycleCount
             : cycleAmount;
 
+        // Identify the lesson that will actually complete this cycle (the
+        // Nth lesson), not just the soonest scheduled lesson overall -- if
+        // that completing lesson falls in a future month, the tutor cares
+        // about which month payment is due in, not the next lesson's date.
+        const scheduledNeeded = Math.max(cycleCount - openCount, 0);
+        const upcoming = studentLessons
+          .filter((l) => !l.is_completed && l.lesson_date > todayStr)
+          .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1));
+        const completingLesson =
+          upcoming.length >= scheduledNeeded && scheduledNeeded > 0
+            ? upcoming[scheduledNeeded - 1]
+            : null;
+        const completingMonthLabel =
+          completingLesson &&
+          completingLesson.lesson_date.slice(0, 7) !== todayStr.slice(0, 7)
+            ? formatMonthName(completingLesson.lesson_date)
+            : null;
+
         result.push({
           studentId: student.id,
           studentName: student.name,
@@ -164,6 +229,8 @@ export default function Payments() {
           cycleCount,
           expectedAmount,
           nextLessonDate: nextLesson?.lesson_date ?? null,
+          completingLessonDate: completingLesson?.lesson_date ?? null,
+          completingMonthLabel,
           isFullyDue: openCount >= cycleCount,
         });
       }
@@ -238,11 +305,17 @@ export default function Payments() {
     (p) =>
       !p.isFullyDue && p.cycleCount != null && p.openCount === p.cycleCount - 1,
   );
+  const monthlyDueSoon = cycleProgress.filter(
+    (p) => !p.isFullyDue && p.cycleCount == null && p.isMonthlyDueSoon,
+  );
   const inProgress = cycleProgress.filter(
     (p) =>
-      !p.isFullyDue && (p.cycleCount == null || p.openCount < p.cycleCount - 1),
+      !p.isFullyDue &&
+      !p.isMonthlyDueSoon &&
+      (p.cycleCount == null || p.openCount < p.cycleCount - 1),
   );
-  const noticesCount = pending.length + fullyDue.length + dueSoon.length;
+  const noticesCount =
+    pending.length + fullyDue.length + dueSoon.length + monthlyDueSoon.length;
 
   return (
     <AppShell>
@@ -309,9 +382,25 @@ export default function Payments() {
                 </div>
                 <p className="text-sm text-gray-600">
                   {p.openCount}/{p.cycleCount} lessons done
-                  {p.nextLessonDate &&
-                    ` · Payment due after lesson ${p.cycleCount} on ${formatDate(p.nextLessonDate)}`}
+                  {p.completingLessonDate &&
+                    ` · Payment due after lesson ${p.cycleCount} on ${formatDayMonth(p.completingLessonDate)}`}
                 </p>
+              </li>
+            ))}
+            {monthlyDueSoon.map((p) => (
+              <li
+                key={`monthlyduesoon-${p.studentId}`}
+                className="rounded-md border border-amber-200 bg-amber-50 p-4 transition hover:shadow-md"
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-2 font-medium text-gray-900">
+                    {p.studentName}
+                    <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                      ⚠️ Due soon
+                    </span>
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600">{p.dueSoonLabel}</p>
               </li>
             ))}
             {pending.map((c) => (
@@ -376,8 +465,10 @@ export default function Payments() {
                   {p.cycleCount != null
                     ? `${p.openCount}/${p.cycleCount} lessons done`
                     : `${p.monthLabel}: ${p.openCount} lesson${p.openCount === 1 ? "" : "s"} done`}
-                  {p.nextLessonDate &&
-                    ` · Next lesson on ${formatDate(p.nextLessonDate)}`}
+                  {p.completingMonthLabel
+                    ? ` · Payment due in ${p.completingMonthLabel}`
+                    : p.nextLessonDate &&
+                      ` · Next lesson on ${formatDate(p.nextLessonDate)}`}
                 </p>
               </li>
             ))}
