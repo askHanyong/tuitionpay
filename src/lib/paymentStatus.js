@@ -1,5 +1,9 @@
 import { formatSGD } from "./paymentNotice";
-import { formatDate, formatMonth } from "../utils/dateFormat";
+import {
+  formatDate,
+  formatMonthName,
+  formatDayMonth,
+} from "../utils/dateFormat";
 import { ordinal, lessonAmount as amountForLesson } from "./paymentMode";
 
 const TIER_RANK = { red: 0, amber: 1, blue: 2, grey: 2, green: 3 };
@@ -47,16 +51,6 @@ function customDueDateFor(year, month0, customDay) {
   return new Date(year, month0, Math.min(customDay ?? 1, lastDay));
 }
 
-function isPrevCalendarMonth(dateStr, now) {
-  if (!dateStr) return false;
-  const d = new Date(`${dateStr}T00:00:00`);
-  const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  return (
-    d.getFullYear() === prevMonth.getFullYear() &&
-    d.getMonth() === prevMonth.getMonth()
-  );
-}
-
 function sortByDueAsc(cycles) {
   return [...cycles].sort((a, b) =>
     a.period_end < b.period_end ? -1 : a.period_end > b.period_end ? 1 : 0,
@@ -94,30 +88,53 @@ export function computeStudentPaymentStatus(student, ctx) {
   if (mode === "per_lesson") {
     const pending = sortByDueAsc(pendingCycles);
     const amountDue = pending.reduce((sum, c) => sum + Number(c.amount_due), 0);
-    if (pending.length === 1) {
+    if (pending.length > 0) {
+      const earliest = pending[0];
+      const lessonDateLabel = formatDayMonth(earliest.period_end);
+      const daysSince = daysUntil(
+        now,
+        new Date(`${earliest.period_end}T00:00:00`),
+      );
+      const moreSuffix =
+        pending.length > 1 ? ` (+${pending.length - 1} more)` : "";
+      if (daysSince > 7) {
+        return {
+          tier: "red",
+          amountDue,
+          label: `🔴 ${formatSGD(amountDue)} overdue — lesson on ${lessonDateLabel} unpaid${moreSuffix}`,
+          showProgressBar: false,
+          progressFraction: null,
+          collectCycle: earliest,
+        };
+      }
       return {
-        tier: "red",
+        tier: "amber",
         amountDue,
-        label: `🔴 ${formatSGD(amountDue)} due — last lesson unpaid`,
+        label: `⚠️ ${formatSGD(amountDue)} due — lesson on ${lessonDateLabel} unpaid${moreSuffix}`,
         showProgressBar: false,
         progressFraction: null,
-        collectCycle: pending[0],
+        collectCycle: earliest,
       };
     }
-    if (pending.length > 1) {
+
+    if (completedLessons.length > 0) {
       return {
-        tier: "red",
-        amountDue,
-        label: `🔴 ${formatSGD(amountDue)} due — ${pending.length} lessons unpaid`,
+        tier: "green",
+        amountDue: 0,
+        label: "✅ Paid",
         showProgressBar: false,
         progressFraction: null,
-        collectCycle: pending[0],
+        collectCycle: null,
       };
     }
+
+    const nextLesson = sortLessonsByWhen(scheduledLessons ?? [])[0];
     return {
-      tier: completedLessons.length > 0 ? "green" : "grey",
+      tier: "grey",
       amountDue: 0,
-      label: completedLessons.length > 0 ? "✅ Up to date" : "No lessons yet",
+      label: nextLesson
+        ? `Next lesson on ${formatDayMonth(nextLesson.lesson_date)}`
+        : "No lessons yet",
       showProgressBar: false,
       progressFraction: null,
       collectCycle: null,
@@ -127,19 +144,29 @@ export function computeStudentPaymentStatus(student, ctx) {
   if (mode === "monthly") {
     const pending = sortByDueAsc(pendingCycles);
     const amountDue = pending.reduce((sum, c) => sum + Number(c.amount_due), 0);
+    const monthLabel = formatMonthName(now);
+
     if (pending.length > 0) {
-      const monthLabel = formatMonth(pending[0].period_start);
-      const label =
-        pending.length === 1
-          ? `🔴 ${monthLabel} payment due — ${formatSGD(amountDue)}`
-          : `🔴 ${pending.length} months payment due — ${formatSGD(amountDue)}`;
+      const overdueMonthLabel = formatMonthName(pending[0].period_start);
       return {
         tier: "red",
         amountDue,
-        label,
+        label: `🔴 ${formatSGD(amountDue)} overdue — ${overdueMonthLabel} unpaid`,
         showProgressBar: false,
         progressFraction: null,
         collectCycle: pending[0],
+      };
+    }
+
+    const recentPaid = sortByDueDesc(paidCycles)[0];
+    if (recentPaid && isSameMonth(recentPaid.period_end, now)) {
+      return {
+        tier: "green",
+        amountDue: 0,
+        label: `✅ ${monthLabel} paid`,
+        showProgressBar: false,
+        progressFraction: null,
+        collectCycle: null,
       };
     }
 
@@ -151,49 +178,39 @@ export function computeStudentPaymentStatus(student, ctx) {
       (sum, l) => sum + amountForLesson(l, student),
       0,
     );
-    const thisMonthLabel = formatMonth(now);
+    const scheduledThisMonth = (scheduledLessons ?? []).filter((l) =>
+      isSameMonth(l.lesson_date, now),
+    );
+    const scheduledCount = scheduledThisMonth.length;
+    const scheduledAmount = scheduledThisMonth.reduce(
+      (sum, l) => sum + amountForLesson(l, student),
+      0,
+    );
+
     const dueDate = lastDayOfMonth(now.getFullYear(), now.getMonth());
     const dueIn = daysUntil(dueDate, now);
+    const dueDateLabel = formatDayMonth(dueDate);
 
-    const recentPaid = sortByDueDesc(paidCycles)[0];
-    // Only show the "accumulating" green state if we're not yet in the
-    // due-soon window -- once dueIn drops to 3 days or fewer, the amber
-    // "payment due soon" check below should take over even if last month
-    // was already paid.
-    if (
-      recentPaid &&
-      isPrevCalendarMonth(recentPaid.period_end, now) &&
-      !(dueIn >= 0 && dueIn <= 3)
-    ) {
-      const prevMonthLabel = formatMonth(recentPaid.period_end);
+    if (dueIn > 3) {
+      const total = thisMonthAmount + scheduledAmount;
       return {
-        tier: "green",
-        amountDue: 0,
-        label:
-          thisMonthCount > 0
-            ? `✅ ${prevMonthLabel} paid · ${thisMonthLabel} accumulating`
-            : `✅ ${prevMonthLabel} paid`,
+        tier: "blue",
+        amountDue: total,
+        label: `${thisMonthCount} done · ${scheduledCount} upcoming · ${formatSGD(total)} expected end of ${monthLabel}`,
         showProgressBar: false,
         progressFraction: null,
         collectCycle: null,
       };
     }
 
-    if (dueIn >= 0 && dueIn <= 3) {
-      return {
-        tier: "amber",
-        amountDue: thisMonthAmount,
-        label: `⚠️ ${thisMonthLabel} payment due in ${dueIn} day${dueIn === 1 ? "" : "s"} · ${formatSGD(thisMonthAmount)} accumulating`,
-        showProgressBar: false,
-        progressFraction: null,
-        collectCycle: null,
-      };
+    let label = `⚠️ ${formatSGD(thisMonthAmount)} due ${dueDateLabel}`;
+    if (scheduledAmount > 0) {
+      label += ` · +${formatSGD(scheduledAmount)} on ${dueDateLabel}`;
     }
-
     return {
-      tier: "blue",
+      tier: "amber",
       amountDue: thisMonthAmount,
-      label: `📅 ${thisMonthLabel}: ${thisMonthCount} lesson${thisMonthCount === 1 ? "" : "s"} · ${formatSGD(thisMonthAmount)} accumulating`,
+      label,
       showProgressBar: false,
       progressFraction: null,
       collectCycle: null,
@@ -292,19 +309,39 @@ export function computeStudentPaymentStatus(student, ctx) {
 
   if (pending.length > 0) {
     const completedDate = pending[0].period_end;
+    // Once a completed-but-unpaid cycle's lessons are billed (payment_cycle_id
+    // assigned), openCount tracks the *next* cycle. If it's already > 0, a
+    // new cycle has started while the previous one still sits unpaid.
+    if (openCount > 0) {
+      return {
+        tier: "red",
+        amountDue,
+        cycleAmount,
+        label: `🔴 ${formatSGD(amountDue)} overdue`,
+        showProgressBar: false,
+        progressFraction: 1,
+        collectCycle: pending[0],
+        completedCount: cycleCount,
+        scheduledCount: 0,
+        nextPaymentInfo: {
+          text: `💰 Payment overdue — ${formatSGD(amountDue)} · ${ordinal(cycleCount)} lesson was on ${formatDate(completedDate)}`,
+          tone: "red",
+        },
+      };
+    }
     return {
-      tier: "red",
+      tier: "amber",
       amountDue,
       cycleAmount,
-      label: `🔴 ${cycleCount} lessons completed on ${formatDate(completedDate)} · Payment due now — ${formatSGD(amountDue)}`,
-      showProgressBar: true,
+      label: `⚠️ ${formatSGD(amountDue)} due — ${cycleCount} lessons completed`,
+      showProgressBar: false,
       progressFraction: 1,
       collectCycle: pending[0],
       completedCount: cycleCount,
       scheduledCount: 0,
       nextPaymentInfo: {
         text: `💰 Payment due — ${formatSGD(amountDue)} · ${ordinal(cycleCount)} lesson was on ${formatDate(completedDate)}`,
-        tone: "red",
+        tone: "amber",
       },
     };
   }
@@ -349,9 +386,14 @@ export function computeStudentPaymentStatus(student, ctx) {
         ? "blue"
         : "grey";
 
-  const label = fourthLessonDate
-    ? `${openCount} lesson${openCount === 1 ? "" : "s"} done · Payment due after lesson ${cycleCount} on ${formatDate(fourthLessonDate)}`
-    : `${openCount}/${cycleCount} lessons · ${formatSGD(cycleAmount)} due at completion`;
+  let label;
+  if (fourthLessonDate) {
+    label = isSameMonth(fourthLessonDate, now)
+      ? `${openCount}/${cycleCount} lessons done · Payment due after lesson ${cycleCount} on ${formatDayMonth(fourthLessonDate)}`
+      : `${openCount}/${cycleCount} lessons done · Next payment due in ${formatMonthName(fourthLessonDate)}`;
+  } else {
+    label = `${openCount}/${cycleCount} lessons done`;
+  }
 
   return {
     tier,

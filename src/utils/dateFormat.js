@@ -37,6 +37,16 @@ export function formatMonth(date) {
   return d.toLocaleDateString("en-SG", { month: "long", year: "numeric" });
 }
 
+export function formatMonthName(date) {
+  const d = toDate(date);
+  return d.toLocaleDateString("en-SG", { month: "long" });
+}
+
+export function formatDayMonth(date) {
+  const d = toDate(date);
+  return d.toLocaleDateString("en-SG", { day: "2-digit", month: "short" });
+}
+
 function formatTime(d) {
   return d
     .toLocaleTimeString("en-SG", {

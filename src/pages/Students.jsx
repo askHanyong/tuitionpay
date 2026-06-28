@@ -8,6 +8,11 @@ import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
 import { formatDate } from "../utils/dateFormat";
 import { formatSGD } from "../lib/paymentNotice";
 import { LEVEL_OPTIONS } from "../lib/levels";
+import {
+  computeStudentPaymentStatus,
+  tierRank,
+  TIER_BADGE_CLASSES,
+} from "../lib/paymentStatus";
 
 const emptyForm = {
   name: "",
@@ -55,10 +60,8 @@ export default function Students() {
   const [rateBenchmark, setRateBenchmark] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("payment_due");
-  const [dueDateByStudent, setDueDateByStudent] = useState({});
   const [lastLessonByStudent, setLastLessonByStudent] = useState({});
-  const [openCountByStudent, setOpenCountByStudent] = useState({});
-  const [pendingStudentIds, setPendingStudentIds] = useState(new Set());
+  const [paymentStatusByStudent, setPaymentStatusByStudent] = useState({});
 
   const refreshLessonsFor = async (studentId) => {
     const { data } = await supabase
@@ -89,30 +92,22 @@ export default function Students() {
     }
   };
 
-  const loadSortSupportData = async () => {
-    const [{ data: cyclesData }, { data: lessonsData }, { data: allCycles }] =
-      await Promise.all([
-        supabase
-          .from("payment_cycles")
-          .select("student_id, period_end")
-          .eq("tutor_id", user.id)
-          .eq("status", "pending")
-          .order("period_end", { ascending: true }),
-        supabase
-          .from("lessons")
-          .select("student_id, lesson_date, payment_cycle_id, is_completed")
-          .eq("tutor_id", user.id)
-          .order("lesson_date", { ascending: false }),
-        supabase
-          .from("payment_cycles")
-          .select("student_id, status")
-          .eq("tutor_id", user.id),
-      ]);
-    const dueMap = {};
-    for (const c of cyclesData ?? []) {
-      if (!dueMap[c.student_id]) dueMap[c.student_id] = c.period_end;
-    }
-    setDueDateByStudent(dueMap);
+  const loadSortSupportData = async (studentsList) => {
+    const [{ data: cyclesData }, { data: lessonsData }] = await Promise.all([
+      supabase
+        .from("payment_cycles")
+        .select("student_id, status, period_start, period_end, amount_due")
+        .eq("tutor_id", user.id)
+        .order("period_end", { ascending: true }),
+      supabase
+        .from("lessons")
+        .select(
+          "id, student_id, lesson_date, lesson_time, payment_cycle_id, is_completed, duration_minutes, rate",
+        )
+        .eq("tutor_id", user.id)
+        .order("lesson_date", { ascending: false }),
+    ]);
+
     const lastLessonMap = {};
     for (const l of lessonsData ?? []) {
       if (!lastLessonMap[l.student_id]) {
@@ -121,20 +116,50 @@ export default function Students() {
     }
     setLastLessonByStudent(lastLessonMap);
 
-    const openCountMap = {};
+    const pendingCyclesByStudent = new Map();
+    const paidCyclesByStudent = new Map();
+    for (const c of cyclesData ?? []) {
+      const map =
+        c.status === "pending"
+          ? pendingCyclesByStudent
+          : c.status === "paid"
+            ? paidCyclesByStudent
+            : null;
+      if (!map) continue;
+      if (!map.has(c.student_id)) map.set(c.student_id, []);
+      map.get(c.student_id).push(c);
+    }
+
+    const completedLessonsByStudent = new Map();
+    const scheduledLessonsByStudent = new Map();
+    const openCountByStudent = new Map();
     for (const l of lessonsData ?? []) {
+      const targetMap = l.is_completed
+        ? completedLessonsByStudent
+        : scheduledLessonsByStudent;
+      if (!targetMap.has(l.student_id)) targetMap.set(l.student_id, []);
+      targetMap.get(l.student_id).push(l);
       if (l.is_completed && !l.payment_cycle_id) {
-        openCountMap[l.student_id] = (openCountMap[l.student_id] ?? 0) + 1;
+        openCountByStudent.set(
+          l.student_id,
+          (openCountByStudent.get(l.student_id) ?? 0) + 1,
+        );
       }
     }
-    setOpenCountByStudent(openCountMap);
-    setPendingStudentIds(
-      new Set(
-        (allCycles ?? [])
-          .filter((c) => c.status === "pending")
-          .map((c) => c.student_id),
-      ),
-    );
+
+    const now = new Date();
+    const statusMap = {};
+    for (const s of studentsList ?? []) {
+      statusMap[s.id] = computeStudentPaymentStatus(s, {
+        pendingCycles: pendingCyclesByStudent.get(s.id) ?? [],
+        paidCycles: paidCyclesByStudent.get(s.id) ?? [],
+        completedLessons: completedLessonsByStudent.get(s.id) ?? [],
+        scheduledLessons: scheduledLessonsByStudent.get(s.id) ?? [],
+        openCount: openCountByStudent.get(s.id) ?? 0,
+        now,
+      });
+    }
+    setPaymentStatusByStudent(statusMap);
   };
 
   const loadStudents = async () => {
@@ -146,37 +171,17 @@ export default function Students() {
     if (error) setError(error.message);
     setStudents(data ?? []);
     setLoading(false);
-    loadSortSupportData();
+    loadSortSupportData(data ?? []);
   };
 
   const progressFor = (student) => {
-    if (pendingStudentIds.has(student.id)) {
-      return { label: "Payment due", classes: "bg-red-100 text-red-800" };
-    }
-    const openCount = openCountByStudent[student.id] ?? 0;
-    if (openCount === 0) {
-      return { label: "Paid ✓", classes: "bg-green-100 text-green-800" };
-    }
-    const mode = student.payment_mode ?? "lessons";
-    if (mode === "monthly" || mode === "custom_date") {
-      // payment_cycle_count is only meaningful for "lessons" mode -- monthly
-      // and custom-date billing has no fixed lesson count per cycle, so the
-      // "X/4 lessons" fraction badge doesn't apply here.
-      return {
-        label: `${openCount} lesson${openCount === 1 ? "" : "s"} accumulating`,
-        classes: "bg-blue-100 text-blue-800",
-      };
-    }
-    const cycleCount = student.payment_cycle_count ?? 4;
-    if (openCount >= cycleCount - 1) {
-      return {
-        label: `${openCount}/${cycleCount} lessons`,
-        classes: "bg-amber-100 text-amber-800",
-      };
+    const status = paymentStatusByStudent[student.id];
+    if (!status) {
+      return { label: "Loading...", classes: "bg-gray-100 text-gray-600" };
     }
     return {
-      label: `${openCount}/${cycleCount} lessons`,
-      classes: "bg-blue-100 text-blue-800",
+      label: status.label,
+      classes: TIER_BADGE_CLASSES[status.tier],
     };
   };
 
@@ -205,7 +210,7 @@ export default function Students() {
       if (error) setError(error.message);
       setStudents(data ?? []);
       setLoading(false);
-      loadSortSupportData();
+      loadSortSupportData(data ?? []);
       const editStudentId = location.state?.editStudentId;
       if (editStudentId) {
         const target = (data ?? []).find((s) => s.id === editStudentId);
@@ -345,12 +350,17 @@ export default function Students() {
       }
       case "payment_due":
       default: {
-        const aDue = dueDateByStudent[a.id];
-        const bDue = dueDateByStudent[b.id];
-        if (!aDue && !bDue) return a.name.localeCompare(b.name);
-        if (!aDue) return 1;
-        if (!bDue) return -1;
-        return aDue < bDue ? -1 : 1;
+        const aStatus = paymentStatusByStudent[a.id];
+        const bStatus = paymentStatusByStudent[b.id];
+        if (!aStatus && !bStatus) return a.name.localeCompare(b.name);
+        if (!aStatus) return 1;
+        if (!bStatus) return -1;
+        const rankDiff = tierRank(aStatus.tier) - tierRank(bStatus.tier);
+        if (rankDiff !== 0) return rankDiff;
+        if (bStatus.amountDue !== aStatus.amountDue) {
+          return bStatus.amountDue - aStatus.amountDue;
+        }
+        return a.name.localeCompare(b.name);
       }
     }
   });
