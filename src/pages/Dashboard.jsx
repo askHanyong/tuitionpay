@@ -24,6 +24,54 @@ import NotificationPrompt from "../components/NotificationPrompt";
 const todayKey = () => toDateKey(new Date());
 const tomorrowKey = () => toDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
 
+// Update this in one place to ship a new "What's new" banner -- bumping
+// the id makes it reappear for everyone even if they dismissed a past one.
+const ANNOUNCEMENT = {
+  id: "announcement-june-2026",
+  headline: "What's new in ChopeAndPay ✨",
+  bullets: [
+    "📅 Google Calendar sync — lessons you log now appear automatically in your Google Calendar. Connect in Settings!",
+    "🗑️ Delete lessons directly from the Calendar view",
+    "📊 Smarter pending calculations — earnings now correctly attributed to the right month",
+  ],
+};
+
+function AnnouncementBanner() {
+  const dismissKey = `dismissed_${ANNOUNCEMENT.id}`;
+  const [dismissed, setDismissed] = useState(
+    () => localStorage.getItem(dismissKey) === "true",
+  );
+
+  if (dismissed) return null;
+
+  const handleDismiss = () => {
+    localStorage.setItem(dismissKey, "true");
+    setDismissed(true);
+  };
+
+  return (
+    <div className="relative rounded-xl border border-green-200 bg-green-50 p-4 pr-10 shadow-sm sm:p-5">
+      <button
+        onClick={handleDismiss}
+        aria-label="Dismiss announcement"
+        className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full text-green-700 hover:bg-green-100"
+      >
+        ✕
+      </button>
+      <p className="text-sm font-semibold text-green-900">
+        🍀 {ANNOUNCEMENT.headline}
+      </p>
+      <ul className="mt-2 space-y-1">
+        {ANNOUNCEMENT.bullets.map((bullet) => (
+          <li key={bullet} className="text-sm text-green-800">
+            {bullet}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -557,6 +605,8 @@ export default function Dashboard() {
   return (
     <AppShell>
       <NotificationPrompt />
+
+      <AnnouncementBanner />
 
       {!loading && !checklistDismissed && (
         <GettingStartedChecklist
