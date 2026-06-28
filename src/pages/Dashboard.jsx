@@ -363,7 +363,7 @@ export default function Dashboard() {
   const monthLabel = formatMonth(now);
   const isThisMonth = (dateStr) => {
     if (!dateStr) return false;
-    const d = new Date(dateStr);
+    const d = new Date(`${dateStr}T00:00:00`);
     return (
       d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
     );
