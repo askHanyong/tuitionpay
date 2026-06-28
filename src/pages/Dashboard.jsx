@@ -30,11 +30,11 @@ const ANNOUNCEMENT = {
   id: "announcement-jul-2026",
   headline: "What's new in ChopeAndPay ✨",
   bullets: [
-    "📅 Google Calendar sync — lessons you log now appear automatically in your Google Calendar, complete with the student's home address. Connect in Settings!",
     "🗓️ Smarter lesson scheduling — set recurring lessons to end after X lessons or by a specific date, with a preview before confirming",
     "📤 Export your data — download your full lesson and payment history as CSV from Settings",
     "🔗 Student payment page — share a payment summary link with your students or parents directly from their profile",
     "💰 Clearer payment tracking — payment status now shows exactly what's due, what's upcoming, and what's been collected",
+    "🔜 Coming soon: Google Calendar sync — your lessons will automatically appear in your Google Calendar. Stay tuned!",
   ],
 };
 
