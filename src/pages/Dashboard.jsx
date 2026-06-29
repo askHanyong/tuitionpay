@@ -464,6 +464,9 @@ export default function Dashboard() {
   }, 0);
   const pendingThisMonth =
     pendingFromCyclesThisMonth + pendingFromMidCycleLessonsThisMonth;
+  const lessonsCompletedThisMonth = lessons.filter(
+    (l) => l.is_completed && isThisMonth(l.lesson_date),
+  ).length;
 
   const paymentStatusByStudent = new Map();
   for (const s of students) {
@@ -613,6 +616,29 @@ export default function Dashboard() {
   return (
     <AppShell>
       <NotificationPrompt />
+
+      <div className="grid grid-cols-2 gap-3 rounded-xl bg-green-700 p-4 text-white shadow-sm sm:grid-cols-4">
+        <div>
+          <p className="text-2xl font-semibold">{students.length}</p>
+          <p className="text-xs text-green-100">Active students</p>
+        </div>
+        <div>
+          <p className="text-2xl font-semibold">{lessonsCompletedThisMonth}</p>
+          <p className="text-xs text-green-100">Lessons this month</p>
+        </div>
+        <div>
+          <p className="text-2xl font-semibold">
+            {formatSGD(collectedThisMonth)}
+          </p>
+          <p className="text-xs text-green-100">Collected this month</p>
+        </div>
+        <div>
+          <p className="text-2xl font-semibold">
+            {formatSGD(pendingFromCyclesThisMonth)}
+          </p>
+          <p className="text-xs text-green-100">Pending this month</p>
+        </div>
+      </div>
 
       <AnnouncementBanner />
 
