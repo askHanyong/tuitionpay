@@ -634,7 +634,7 @@ export default function Dashboard() {
         </div>
         <div>
           <p className="text-2xl font-semibold">
-            {formatSGD(pendingFromCyclesThisMonth)}
+            {formatSGD(pendingThisMonth)}
           </p>
           <p className="text-xs text-green-100">Pending this month</p>
         </div>
