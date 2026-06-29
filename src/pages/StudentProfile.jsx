@@ -196,6 +196,31 @@ export default function StudentProfile() {
     0,
   );
 
+  const lessonStats = useMemo(() => {
+    const now = new Date();
+    const completed = lessons.filter((l) => l.is_completed);
+    const thisMonth = completed.filter((l) => {
+      const d = new Date(`${l.lesson_date}T00:00:00`);
+      return (
+        d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+      );
+    });
+    const thisYear = completed.filter((l) => {
+      const d = new Date(`${l.lesson_date}T00:00:00`);
+      return d.getFullYear() === now.getFullYear();
+    });
+    const earned = completed.reduce(
+      (sum, l) => sum + lessonAmount(l, student),
+      0,
+    );
+    return {
+      totalCount: completed.length,
+      monthCount: thisMonth.length,
+      yearCount: thisYear.length,
+      earned,
+    };
+  }, [lessons, student]);
+
   const lessonDatesByCycle = useMemo(() => {
     const map = new Map();
     for (const c of cycles) {
@@ -373,6 +398,41 @@ export default function StudentProfile() {
                 Archive student
               </button>
             )}
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-lg bg-green-50 p-3 text-center">
+            <p className="text-xl font-semibold text-green-800">
+              {lessonStats.totalCount}
+            </p>
+            <p className="mt-0.5 text-xs font-medium text-green-700">
+              Total lessons
+            </p>
+          </div>
+          <div className="rounded-lg bg-green-50 p-3 text-center">
+            <p className="text-xl font-semibold text-green-800">
+              {lessonStats.monthCount}
+            </p>
+            <p className="mt-0.5 text-xs font-medium text-green-700">
+              This month
+            </p>
+          </div>
+          <div className="rounded-lg bg-green-50 p-3 text-center">
+            <p className="text-xl font-semibold text-green-800">
+              {lessonStats.yearCount}
+            </p>
+            <p className="mt-0.5 text-xs font-medium text-green-700">
+              This year
+            </p>
+          </div>
+          <div className="rounded-lg bg-green-50 p-3 text-center">
+            <p className="text-xl font-semibold text-green-800">
+              {formatSGD(lessonStats.earned)}
+            </p>
+            <p className="mt-0.5 text-xs font-medium text-green-700">
+              Total earned
+            </p>
           </div>
         </div>
       </section>
