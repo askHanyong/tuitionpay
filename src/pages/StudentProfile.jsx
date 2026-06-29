@@ -35,6 +35,26 @@ export default function StudentProfile() {
   const [preview, setPreview] = useState(null);
   const [reporting, setReporting] = useState(false);
 
+  const handleArchive = async () => {
+    if (
+      !window.confirm(
+        `Archive ${student.name}? They won't appear in your active list but their history is preserved.`,
+      )
+    )
+      return;
+    const { error } = await supabase
+      .from("students")
+      .update({ archived: true })
+      .eq("id", student.id)
+      .eq("tutor_id", user.id);
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    showToast("Student archived.");
+    navigate("/students");
+  };
+
   const handleSharePaymentSummary = async () => {
     const link = `https://chopeandpay.com/pay/${student.payment_token}`;
     try {
@@ -345,6 +365,14 @@ export default function StudentProfile() {
             >
               🔗 Share payment summary
             </button>
+            {!student.archived && (
+              <button
+                onClick={handleArchive}
+                className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-500 transition hover:bg-gray-100"
+              >
+                Archive student
+              </button>
+            )}
           </div>
         </div>
       </section>

@@ -66,6 +66,7 @@ export default function Students() {
   const [sortBy, setSortBy] = useState("payment_due");
   const [lastLessonByStudent, setLastLessonByStudent] = useState({});
   const [paymentStatusByStudent, setPaymentStatusByStudent] = useState({});
+  const [view, setView] = useState("active");
 
   const refreshLessonsFor = async (studentId) => {
     const { data } = await supabase
@@ -406,6 +407,45 @@ export default function Students() {
     showToast("Student deleted.");
   };
 
+  const handleArchive = async (student) => {
+    if (
+      !window.confirm(
+        `Archive ${student.name}? They won't appear in your active list but their history is preserved.`,
+      )
+    )
+      return;
+    setError(null);
+    const { error } = await supabase
+      .from("students")
+      .update({ archived: true })
+      .eq("id", student.id)
+      .eq("tutor_id", user.id);
+    if (error) {
+      setError(error.message);
+      showToast(error.message, "error");
+      return;
+    }
+    if (editingId === student.id) resetForm();
+    await loadStudents();
+    showToast("Student archived.");
+  };
+
+  const handleUnarchive = async (student) => {
+    setError(null);
+    const { error } = await supabase
+      .from("students")
+      .update({ archived: false })
+      .eq("id", student.id)
+      .eq("tutor_id", user.id);
+    if (error) {
+      setError(error.message);
+      showToast(error.message, "error");
+      return;
+    }
+    await loadStudents();
+    showToast("Student unarchived.");
+  };
+
   const subjectsLabel = (studentId, fallback) =>
     (subjectsByStudent[studentId]?.length
       ? subjectsByStudent[studentId]
@@ -414,16 +454,21 @@ export default function Students() {
         : []
     ).join(" · ");
 
+  const archivedCount = students.filter((s) => s.archived).length;
+  const viewStudents = students.filter((s) =>
+    view === "archived" ? s.archived : !s.archived,
+  );
+
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filteredStudents = normalizedSearch
-    ? students.filter(
+    ? viewStudents.filter(
         (s) =>
           s.name?.toLowerCase().includes(normalizedSearch) ||
           subjectsLabel(s.id, s.subject)
             .toLowerCase()
             .includes(normalizedSearch),
       )
-    : students;
+    : viewStudents;
 
   const sortedStudents = [...filteredStudents].sort((a, b) => {
     switch (sortBy) {
@@ -691,6 +736,31 @@ export default function Students() {
           Your students
         </h2>
 
+        <div className="mb-4 flex gap-2 border-b border-gray-200">
+          <button
+            type="button"
+            onClick={() => setView("active")}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+              view === "active"
+                ? "border-green-600 text-green-700"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Active
+          </button>
+          <button
+            type="button"
+            onClick={() => setView("archived")}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+              view === "archived"
+                ? "border-green-600 text-green-700"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Archived ({archivedCount})
+          </button>
+        </div>
+
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-gray-400">
@@ -729,14 +799,18 @@ export default function Students() {
 
         {normalizedSearch && !loading && (
           <p className="mb-4 inline-block rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
-            Showing {sortedStudents.length} of {students.length} students
+            Showing {sortedStudents.length} of {viewStudents.length} students
           </p>
         )}
 
         {loading ? (
           <p className="text-sm text-gray-500">Loading...</p>
-        ) : students.length === 0 ? (
-          <p className="text-sm text-gray-500">No students yet.</p>
+        ) : viewStudents.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            {view === "archived"
+              ? "No archived students."
+              : "No students yet."}
+          </p>
         ) : sortedStudents.length === 0 ? (
           <p className="text-sm text-gray-500">
             🔍 No students found for &quot;{searchTerm.trim()}&quot; — try a
@@ -772,30 +846,49 @@ export default function Students() {
                     {progressFor(s).label}
                   </span>
                   <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={() => toggleLessons(s.id)}
-                      className="text-sm font-medium text-gray-700 hover:text-gray-900"
-                    >
-                      {expandedId === s.id ? "Hide lessons" : "View lessons"}
-                    </button>
-                    <button
-                      onClick={() => setScheduleStudent(s)}
-                      className="text-sm font-medium text-gray-700 hover:text-gray-900"
-                    >
-                      Schedule Lessons
-                    </button>
-                    <button
-                      onClick={() => handleEdit(s)}
-                      className="text-sm font-medium text-green-600 hover:text-green-700"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(s.id)}
-                      className="text-sm font-medium text-red-600 hover:text-red-700"
-                    >
-                      Delete
-                    </button>
+                    {view === "archived" ? (
+                      <button
+                        onClick={() => handleUnarchive(s)}
+                        className="text-sm font-medium text-green-600 hover:text-green-700"
+                      >
+                        Unarchive
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => toggleLessons(s.id)}
+                          className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                        >
+                          {expandedId === s.id
+                            ? "Hide lessons"
+                            : "View lessons"}
+                        </button>
+                        <button
+                          onClick={() => setScheduleStudent(s)}
+                          className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                        >
+                          Schedule Lessons
+                        </button>
+                        <button
+                          onClick={() => handleEdit(s)}
+                          className="text-sm font-medium text-green-600 hover:text-green-700"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleArchive(s)}
+                          className="text-sm font-medium text-gray-500 hover:text-gray-700"
+                        >
+                          Archive
+                        </button>
+                        <button
+                          onClick={() => handleDelete(s.id)}
+                          className="text-sm font-medium text-red-600 hover:text-red-700"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
                   </div>
                   {expandedId === s.id && (
                     <StudentLessonsPanel
@@ -847,32 +940,49 @@ export default function Students() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => toggleLessons(s.id)}
-                            className="mr-3 font-medium text-gray-700 hover:text-gray-900"
-                          >
-                            {expandedId === s.id
-                              ? "Hide lessons"
-                              : "View lessons"}
-                          </button>
-                          <button
-                            onClick={() => setScheduleStudent(s)}
-                            className="mr-3 font-medium text-gray-700 hover:text-gray-900"
-                          >
-                            Schedule Lessons
-                          </button>
-                          <button
-                            onClick={() => handleEdit(s)}
-                            className="mr-3 font-medium text-green-600 hover:text-green-700"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(s.id)}
-                            className="font-medium text-red-600 hover:text-red-700"
-                          >
-                            Delete
-                          </button>
+                          {view === "archived" ? (
+                            <button
+                              onClick={() => handleUnarchive(s)}
+                              className="font-medium text-green-600 hover:text-green-700"
+                            >
+                              Unarchive
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => toggleLessons(s.id)}
+                                className="mr-3 font-medium text-gray-700 hover:text-gray-900"
+                              >
+                                {expandedId === s.id
+                                  ? "Hide lessons"
+                                  : "View lessons"}
+                              </button>
+                              <button
+                                onClick={() => setScheduleStudent(s)}
+                                className="mr-3 font-medium text-gray-700 hover:text-gray-900"
+                              >
+                                Schedule Lessons
+                              </button>
+                              <button
+                                onClick={() => handleEdit(s)}
+                                className="mr-3 font-medium text-green-600 hover:text-green-700"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleArchive(s)}
+                                className="mr-3 font-medium text-gray-500 hover:text-gray-700"
+                              >
+                                Archive
+                              </button>
+                              <button
+                                onClick={() => handleDelete(s.id)}
+                                className="font-medium text-red-600 hover:text-red-700"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
                         </td>
                       </tr>
                       {expandedId === s.id && (

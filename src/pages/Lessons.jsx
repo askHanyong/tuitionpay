@@ -197,6 +197,7 @@ export default function Lessons() {
           .from("students")
           .select("*")
           .eq("tutor_id", user.id)
+          .eq("archived", false)
           .order("name"),
         supabase
           .from("lessons")

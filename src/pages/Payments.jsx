@@ -48,10 +48,18 @@ export default function Payments() {
         supabase.from("students").select("*").eq("tutor_id", user.id),
       ]);
     if (error) setError(error.message);
-    setCycles(data ?? []);
+    const archivedStudentIds = new Set(
+      (studentsData ?? []).filter((s) => s.archived).map((s) => s.id),
+    );
+    const activeCycles = (data ?? []).filter(
+      (c) => !archivedStudentIds.has(c.student_id),
+    );
+    setCycles(activeCycles);
     setTutorProfile(tutorData ?? {});
 
-    const studentIds = [...new Set((data ?? []).map((c) => c.student_id))];
+    const studentIds = [
+      ...new Set(activeCycles.map((c) => c.student_id)),
+    ];
     if (studentIds.length > 0) {
       const { data: lessonsData } = await supabase
         .from("lessons")
@@ -61,7 +69,7 @@ export default function Payments() {
         .eq("is_completed", true)
         .order("lesson_date", { ascending: true });
       const map = {};
-      for (const c of data ?? []) {
+      for (const c of activeCycles) {
         map[c.id] = (lessonsData ?? [])
           .filter(
             (l) =>
@@ -79,9 +87,9 @@ export default function Payments() {
     // so no payment_cycles row exists for them at all. Compute that directly
     // from lessons rather than relying on payment_cycles, since that table
     // only gets a row once the whole cycle has landed.
-    const students = studentsData ?? [];
+    const students = (studentsData ?? []).filter((s) => !s.archived);
     const pendingStudentIds = new Set(
-      (data ?? [])
+      activeCycles
         .filter((c) => c.status === "pending")
         .map((c) => c.student_id),
     );

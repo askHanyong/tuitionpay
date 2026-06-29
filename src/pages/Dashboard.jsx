@@ -145,13 +145,19 @@ export default function Dashboard() {
         .eq("tutor_id", user.id)
         .eq("is_completed", false),
     ]);
-    setStudents(studentsData ?? []);
-    setLessons(lessonsData ?? []);
-    setPaymentCycles(cyclesData ?? []);
-    setTodayLessons(todayData ?? []);
-    setTomorrowLessons(tomorrowData ?? []);
-    setScheduledLessons(scheduledData ?? []);
-    setHasScheduledLesson((scheduledData ?? []).length > 0);
+    const archivedStudentIds = new Set(
+      (studentsData ?? []).filter((s) => s.archived).map((s) => s.id),
+    );
+    const excludeArchived = (rows) =>
+      (rows ?? []).filter((r) => !archivedStudentIds.has(r.student_id));
+
+    setStudents((studentsData ?? []).filter((s) => !s.archived));
+    setLessons(excludeArchived(lessonsData));
+    setPaymentCycles(excludeArchived(cyclesData));
+    setTodayLessons(excludeArchived(todayData));
+    setTomorrowLessons(excludeArchived(tomorrowData));
+    setScheduledLessons(excludeArchived(scheduledData));
+    setHasScheduledLesson(excludeArchived(scheduledData).length > 0);
     setLoading(false);
   };
 
