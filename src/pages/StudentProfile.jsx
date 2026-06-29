@@ -153,17 +153,9 @@ export default function StudentProfile() {
   }, [lessons, isMonthlyBilled, isPerLesson, paymentCycleCount]);
 
   const completedLessons = lessons.filter((l) => l.is_completed);
-  const totalLessons = completedLessons.length;
-  const totalEarned = cycles
-    .filter((c) => c.status === "paid")
-    .reduce((sum, c) => sum + Number(c.amount_due), 0);
   const openLessons = completedLessons.filter((l) => !l.payment_cycle_id);
   const openCount = openLessons.length;
   const cycleCount = student?.payment_cycle_count ?? 4;
-  const cycleAmount = openLessons.reduce(
-    (sum, l) => sum + lessonAmount(l, student),
-    0,
-  );
   const currentCycleProgress = `Lesson ${Math.min(openCount, cycleCount)} of ${cycleCount}`;
   const lessonsThisMonth = useMemo(() => {
     const now = new Date();
@@ -174,27 +166,6 @@ export default function StudentProfile() {
       );
     }).length;
   }, [lessons]);
-  const openLessonsThisMonth = useMemo(() => {
-    const now = new Date();
-    return lessons.filter((l) => {
-      if (!l.is_completed || l.payment_cycle_id) return false;
-      const d = new Date(`${l.lesson_date}T00:00:00`);
-      return (
-        d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
-      );
-    });
-  }, [lessons]);
-  const openCountThisMonth = openLessonsThisMonth.length;
-  const openThisMonthAmount = openLessonsThisMonth.reduce(
-    (sum, l) => sum + lessonAmount(l, student),
-    0,
-  );
-  const monthLabel = formatMonth(new Date());
-  const unpaidPerLessonCycles = cycles.filter((c) => c.status === "pending");
-  const unpaidPerLessonAmount = unpaidPerLessonCycles.reduce(
-    (sum, c) => sum + Number(c.amount_due),
-    0,
-  );
 
   const lessonStats = useMemo(() => {
     const now = new Date();
@@ -436,63 +407,6 @@ export default function StudentProfile() {
           </div>
         </div>
       </section>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-gray-100 bg-white p-5 text-center shadow-sm transition hover:shadow-md">
-          <p className="text-2xl font-semibold text-gray-900">{totalLessons}</p>
-          <p className="mt-1 text-xs font-medium text-gray-500">
-            Total lessons taught
-          </p>
-        </div>
-        <div className="rounded-xl border border-gray-100 bg-white p-5 text-center shadow-sm transition hover:shadow-md">
-          <p className="text-2xl font-semibold text-green-700">
-            {formatSGD(totalEarned)}
-          </p>
-          <p className="mt-1 text-xs font-medium text-gray-500">
-            Total earned (paid)
-          </p>
-        </div>
-        <div className="rounded-xl border border-gray-100 bg-white p-5 text-center shadow-sm transition hover:shadow-md">
-          {isMonthlyBilled ? (
-            <>
-              <p className="text-2xl font-semibold text-gray-900">
-                {openCountThisMonth} lesson
-                {openCountThisMonth === 1 ? "" : "s"}
-              </p>
-              <p className="mt-1 text-xs font-medium text-gray-500">
-                {monthLabel} (end-of-month billing)
-              </p>
-              <p className="mt-1 text-xs text-gray-400">
-                {formatSGD(openThisMonthAmount)} accrued so far
-              </p>
-            </>
-          ) : isPerLesson ? (
-            <>
-              <p className="text-2xl font-semibold text-gray-900">
-                {unpaidPerLessonCycles.length} unpaid
-              </p>
-              <p className="mt-1 text-xs font-medium text-gray-500">
-                Billed after each lesson
-              </p>
-              <p className="mt-1 text-xs text-gray-400">
-                {formatSGD(unpaidPerLessonAmount)} outstanding
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-2xl font-semibold text-gray-900">
-                {Math.min(openCount, cycleCount)}/{cycleCount}
-              </p>
-              <p className="mt-1 text-xs font-medium text-gray-500">
-                Current cycle progress
-              </p>
-              <p className="mt-1 text-xs text-gray-400">
-                {formatSGD(cycleAmount)} due at completion
-              </p>
-            </>
-          )}
-        </div>
-      </div>
 
       <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
         <h2 className="mb-4 text-base font-semibold text-gray-900">
