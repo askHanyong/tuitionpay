@@ -298,7 +298,7 @@ export default function MonthlyRecapCard({
             {formatSGD(current.total)}
           </p>
           <p className="mt-1 text-xs font-medium text-gray-600">
-            💰 Total earned
+            💰 Total projected
             {change != null && (
               <span
                 className={`ml-1 font-semibold ${
