@@ -74,6 +74,84 @@ function AnnouncementBanner() {
   );
 }
 
+const FEEDBACK_PROMPT_KEY = "feedback-prompt-shown";
+const FEEDBACK_PROMPT_THRESHOLD = 5;
+
+function FeedbackPromptCard({ lessonCount }) {
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const [hidden, setHidden] = useState(
+    () => localStorage.getItem(FEEDBACK_PROMPT_KEY) === "true",
+  );
+  const [text, setText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+
+  if (hidden || lessonCount < FEEDBACK_PROMPT_THRESHOLD) return null;
+
+  const dismiss = () => {
+    localStorage.setItem(FEEDBACK_PROMPT_KEY, "true");
+    setHidden(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+    setSubmitting(true);
+    const { error } = await supabase
+      .from("feedback")
+      .insert({ tutor_id: user.id, message: text.trim() });
+    setSubmitting(false);
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    localStorage.setItem(FEEDBACK_PROMPT_KEY, "true");
+    setDone(true);
+    setTimeout(() => setHidden(true), 2500);
+  };
+
+  return (
+    <div className="relative rounded-xl border border-[#b8e8d9] bg-[#edf6f3] p-4 pr-10 shadow-sm sm:p-5">
+      <button
+        onClick={dismiss}
+        aria-label="Dismiss feedback prompt"
+        className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full text-[#0f7a58] hover:bg-[#d6ede6]"
+      >
+        ✕
+      </button>
+      {done ? (
+        <p className="text-sm font-medium text-[#0f7a58]">
+          ✅ Thanks for your feedback!
+        </p>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <p className="text-sm font-semibold text-[#0f1e35]">
+            💬 How&apos;s ChopeAndPay working for you?
+          </p>
+          <p className="text-sm text-[#1b2d4f]">
+            Anything you wish it did? We read every message.
+          </p>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Your thoughts..."
+            rows={3}
+            className="w-full rounded-md border border-[#93d9c4] bg-white px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+          />
+          <button
+            type="submit"
+            disabled={submitting || !text.trim()}
+            className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow disabled:opacity-50"
+          >
+            {submitting ? "Sending..." : "Send feedback"}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -686,6 +764,8 @@ export default function Dashboard() {
           </div>
 
           <AnnouncementBanner />
+
+          <FeedbackPromptCard lessonCount={lessons.length} />
 
           {!loading && !checklistDismissed && (
             <GettingStartedChecklist

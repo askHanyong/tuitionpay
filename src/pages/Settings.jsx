@@ -9,10 +9,6 @@ import {
   disconnectGoogleCalendar,
   isGoogleConnected,
 } from "../lib/googleCalendar";
-import {
-  buildFeedbackMailtoLink,
-  buildFeedbackWhatsAppLink,
-} from "../lib/feedback";
 import { formatDate } from "../utils/dateFormat";
 import { formatLessonTime } from "../lib/date";
 
@@ -93,6 +89,9 @@ export default function Settings() {
     notify_payment_due: true,
     notify_weekly_summary: true,
   });
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const [feedbackDone, setFeedbackDone] = useState(false);
 
   const loadGoogleStatus = async () => {
     const { data } = await supabase
@@ -161,6 +160,22 @@ export default function Settings() {
 
   const googleConnected = isGoogleConnected(googleTutor);
   const googleEmail = googleTutor?.google_calendar_tokens?.email;
+
+  const handleFeedbackSubmit = async (e) => {
+    e.preventDefault();
+    if (!feedbackText.trim()) return;
+    setFeedbackSubmitting(true);
+    const { error } = await supabase
+      .from("feedback")
+      .insert({ tutor_id: user.id, message: feedbackText.trim() });
+    setFeedbackSubmitting(false);
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    setFeedbackDone(true);
+    setFeedbackText("");
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -378,26 +393,29 @@ export default function Settings() {
       </section>
 
       <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
-        <h2 className="text-base font-semibold text-gray-900">Send Feedback</h2>
-        <p className="text-sm text-gray-600">
-          Got a suggestion or found a bug? We'd love to hear from you.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <a
-            href={buildFeedbackWhatsAppLink()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex min-h-11 items-center rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow"
-          >
-            💬 WhatsApp us
-          </a>
-          <a
-            href={buildFeedbackMailtoLink()}
-            className="flex min-h-11 items-center rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
-          >
-            ✉️ Send an email
-          </a>
-        </div>
+        <h2 className="text-base font-semibold text-gray-900">Send feedback</h2>
+        {feedbackDone ? (
+          <div className="flex items-center gap-2 rounded-md bg-[#edf6f3] px-4 py-3 text-sm font-medium text-[#0f7a58]">
+            ✅ Thanks for your feedback! It helps us improve ChopeAndPay.
+          </div>
+        ) : (
+          <form onSubmit={handleFeedbackSubmit} className="space-y-3">
+            <textarea
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+              placeholder="Got a suggestion or found a bug? Tell us anything — we read every message."
+              rows={4}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+            />
+            <button
+              type="submit"
+              disabled={feedbackSubmitting || !feedbackText.trim()}
+              className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow disabled:opacity-50"
+            >
+              {feedbackSubmitting ? "Sending..." : "Submit feedback"}
+            </button>
+          </form>
+        )}
       </section>
 
       <section className="space-y-3 rounded-md border border-gray-200 bg-white p-5">
