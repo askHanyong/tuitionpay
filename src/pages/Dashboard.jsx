@@ -467,10 +467,6 @@ export default function Dashboard() {
   const lessonsCompletedThisMonth = lessons.filter(
     (l) => l.is_completed && isThisMonth(l.lesson_date),
   ).length;
-  const pendingCyclesTotal = paymentCycles
-    .filter((c) => c.status === "pending")
-    .reduce((sum, c) => sum + Number(c.amount_due), 0);
-
   const paymentStatusByStudent = new Map();
   for (const s of students) {
     paymentStatusByStudent.set(
@@ -503,6 +499,9 @@ export default function Dashboard() {
   ).length;
   const overdueCount = overdueStudents.length;
   const upToDateCount = students.length - overdueCount - dueSoonCount;
+  const pendingCyclesTotal = [...paymentStatusByStudent.values()]
+    .filter((s) => s.tier === "red" || s.tier === "amber")
+    .reduce((sum, s) => sum + (s.amountDue ?? 0), 0);
 
   const todayLessonNumber = (lesson) =>
     lesson.is_completed
