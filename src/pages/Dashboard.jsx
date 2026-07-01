@@ -467,6 +467,9 @@ export default function Dashboard() {
   const lessonsCompletedThisMonth = lessons.filter(
     (l) => l.is_completed && isThisMonth(l.lesson_date),
   ).length;
+  const pendingCyclesTotal = paymentCycles
+    .filter((c) => c.status === "pending")
+    .reduce((sum, c) => sum + Number(c.amount_due), 0);
 
   const paymentStatusByStudent = new Map();
   for (const s of students) {
@@ -634,9 +637,9 @@ export default function Dashboard() {
         </div>
         <div>
           <p className="text-2xl font-semibold">
-            {formatSGD(pendingThisMonth)}
+            {formatSGD(pendingCyclesTotal)}
           </p>
-          <p className="text-xs text-green-100">Pending this month</p>
+          <p className="text-xs text-green-100">Pending payment</p>
         </div>
       </div>
 
