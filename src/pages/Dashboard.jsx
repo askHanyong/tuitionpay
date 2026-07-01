@@ -658,339 +658,385 @@ export default function Dashboard() {
     <AppShell>
       <NotificationPrompt />
 
-      <div className="grid grid-cols-2 gap-3 rounded-xl bg-[#1b2d4f] p-4 text-white shadow-sm sm:grid-cols-4">
-        <div>
-          <p className="text-2xl font-semibold">{students.length}</p>
-          <p className="text-xs text-[#5ecfaa]">Active students</p>
-        </div>
-        <div>
-          <p className="text-2xl font-semibold">{lessonsCompletedThisMonth}</p>
-          <p className="text-xs text-[#5ecfaa]">Lessons this month</p>
-        </div>
-        <div>
-          <p className="text-2xl font-semibold">
-            {formatSGD(collectedThisMonth)}
-          </p>
-          <p className="text-xs text-[#5ecfaa]">Collected this month</p>
-        </div>
-        <div>
-          <p className="text-2xl font-semibold">
-            {formatSGD(allPendingAmount)}
-          </p>
-          <p className="text-xs text-[#5ecfaa]">Pending payment</p>
-        </div>
-      </div>
-
-      <AnnouncementBanner />
-
-      {!loading && !checklistDismissed && (
-        <GettingStartedChecklist
-          tutorId={user.id}
-          hasStudent={students.length > 0}
-          hasScheduledLesson={hasScheduledLesson}
-          hasCompletedLesson={lessons.length > 0}
-          hasPaidCycle={paymentCycles.some((c) => c.status === "paid")}
-          dismissed={checklistDismissed}
-          onDismissed={() => setChecklistDismissed(true)}
-        />
-      )}
-
-      <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-        <h2 className="mb-4 text-base font-semibold text-gray-900">
-          Today&apos;s lessons
-        </h2>
-        {loading ? (
-          <p className="text-sm text-gray-500">Loading...</p>
-        ) : todayLessons.length === 0 ? (
-          <p className="text-sm text-gray-500">
-            🎉 No lessons today — enjoy your day off!
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {todayLessons.map((l) => {
-              const done = l.is_completed;
-              return (
-                <li
-                  key={l.id}
-                  className="flex flex-col gap-3 rounded-lg border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      {l.students?.name}
-                      {l.lesson_time && ` · ${formatLessonTime(l.lesson_time)}`}
-                      {(l.subject ?? l.students?.subject) &&
-                        ` · ${l.subject ?? l.students?.subject}`}
-                    </p>
-                    <p className="mt-0.5 text-xs text-gray-500">
-                      {lessonBadgeLabel(l)}
-                    </p>
-                    {l.students?.address && (
-                      <p className="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
-                        <span>📍 {l.students.address}</span>
-                        <a
-                          href={buildGoogleMapsUrl(l.students.address)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
-                        >
-                          Open in Maps
-                        </a>
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => !done && handleMarkDone(l.id)}
-                    disabled={done}
-                    className={
-                      done
-                        ? "min-h-11 w-full rounded-md bg-gray-100 px-4 text-sm font-medium text-gray-500 sm:w-auto"
-                        : "min-h-11 w-full rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow sm:w-auto"
-                    }
-                  >
-                    {done ? "✓ Done" : "✅ Mark as Done"}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-
-        {!loading && tomorrowLessons.length > 0 && (
-          <p className="mt-4 text-xs text-gray-400">
-            Tomorrow:{" "}
-            {tomorrowLessons
-              .map(
-                (l) =>
-                  `${l.students?.name} at ${formatLessonTime(l.lesson_time)}`,
-              )
-              .join(" · ")}
-          </p>
-        )}
-      </section>
-
-      <MonthlyRecapCard
-        lessons={lessons}
-        paymentCycles={paymentCycles}
-        students={students}
-        scheduledLessons={scheduledLessons}
-        tutorName={user?.user_metadata?.full_name}
-        currentMonthPendingOverride={allPendingAmount}
-      />
-
-      {!loading && overdueStudents.length > 0 && (
-        <div className="rounded-xl border border-red-200 bg-red-50/60 p-5 shadow-sm">
-          <h2 className="mb-3 text-base font-semibold text-red-800">
-            ⚠️ Action needed — payments overdue
-          </h2>
-          <ul className="divide-y divide-red-200/70">
-            {overdueStudents.map((s) => {
-              const status = paymentStatusByStudent.get(s.id);
-              return (
-                <li
-                  key={s.id}
-                  className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <Link
-                      to={`/students/${s.id}`}
-                      className="text-sm font-medium text-gray-900 hover:text-[#1b2d4f]"
-                    >
-                      {s.name}
-                    </Link>
-                    <p className="mt-0.5 text-xs text-red-800">
-                      {status.label}
-                    </p>
-                  </div>
-                  {status.collectCycle && (
-                    <button
-                      onClick={() =>
-                        handleCollectPayment(status.collectCycle.id)
-                      }
-                      className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
-                    >
-                      Collect Payment
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md lg:col-span-7">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">
-              Student payment progress
-            </h2>
-            <Link
-              to="/students"
-              className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
-            >
-              Manage students →
-            </Link>
+      <div className="flex flex-col gap-6 md:flex-row md:items-start">
+        {/* ── LEFT PANEL — Today & upcoming (60%) ── */}
+        <div className="min-w-0 flex-1 space-y-6 md:flex-[3]">
+          {/* Summary banner */}
+          <div className="grid grid-cols-2 gap-3 rounded-xl bg-[#1b2d4f] p-4 text-white shadow-sm sm:grid-cols-4">
+            <div>
+              <p className="text-2xl font-semibold">{students.length}</p>
+              <p className="text-xs text-[#5ecfaa]">Active students</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold">{lessonsCompletedThisMonth}</p>
+              <p className="text-xs text-[#5ecfaa]">Lessons this month</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold">
+                {formatSGD(collectedThisMonth)}
+              </p>
+              <p className="text-xs text-[#5ecfaa]">Collected this month</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold">
+                {formatSGD(allPendingAmount)}
+              </p>
+              <p className="text-xs text-[#5ecfaa]">Pending payment</p>
+            </div>
           </div>
-          {!loading && students.length > 0 && (
-            <p className="mb-3 text-sm">
-              {overdueCount === 0 && dueSoonCount === 0 ? (
-                <span className="font-medium text-[#0f7a58]">
-                  ✅ All payments up to date
-                </span>
-              ) : (
-                <>
-                  <span className="font-medium text-red-600">
-                    🔴 {overdueCount} overdue
-                  </span>{" "}
-                  ·{" "}
-                  <span className="font-medium text-amber-600">
-                    ⚠️ {dueSoonCount} due soon
-                  </span>{" "}
-                  ·{" "}
-                  <span className="font-medium text-[#0f7a58]">
-                    ✅ {upToDateCount} up to date
-                  </span>
-                </>
-              )}
-            </p>
+
+          <AnnouncementBanner />
+
+          {!loading && !checklistDismissed && (
+            <GettingStartedChecklist
+              tutorId={user.id}
+              hasStudent={students.length > 0}
+              hasScheduledLesson={hasScheduledLesson}
+              hasCompletedLesson={lessons.length > 0}
+              hasPaidCycle={paymentCycles.some((c) => c.status === "paid")}
+              dismissed={checklistDismissed}
+              onDismissed={() => setChecklistDismissed(true)}
+            />
           )}
-          {loading ? (
-            <p className="text-sm text-gray-500">Loading...</p>
-          ) : students.length === 0 ? (
-            <p className="text-sm text-gray-500">No students yet.</p>
-          ) : (
-            <ul className="divide-y divide-gray-100">
-              {sortedStudents.map((s) => {
-                const status = paymentStatusByStudent.get(s.id);
-                const lastLessonDate = lastLessonByStudent.get(s.id);
-                return (
-                  <li
-                    key={s.id}
-                    className="flex flex-col gap-3 rounded-lg px-2 py-3 transition hover:bg-gray-50 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
+
+          {/* Today's lessons */}
+          <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+            <h2 className="mb-4 text-base font-semibold text-gray-900">
+              Today&apos;s lessons
+            </h2>
+            {loading ? (
+              <p className="text-sm text-gray-500">Loading...</p>
+            ) : todayLessons.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                🎉 No lessons today — enjoy your day off!
+              </p>
+            ) : (
+              <ul className="space-y-3">
+                {todayLessons.map((l) => {
+                  const done = l.is_completed;
+                  return (
+                    <li
+                      key={l.id}
+                      className="flex flex-col gap-3 rounded-lg border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          {l.students?.name}
+                          {l.lesson_time && ` · ${formatLessonTime(l.lesson_time)}`}
+                          {(l.subject ?? l.students?.subject) &&
+                            ` · ${l.subject ?? l.students?.subject}`}
+                        </p>
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          {lessonBadgeLabel(l)}
+                        </p>
+                        {l.students?.address && (
+                          <p className="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
+                            <span>📍 {l.students.address}</span>
+                            <a
+                              href={buildGoogleMapsUrl(l.students.address)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
+                            >
+                              Open in Maps
+                            </a>
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => !done && handleMarkDone(l.id)}
+                        disabled={done}
+                        className={
+                          done
+                            ? "min-h-11 w-full rounded-md bg-gray-100 px-4 text-sm font-medium text-gray-500 sm:w-auto"
+                            : "min-h-11 w-full rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow sm:w-auto"
+                        }
+                      >
+                        {done ? "✓ Done" : "✅ Mark as Done"}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {!loading && tomorrowLessons.length > 0 && (
+              <p className="mt-4 text-xs text-gray-400">
+                Tomorrow:{" "}
+                {tomorrowLessons
+                  .map(
+                    (l) =>
+                      `${l.students?.name} at ${formatLessonTime(l.lesson_time)}`,
+                  )
+                  .join(" · ")}
+              </p>
+            )}
+          </section>
+
+          {/* Monthly recap — mobile only (desktop version lives in right panel) */}
+          <div className="md:hidden">
+            <MonthlyRecapCard
+              lessons={lessons}
+              paymentCycles={paymentCycles}
+              students={students}
+              scheduledLessons={scheduledLessons}
+              tutorName={user?.user_metadata?.full_name}
+              currentMonthPendingOverride={allPendingAmount}
+            />
+          </div>
+
+          {/* Overdue notices */}
+          {!loading && overdueStudents.length > 0 && (
+            <div className="rounded-xl border border-red-200 bg-red-50/60 p-5 shadow-sm">
+              <h2 className="mb-3 text-base font-semibold text-red-800">
+                ⚠️ Action needed — payments overdue
+              </h2>
+              <ul className="divide-y divide-red-200/70">
+                {overdueStudents.map((s) => {
+                  const status = paymentStatusByStudent.get(s.id);
+                  return (
+                    <li
+                      key={s.id}
+                      className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
                         <Link
                           to={`/students/${s.id}`}
                           className="text-sm font-medium text-gray-900 hover:text-[#1b2d4f]"
                         >
                           {s.name}
                         </Link>
-                        {s.subject && (
-                          <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                            {s.subject}
-                          </span>
-                        )}
-                      </div>
-                      {(s.level || s.subject) && (
-                        <p className="mt-0.5 text-xs text-gray-400">
-                          {[s.level, s.subject].filter(Boolean).join(" ")}
+                        <p className="mt-0.5 text-xs text-red-800">
+                          {status.label}
                         </p>
+                      </div>
+                      {status.collectCycle && (
+                        <button
+                          onClick={() =>
+                            handleCollectPayment(status.collectCycle.id)
+                          }
+                          className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
+                        >
+                          Collect Payment
+                        </button>
                       )}
-                      <p className="mt-0.5 text-xs text-gray-400">
-                        {lastLessonDate
-                          ? `Last lesson: ${formatRelative(lastLessonDate, { includeTime: false })}`
-                          : "No lessons yet"}
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-1.5 sm:items-end">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                        <div className="flex items-center gap-3">
-                          {status.showProgressBar &&
-                            (() => {
-                              const cycleCount = s.payment_cycle_count ?? 4;
-                              const completedFrac =
-                                Math.min(
-                                  status.completedCount ?? 0,
-                                  cycleCount,
-                                ) / cycleCount;
-                              const scheduledFrac =
-                                Math.min(
-                                  (status.completedCount ?? 0) +
-                                    (status.scheduledCount ?? 0),
-                                  cycleCount,
-                                ) /
-                                  cycleCount -
-                                completedFrac;
-                              return (
-                                <div
-                                  title={`${formatSGD(status.cycleAmount ?? 0)} due at completion`}
-                                  className="flex h-2 w-full max-w-40 flex-1 overflow-hidden rounded-full bg-gray-100 sm:w-24 sm:flex-none"
-                                >
-                                  <div
-                                    className="h-full bg-[#1b2d4f]"
-                                    style={{ width: `${completedFrac * 100}%` }}
-                                  />
-                                  <div
-                                    className="h-full bg-[#b8e8d9]"
-                                    style={{
-                                      width: `${scheduledFrac * 100}%`,
-                                      backgroundImage:
-                                        "repeating-linear-gradient(45deg, #5ecfaa 0, #5ecfaa 2px, transparent 2px, transparent 6px)",
-                                    }}
-                                  />
-                                </div>
-                              );
-                            })()}
-                          {status.badge && (
-                            <span
-                              className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${TIER_BADGE_CLASSES[status.tier]}`}
-                            >
-                              {status.badge}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {/* Student payment progress */}
+          <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">
+                Student payment progress
+              </h2>
+              <Link
+                to="/students"
+                className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
+              >
+                Manage students →
+              </Link>
+            </div>
+            {!loading && students.length > 0 && (
+              <p className="mb-3 text-sm">
+                {overdueCount === 0 && dueSoonCount === 0 ? (
+                  <span className="font-medium text-[#0f7a58]">
+                    ✅ All payments up to date
+                  </span>
+                ) : (
+                  <>
+                    <span className="font-medium text-red-600">
+                      🔴 {overdueCount} overdue
+                    </span>{" "}
+                    ·{" "}
+                    <span className="font-medium text-amber-600">
+                      ⚠️ {dueSoonCount} due soon
+                    </span>{" "}
+                    ·{" "}
+                    <span className="font-medium text-[#0f7a58]">
+                      ✅ {upToDateCount} up to date
+                    </span>
+                  </>
+                )}
+              </p>
+            )}
+            {loading ? (
+              <p className="text-sm text-gray-500">Loading...</p>
+            ) : students.length === 0 ? (
+              <p className="text-sm text-gray-500">No students yet.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {sortedStudents.map((s) => {
+                  const status = paymentStatusByStudent.get(s.id);
+                  const lastLessonDate = lastLessonByStudent.get(s.id);
+                  return (
+                    <li
+                      key={s.id}
+                      className="flex flex-col gap-3 rounded-lg px-2 py-3 transition hover:bg-gray-50 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Link
+                            to={`/students/${s.id}`}
+                            className="text-sm font-medium text-gray-900 hover:text-[#1b2d4f]"
+                          >
+                            {s.name}
+                          </Link>
+                          {s.subject && (
+                            <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                              {s.subject}
                             </span>
                           )}
                         </div>
-                        {status.collectCycle && (
-                          <button
-                            onClick={() =>
-                              handleCollectPayment(status.collectCycle.id)
-                            }
-                            className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
+                        {(s.level || s.subject) && (
+                          <p className="mt-0.5 text-xs text-gray-400">
+                            {[s.level, s.subject].filter(Boolean).join(" ")}
+                          </p>
+                        )}
+                        <p className="mt-0.5 text-xs text-gray-400">
+                          {lastLessonDate
+                            ? `Last lesson: ${formatRelative(lastLessonDate, { includeTime: false })}`
+                            : "No lessons yet"}
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-1.5 sm:items-end">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                          <div className="flex items-center gap-3">
+                            {status.showProgressBar &&
+                              (() => {
+                                const cycleCount = s.payment_cycle_count ?? 4;
+                                const completedFrac =
+                                  Math.min(
+                                    status.completedCount ?? 0,
+                                    cycleCount,
+                                  ) / cycleCount;
+                                const scheduledFrac =
+                                  Math.min(
+                                    (status.completedCount ?? 0) +
+                                      (status.scheduledCount ?? 0),
+                                    cycleCount,
+                                  ) /
+                                    cycleCount -
+                                  completedFrac;
+                                return (
+                                  <div
+                                    title={`${formatSGD(status.cycleAmount ?? 0)} due at completion`}
+                                    className="flex h-2 w-full max-w-40 flex-1 overflow-hidden rounded-full bg-gray-100 sm:w-24 sm:flex-none"
+                                  >
+                                    <div
+                                      className="h-full bg-[#1b2d4f]"
+                                      style={{ width: `${completedFrac * 100}%` }}
+                                    />
+                                    <div
+                                      className="h-full bg-[#b8e8d9]"
+                                      style={{
+                                        width: `${scheduledFrac * 100}%`,
+                                        backgroundImage:
+                                          "repeating-linear-gradient(45deg, #5ecfaa 0, #5ecfaa 2px, transparent 2px, transparent 6px)",
+                                      }}
+                                    />
+                                  </div>
+                                );
+                              })()}
+                            {status.badge && (
+                              <span
+                                className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${TIER_BADGE_CLASSES[status.tier]}`}
+                              >
+                                {status.badge}
+                              </span>
+                            )}
+                          </div>
+                          {status.collectCycle && (
+                            <button
+                              onClick={() =>
+                                handleCollectPayment(status.collectCycle.id)
+                              }
+                              className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
+                            >
+                              Collect Payment
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500">{status.label}</p>
+                        {status.nextPaymentInfo && (
+                          <p
+                            className={`text-xs ${status.nextPaymentInfo.tone === "red" ? "text-red-700" : "text-gray-500"}`}
                           >
-                            Collect Payment
-                          </button>
+                            {status.nextPaymentInfo.text}
+                          </p>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500">{status.label}</p>
-                      {status.nextPaymentInfo && (
-                        <p
-                          className={`text-xs ${status.nextPaymentInfo.tone === "red" ? "text-red-700" : "text-gray-500"}`}
-                        >
-                          {status.nextPaymentInfo.text}
-                        </p>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
 
-        <div className="grid grid-cols-1 gap-6 lg:col-span-5 xl:grid-cols-2">
-          {!loading && (
-            <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md xl:order-2">
-              <h2 className="mb-3 text-base font-semibold text-gray-900">
-                {monthLabel} earnings
+          {/* Payment cycles */}
+          <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">
+                Payment cycles
               </h2>
-              <p className="text-sm text-gray-700">
-                <span className="font-medium text-[#0f7a58]">
-                  ✅ Collected: {formatSGD(collectedThisMonth)}
-                </span>
-                {" · "}
-                <span className="font-medium text-amber-700">
-                  ⏳ Pending: {formatSGD(pendingThisMonth)}
-                </span>
-                {" · "}
-                <span className="font-semibold text-gray-900">
-                  Total: {formatSGD(collectedThisMonth + pendingThisMonth)}
-                </span>
-              </p>
-            </section>
-          )}
+              <Link
+                to="/payments"
+                className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
+              >
+                {pendingCount > 0
+                  ? `${pendingCount} notice${pendingCount > 1 ? "s" : ""} due →`
+                  : "View payments →"}
+              </Link>
+            </div>
+            {loading ? (
+              <p className="text-sm text-gray-500">Loading...</p>
+            ) : paymentCycles.length === 0 ? (
+              <p className="text-sm text-gray-500">No payment cycles yet.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {[
+                  ...paymentCycles.filter((c) => c.status !== "paid"),
+                  ...paymentCycles.filter((c) => c.status === "paid"),
+                ].map((c) => (
+                  <li
+                    key={c.id}
+                    className="flex items-center justify-between gap-3 rounded-lg px-2 py-3 transition hover:bg-gray-50"
+                  >
+                    <span className="text-sm text-gray-700">
+                      {c.students?.name}
+                    </span>
+                    <span className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-gray-900">
+                        {formatSGD(c.amount_due)}
+                      </span>
+                      <StatusBadge status={c.status} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
 
-          <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md xl:order-1">
+        {/* ── RIGHT PANEL — Money (40%) ── */}
+        <div className="space-y-6 md:sticky md:top-4 md:flex-none md:w-[40%] md:self-start">
+          {/* Monthly recap — desktop only (mobile version is in left panel) */}
+          <div className="hidden md:block">
+            <MonthlyRecapCard
+              lessons={lessons}
+              paymentCycles={paymentCycles}
+              students={students}
+              scheduledLessons={scheduledLessons}
+              tutorName={user?.user_metadata?.full_name}
+              currentMonthPendingOverride={allPendingAmount}
+            />
+          </div>
+
+          {/* Upcoming lessons */}
+          <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-semibold text-gray-900">
                 Upcoming Lessons
@@ -1031,51 +1077,30 @@ export default function Dashboard() {
               </ul>
             )}
           </section>
+
+          {/* Earnings */}
+          {!loading && (
+            <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+              <h2 className="mb-3 text-base font-semibold text-gray-900">
+                {monthLabel} earnings
+              </h2>
+              <p className="text-sm text-gray-700">
+                <span className="font-medium text-[#0f7a58]">
+                  ✅ Collected: {formatSGD(collectedThisMonth)}
+                </span>
+                {" · "}
+                <span className="font-medium text-amber-700">
+                  ⏳ Pending: {formatSGD(pendingThisMonth)}
+                </span>
+                {" · "}
+                <span className="font-semibold text-gray-900">
+                  Total: {formatSGD(collectedThisMonth + pendingThisMonth)}
+                </span>
+              </p>
+            </section>
+          )}
         </div>
       </div>
-
-      <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">
-            Payment cycles
-          </h2>
-          <Link
-            to="/payments"
-            className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
-          >
-            {pendingCount > 0
-              ? `${pendingCount} notice${pendingCount > 1 ? "s" : ""} due →`
-              : "View payments →"}
-          </Link>
-        </div>
-        {loading ? (
-          <p className="text-sm text-gray-500">Loading...</p>
-        ) : paymentCycles.length === 0 ? (
-          <p className="text-sm text-gray-500">No payment cycles yet.</p>
-        ) : (
-          <ul className="divide-y divide-gray-100">
-            {[
-              ...paymentCycles.filter((c) => c.status !== "paid"),
-              ...paymentCycles.filter((c) => c.status === "paid"),
-            ].map((c) => (
-              <li
-                key={c.id}
-                className="flex items-center justify-between gap-3 rounded-lg px-2 py-3 transition hover:bg-gray-50"
-              >
-                <span className="text-sm text-gray-700">
-                  {c.students?.name}
-                </span>
-                <span className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-gray-900">
-                    {formatSGD(c.amount_due)}
-                  </span>
-                  <StatusBadge status={c.status} />
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </AppShell>
   );
 }
