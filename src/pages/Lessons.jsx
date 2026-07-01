@@ -796,7 +796,7 @@ export default function Lessons() {
           Add a student first before logging lessons.{" "}
           <Link
             to="/students"
-            className="font-medium text-green-600 hover:text-green-700"
+            className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
           >
             Add a student →
           </Link>
@@ -819,7 +819,7 @@ export default function Lessons() {
                 required
                 value={form.student_id}
                 onChange={(e) => handleStudentChange(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               >
                 {students.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -838,7 +838,7 @@ export default function Lessons() {
                   required
                   value={form.subject_id}
                   onChange={(e) => handleSubjectChange(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                 >
                   {subjectsByStudent[form.student_id].map((s) => (
                     <option key={s.id} value={s.id}>
@@ -860,7 +860,7 @@ export default function Lessons() {
                 onChange={(e) =>
                   setForm({ ...form, lesson_date: e.target.value })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
 
@@ -874,7 +874,7 @@ export default function Lessons() {
                 onChange={(e) =>
                   setForm({ ...form, lesson_time: e.target.value })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
 
@@ -891,7 +891,7 @@ export default function Lessons() {
                 onChange={(e) =>
                   setForm({ ...form, duration_hours: e.target.value })
                 }
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
 
@@ -905,7 +905,7 @@ export default function Lessons() {
                 step="0.01"
                 value={form.rate}
                 onChange={(e) => setForm({ ...form, rate: e.target.value })}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
 
@@ -918,13 +918,13 @@ export default function Lessons() {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 placeholder="e.g. Covered algebra chapter 3, struggling with fractions..."
                 rows={3}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
-          {info && <p className="text-sm text-green-600">{info}</p>}
+          {info && <p className="text-sm text-[#5ecfaa]">{info}</p>}
 
           {conflictWarning && (
             <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3">
@@ -957,7 +957,7 @@ export default function Lessons() {
             <button
               type="submit"
               disabled={submitting || checkingConflict}
-              className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow disabled:opacity-50"
+              className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow disabled:opacity-50"
               id="log-lesson-form-submit"
             >
               {checkingConflict
@@ -999,7 +999,7 @@ export default function Lessons() {
           <div className="flex gap-2">
             <button
               onClick={handleCopyNotice}
-              className="min-h-11 rounded-md bg-green-600 px-3 text-sm font-medium text-white hover:bg-green-700"
+              className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-sm font-medium text-white hover:bg-[#15243f]"
             >
               {copied ? "Copied!" : "Copy payment notice"}
             </button>
@@ -1087,7 +1087,7 @@ export default function Lessons() {
                     onClick={() => setStatusFilter(opt.value)}
                     className={`min-h-9 rounded-md px-3 text-sm font-medium transition ${
                       statusFilter === opt.value
-                        ? "bg-green-600 text-white"
+                        ? "bg-[#1b2d4f] text-white"
                         : "border border-gray-300 text-gray-700 hover:bg-gray-100"
                     }`}
                   >
@@ -1099,7 +1099,7 @@ export default function Lessons() {
                 <button
                   type="button"
                   onClick={handleClearFilters}
-                  className="text-sm font-medium text-green-700 hover:text-green-800"
+                  className="text-sm font-medium text-[#0f7a58] hover:text-[#0f1e35]"
                 >
                   Clear all filters
                 </button>
@@ -1130,7 +1130,7 @@ export default function Lessons() {
                   ?.closest("form")
                   ?.scrollIntoView({ behavior: "smooth", block: "center" });
               }}
-              className="flex min-h-11 items-center rounded-md bg-green-600 px-5 text-sm font-medium text-white hover:bg-green-700"
+              className="flex min-h-11 items-center rounded-md bg-[#1b2d4f] px-5 text-sm font-medium text-white hover:bg-[#15243f]"
             >
               Log Lesson
             </a>
@@ -1144,7 +1144,7 @@ export default function Lessons() {
             <button
               type="button"
               onClick={handleClearFilters}
-              className="flex min-h-11 items-center rounded-md bg-green-600 px-5 text-sm font-medium text-white hover:bg-green-700"
+              className="flex min-h-11 items-center rounded-md bg-[#1b2d4f] px-5 text-sm font-medium text-white hover:bg-[#15243f]"
             >
               Clear all filters
             </button>
@@ -1161,12 +1161,12 @@ export default function Lessons() {
                     <span className="flex flex-wrap items-center gap-2 font-medium text-gray-900">
                       <Link
                         to={`/students/${l.student_id}`}
-                        className="hover:text-green-700"
+                        className="hover:text-[#1b2d4f]"
                       >
                         {l.students?.name}
                       </Link>
                       {isLessonCompleted(l) ? (
-                        <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                        <span className="inline-block rounded-full bg-[#d6ede6] px-2 py-0.5 text-xs font-medium text-[#1b2d4f]">
                           Completed
                         </span>
                       ) : (
@@ -1193,7 +1193,7 @@ export default function Lessons() {
                     {!isLessonCompleted(l) ? (
                       <span className="text-gray-400">—</span>
                     ) : l.payment_cycle_id ? (
-                      <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                      <span className="inline-block rounded-full bg-[#d6ede6] px-2 py-0.5 text-xs font-medium text-[#1b2d4f]">
                         Paid
                       </span>
                     ) : (
@@ -1227,14 +1227,14 @@ export default function Lessons() {
                       <td className="px-4 py-3 text-gray-700">
                         <Link
                           to={`/students/${l.student_id}`}
-                          className="hover:text-green-700"
+                          className="hover:text-[#1b2d4f]"
                         >
                           {l.students?.name}
                         </Link>
                       </td>
                       <td className="px-4 py-3">
                         {isLessonCompleted(l) ? (
-                          <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                          <span className="inline-block rounded-full bg-[#d6ede6] px-2 py-0.5 text-xs font-medium text-[#1b2d4f]">
                             Completed
                           </span>
                         ) : (
@@ -1253,7 +1253,7 @@ export default function Lessons() {
                         {!isLessonCompleted(l) ? (
                           <span className="text-gray-400">—</span>
                         ) : l.payment_cycle_id ? (
-                          <span className="inline-block rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                          <span className="inline-block rounded-full bg-[#d6ede6] px-2 py-0.5 text-xs font-medium text-[#1b2d4f]">
                             Paid
                           </span>
                         ) : (

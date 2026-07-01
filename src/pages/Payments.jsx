@@ -523,7 +523,7 @@ export default function Payments() {
                   {c.status === "paid" && (
                     <button
                       onClick={() => handleSendReceipt(c)}
-                      className="mt-2 min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 hover:shadow"
+                      className="mt-2 min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
                     >
                       💬 Send WhatsApp Receipt
                     </button>
@@ -562,7 +562,7 @@ export default function Payments() {
                         {c.status === "paid" && (
                           <button
                             onClick={() => handleSendReceipt(c)}
-                            className="font-medium text-green-600 hover:text-green-700"
+                            className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
                           >
                             💬 Send WhatsApp Receipt
                           </button>

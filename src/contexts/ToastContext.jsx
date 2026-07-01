@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useState } from 'react'
 const ToastContext = createContext(null)
 
 const STYLES = {
-  success: 'bg-green-600',
+  success: 'bg-[#1b2d4f]',
   error: 'bg-red-600',
 }
 

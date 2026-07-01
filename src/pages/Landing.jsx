@@ -77,7 +77,7 @@ function PhoneMockup() {
             </p>
           </div>
           <div className="space-y-3 p-4">
-            <div className="rounded-lg bg-green-50 p-3">
+            <div className="rounded-lg bg-[#edf6f3] p-3">
               <p className="text-[10px] font-medium text-gray-500">
                 Today's lessons
               </p>
@@ -89,7 +89,7 @@ function PhoneMockup() {
               <p className="text-[10px] font-medium text-gray-500">
                 June recap
               </p>
-              <p className="mt-1 text-sm font-bold text-green-700">
+              <p className="mt-1 text-sm font-bold text-[#0f7a58]">
                 $2,840 collected
               </p>
             </div>
@@ -111,7 +111,7 @@ function PhoneMockup() {
                     {name}
                   </span>
                   <span className="h-1.5 w-16 overflow-hidden rounded-full bg-gray-100">
-                    <span className="block h-full w-2/3 rounded-full bg-green-500" />
+                    <span className="block h-full w-2/3 rounded-full bg-[#5ecfaa]" />
                   </span>
                 </div>
               ))}
@@ -132,11 +132,11 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-white">
-      <header className="border-b border-gray-100">
+      <header className="bg-[#1b2d4f]">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
           <Link
             to="/"
-            className="flex items-center gap-2 text-lg font-semibold text-gray-900"
+            className="flex items-center gap-2 text-lg font-semibold text-white"
           >
             <span aria-hidden="true">🍀</span>
             ChopeAndPay
@@ -144,25 +144,25 @@ export default function Landing() {
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
               to="/about"
-              className="min-h-11 rounded-md px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100 flex items-center"
+              className="min-h-11 rounded-md px-3 text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white flex items-center"
             >
               About
             </Link>
             <Link
               to="/faq"
-              className="min-h-11 rounded-md px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100 flex items-center"
+              className="min-h-11 rounded-md px-3 text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white flex items-center"
             >
               FAQ
             </Link>
             <Link
               to="/login"
-              className="min-h-11 rounded-md px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100 flex items-center"
+              className="min-h-11 rounded-md px-3 text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white flex items-center"
             >
               Log in
             </Link>
             <Link
               to="/login?mode=signup"
-              className="flex min-h-11 items-center rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
+              className="flex min-h-11 items-center rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow"
             >
               Sign up free
             </Link>
@@ -182,7 +182,7 @@ export default function Landing() {
             <div className="mt-8 flex justify-center lg:justify-start">
               <Link
                 to="/login?mode=signup"
-                className="flex min-h-12 items-center rounded-md bg-green-600 px-8 text-base font-semibold text-white shadow-lg transition hover:bg-green-700 hover:shadow-xl"
+                className="flex min-h-12 items-center rounded-md bg-[#1b2d4f] px-8 text-base font-semibold text-white shadow-lg transition hover:bg-[#15243f] hover:shadow-xl"
               >
                 Sign up free
               </Link>
@@ -259,14 +259,14 @@ export default function Landing() {
 
       <section className="py-16 sm:py-20">
         <div className="mx-auto max-w-xl px-4 text-center sm:px-6">
-          <div className="rounded-2xl border border-green-200 bg-green-50 p-8 shadow-sm">
+          <div className="rounded-2xl border border-[#b8e8d9] bg-[#edf6f3] p-8 shadow-sm">
             <h2 className="text-2xl font-bold text-gray-900">Free forever</h2>
             <p className="mt-2 text-sm text-gray-700">
               No credit card needed. Built for Singapore tutors.
             </p>
             <Link
               to="/login?mode=signup"
-              className="mt-6 flex min-h-12 items-center justify-center rounded-md bg-green-600 px-8 text-base font-semibold text-white shadow-lg transition hover:bg-green-700 hover:shadow-xl"
+              className="mt-6 flex min-h-12 items-center justify-center rounded-md bg-[#1b2d4f] px-8 text-base font-semibold text-white shadow-lg transition hover:bg-[#15243f] hover:shadow-xl"
             >
               Sign up free
             </Link>
@@ -294,11 +294,11 @@ export default function Landing() {
       </section>
 
       <section
-        style={{ backgroundColor: "#f0fdf4" }}
+        style={{ backgroundColor: "#edf6f3" }}
         className="py-16 sm:py-20"
       >
         <div className="mx-auto max-w-2xl px-4 sm:px-6">
-          <p className="text-xs font-semibold uppercase tracking-wide text-green-700">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#0f7a58]">
             Built by
           </p>
           <h2 className="mt-2 text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -328,7 +328,7 @@ export default function Landing() {
             ].map((c) => (
               <span
                 key={c}
-                className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800"
+                className="rounded-full bg-[#d6ede6] px-3 py-1 text-xs font-medium text-[#1b2d4f]"
               >
                 {c}
               </span>
@@ -340,7 +340,7 @@ export default function Landing() {
               href="https://wa.me/6580448247"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex min-h-11 items-center rounded-md bg-green-600 px-5 text-sm font-semibold text-white shadow-lg transition hover:bg-green-700 hover:shadow-xl"
+              className="flex min-h-11 items-center rounded-md bg-[#1b2d4f] px-5 text-sm font-semibold text-white shadow-lg transition hover:bg-[#15243f] hover:shadow-xl"
             >
               💬 WhatsApp Hanyong
             </a>
@@ -383,14 +383,14 @@ export default function Landing() {
                 href="https://wa.me/6580448247"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-medium text-green-600 hover:text-green-700"
+                className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
               >
                 WhatsApp us
               </a>{" "}
               or email{" "}
               <a
                 href="mailto:mathstutorlimhy@gmail.com"
-                className="font-medium text-green-600 hover:text-green-700"
+                className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
               >
                 mathstutorlimhy@gmail.com
               </a>

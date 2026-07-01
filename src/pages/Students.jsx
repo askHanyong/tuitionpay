@@ -529,7 +529,7 @@ export default function Students() {
             required
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 sm:max-w-sm"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa] sm:max-w-sm"
           />
         </div>
 
@@ -553,7 +553,7 @@ export default function Students() {
                   onChange={(e) =>
                     handleSubjectRowChange(index, "subject", e.target.value)
                   }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                 />
               </div>
               <div>
@@ -565,7 +565,7 @@ export default function Students() {
                   onChange={(e) =>
                     handleSubjectRowChange(index, "level", e.target.value)
                   }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                 >
                   <option value="">Select level...</option>
                   {LEVEL_OPTIONS.map((level) => (
@@ -591,7 +591,7 @@ export default function Students() {
                       e.target.value,
                     )
                   }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                 />
               </div>
               <div>
@@ -610,7 +610,7 @@ export default function Students() {
                       e.target.value,
                     )
                   }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                 />
               </div>
               <button
@@ -641,7 +641,7 @@ export default function Students() {
             value={form.address}
             onChange={(e) => setForm({ ...form, address: e.target.value })}
             placeholder="e.g. 123 Clementi Ave 3, #05-12, Singapore 120123"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
           />
         </div>
 
@@ -676,7 +676,7 @@ export default function Students() {
                         payment_cycle_count: e.target.value,
                       })
                     }
-                    className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                    className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                   />
                 )}
                 {opt.value === "custom_date" &&
@@ -689,7 +689,7 @@ export default function Students() {
                           payment_custom_day: e.target.value,
                         })
                       }
-                      className="rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      className="rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                     >
                       {Array.from({ length: 31 }, (_, i) => i + 1).map(
                         (day) => (
@@ -711,7 +711,7 @@ export default function Students() {
           <button
             type="submit"
             disabled={submitting}
-            className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow disabled:opacity-50"
+            className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow disabled:opacity-50"
           >
             {submitting
               ? "Saving..."
@@ -742,7 +742,7 @@ export default function Students() {
             onClick={() => setView("active")}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
               view === "active"
-                ? "border-green-600 text-green-700"
+                ? "border-[#1b2d4f] text-[#0f7a58]"
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -753,7 +753,7 @@ export default function Students() {
             onClick={() => setView("archived")}
             className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
               view === "archived"
-                ? "border-green-600 text-green-700"
+                ? "border-[#1b2d4f] text-[#0f7a58]"
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -771,7 +771,7 @@ export default function Students() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search students by name or subject..."
-              className="min-h-11 w-full rounded-md border border-gray-300 px-9 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              className="min-h-11 w-full rounded-md border border-gray-300 px-9 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
             />
             {searchTerm && (
               <button
@@ -787,7 +787,7 @@ export default function Students() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="min-h-11 rounded-md border border-gray-300 px-3 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500 sm:w-56"
+            className="min-h-11 rounded-md border border-gray-300 px-3 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa] sm:w-56"
           >
             {SORT_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -798,7 +798,7 @@ export default function Students() {
         </div>
 
         {normalizedSearch && !loading && (
-          <p className="mb-4 inline-block rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">
+          <p className="mb-4 inline-block rounded-full bg-[#d6ede6] px-3 py-1 text-xs font-medium text-[#1b2d4f]">
             Showing {sortedStudents.length} of {viewStudents.length} students
           </p>
         )}
@@ -827,7 +827,7 @@ export default function Students() {
                   <div className="mb-2 flex items-center justify-between">
                     <Link
                       to={`/students/${s.id}`}
-                      className="font-medium text-gray-900 hover:text-green-700"
+                      className="font-medium text-gray-900 hover:text-[#1b2d4f]"
                     >
                       {s.name}
                     </Link>
@@ -849,7 +849,7 @@ export default function Students() {
                     {view === "archived" ? (
                       <button
                         onClick={() => handleUnarchive(s)}
-                        className="text-sm font-medium text-green-600 hover:text-green-700"
+                        className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
                       >
                         Unarchive
                       </button>
@@ -871,7 +871,7 @@ export default function Students() {
                         </button>
                         <button
                           onClick={() => handleEdit(s)}
-                          className="text-sm font-medium text-green-600 hover:text-green-700"
+                          className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
                         >
                           Edit
                         </button>
@@ -918,7 +918,7 @@ export default function Students() {
                         <td className="px-4 py-3 text-gray-900">
                           <Link
                             to={`/students/${s.id}`}
-                            className="hover:text-green-700"
+                            className="hover:text-[#1b2d4f]"
                           >
                             {s.name}
                           </Link>
@@ -943,7 +943,7 @@ export default function Students() {
                           {view === "archived" ? (
                             <button
                               onClick={() => handleUnarchive(s)}
-                              className="font-medium text-green-600 hover:text-green-700"
+                              className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
                             >
                               Unarchive
                             </button>
@@ -965,7 +965,7 @@ export default function Students() {
                               </button>
                               <button
                                 onClick={() => handleEdit(s)}
-                                className="mr-3 font-medium text-green-600 hover:text-green-700"
+                                className="mr-3 font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
                               >
                                 Edit
                               </button>

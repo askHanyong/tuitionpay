@@ -15,8 +15,8 @@ import LessonDetailModal from "../components/LessonDetailModal";
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const PALETTE = [
-  "bg-green-100 text-green-700",
-  "bg-green-100 text-green-700",
+  "bg-[#d6ede6] text-[#0f7a58]",
+  "bg-[#d6ede6] text-[#0f7a58]",
   "bg-amber-100 text-amber-700",
   "bg-pink-100 text-pink-700",
   "bg-blue-100 text-blue-700",
@@ -28,8 +28,8 @@ const PALETTE = [
 // are scheduled but not yet completed, paired with a dotted border so
 // tutors can tell done vs upcoming apart at a glance.
 const MUTED_PALETTE = [
-  "bg-green-50 text-green-500 border border-dashed border-green-300",
-  "bg-green-50 text-green-500 border border-dashed border-green-300",
+  "bg-[#edf6f3] text-[#5ecfaa] border border-dashed border-[#93d9c4]",
+  "bg-[#edf6f3] text-[#5ecfaa] border border-dashed border-[#93d9c4]",
   "bg-amber-50 text-amber-500 border border-dashed border-amber-300",
   "bg-pink-50 text-pink-500 border border-dashed border-pink-300",
   "bg-blue-50 text-blue-500 border border-dashed border-blue-300",
@@ -411,14 +411,14 @@ export default function Calendar() {
                       }}
                       className={`flex min-h-16 flex-col items-stretch gap-0.5 rounded-md border p-1 text-left transition sm:min-h-20 lg:min-h-32 lg:gap-1 lg:rounded-lg lg:p-2 ${
                         isSelected
-                          ? "border-green-400 bg-green-50"
+                          ? "border-[#5ecfaa] bg-[#edf6f3]"
                           : "border-gray-100 hover:border-gray-200 hover:bg-gray-50 hover:shadow-sm"
                       } ${cell.isCurrentMonth ? "" : "opacity-40"}`}
                     >
                       <span
                         className={`text-xs font-medium lg:text-sm ${
                           isToday
-                            ? "flex h-5 w-5 items-center justify-center rounded-full bg-green-600 text-white lg:h-6 lg:w-6"
+                            ? "flex h-5 w-5 items-center justify-center rounded-full bg-[#1b2d4f] text-white lg:h-6 lg:w-6"
                             : "text-gray-700"
                         }`}
                       >
@@ -479,7 +479,7 @@ export default function Calendar() {
             </h2>
             <button
               onClick={handleLogLesson}
-              className="min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white hover:bg-green-700"
+              className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white hover:bg-[#15243f]"
             >
               + Log Lesson
             </button>
@@ -500,7 +500,7 @@ export default function Calendar() {
                 >
                   <Link
                     to={`/students/${l.student_id}`}
-                    className="text-sm font-medium text-gray-900 hover:text-green-700"
+                    className="text-sm font-medium text-gray-900 hover:text-[#1b2d4f]"
                   >
                     {l.students?.name}
                   </Link>
@@ -518,7 +518,7 @@ export default function Calendar() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => handleAddToCalendar(l)}
-                      className="text-xs font-medium text-green-600 hover:text-green-700"
+                      className="text-xs font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
                     >
                       📅 Add to Calendar
                     </button>

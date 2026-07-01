@@ -45,7 +45,7 @@ export default function MessagePreviewModal({
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={10}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
         />
 
         <div className="mt-4 flex justify-end gap-2">
@@ -58,7 +58,7 @@ export default function MessagePreviewModal({
           {mode === "whatsapp" && (
             <button
               onClick={handleSendWhatsApp}
-              className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
+              className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow"
             >
               💬 Open WhatsApp
             </button>

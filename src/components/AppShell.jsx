@@ -156,13 +156,13 @@ export default function AppShell({ children }) {
 
   return (
     <div className="min-h-screen bg-gray-50 lg:flex">
-      <aside className="hidden lg:flex lg:w-60 lg:flex-none lg:flex-col lg:border-r lg:border-gray-200 lg:bg-white">
+      <aside className="hidden lg:flex lg:w-60 lg:flex-none lg:flex-col lg:bg-[#1b2d4f]">
         <Link to="/dashboard" className="flex flex-col gap-1 px-6 py-5">
-          <span className="flex items-center gap-2 text-lg text-gray-900">
+          <span className="flex items-center gap-2 text-lg text-white">
             <CloverLogo className="h-9 w-9 flex-none" />
             <span className="font-medium">ChopeAndPay</span>
           </span>
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-[#5ecfaa]/70">
             Chope your slots. Track your lessons. Get paid on time.
           </span>
         </Link>
@@ -175,8 +175,8 @@ export default function AppShell({ children }) {
                 to={item.to}
                 className={
                   active
-                    ? "flex items-center gap-3 rounded-md bg-green-50 px-3 py-2.5 text-sm font-medium text-green-700"
-                    : "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900"
+                    ? "flex items-center gap-3 rounded-md bg-white/10 px-3 py-2.5 text-sm font-medium text-[#5ecfaa]"
+                    : "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white"
                 }
               >
                 <NavIcon name={item.icon} className="h-5 w-5 flex-none" />
@@ -185,11 +185,11 @@ export default function AppShell({ children }) {
             );
           })}
         </nav>
-        <div className="border-t border-gray-200 px-4 py-4">
-          <p className="mb-2 truncate text-xs text-gray-500">{user?.email}</p>
+        <div className="border-t border-white/10 px-4 py-4">
+          <p className="mb-2 truncate text-xs text-white/50">{user?.email}</p>
           <button
             onClick={signOut}
-            className="min-h-11 w-full rounded-md border border-gray-300 px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+            className="min-h-11 w-full rounded-md border border-white/20 px-3 text-sm font-medium text-white/80 transition hover:bg-white/10"
           >
             Sign out
           </button>
@@ -197,18 +197,18 @@ export default function AppShell({ children }) {
       </aside>
 
       <div className="flex-1">
-        <header className="border-b border-gray-200 bg-white lg:hidden">
+        <header className="bg-[#1b2d4f] lg:hidden">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
             <Link
               to="/dashboard"
-              className="flex items-center gap-2 text-lg text-gray-900"
+              className="flex items-center gap-2 text-lg text-white"
             >
               <CloverLogo className="h-9 w-9 flex-none" />
               <span className="font-medium">ChopeAndPay</span>
             </Link>
             <button
               onClick={() => setMenuOpen((open) => !open)}
-              className="flex h-11 w-11 items-center justify-center rounded-md border border-gray-300 text-gray-700"
+              className="flex h-11 w-11 items-center justify-center rounded-md border border-white/20 text-white"
               aria-label="Toggle menu"
               aria-expanded={menuOpen}
             >
@@ -245,7 +245,7 @@ export default function AppShell({ children }) {
           </div>
 
           {menuOpen && (
-            <nav className="border-t border-gray-200 bg-white px-4 py-3">
+            <nav className="border-t border-white/10 bg-[#1b2d4f] px-4 py-3">
               <div className="flex flex-col gap-1">
                 {NAV_ITEMS.map((item) => {
                   const active = pathname.startsWith(item.to);
@@ -256,8 +256,8 @@ export default function AppShell({ children }) {
                       onClick={() => setMenuOpen(false)}
                       className={
                         active
-                          ? "flex min-h-11 items-center gap-3 rounded-md bg-green-50 px-3 py-2.5 text-sm font-medium text-green-600"
-                          : "flex min-h-11 items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                          ? "flex min-h-11 items-center gap-3 rounded-md bg-white/10 px-3 py-2.5 text-sm font-medium text-[#5ecfaa]"
+                          : "flex min-h-11 items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white"
                       }
                     >
                       <NavIcon name={item.icon} className="h-5 w-5 flex-none" />
@@ -266,11 +266,11 @@ export default function AppShell({ children }) {
                   );
                 })}
               </div>
-              <div className="mt-3 flex items-center justify-between border-t border-gray-200 pt-3">
-                <span className="text-sm text-gray-500">{user?.email}</span>
+              <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-3">
+                <span className="text-sm text-white/50">{user?.email}</span>
                 <button
                   onClick={signOut}
-                  className="min-h-11 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                  className="min-h-11 rounded-md border border-white/20 px-3 py-1.5 text-sm font-medium text-white/80 hover:bg-white/10"
                 >
                   Sign out
                 </button>

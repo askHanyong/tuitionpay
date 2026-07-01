@@ -48,7 +48,7 @@ export default function PaymentSummary() {
       <div className="mx-auto max-w-xl">
         <Link
           to="/"
-          className="text-lg font-bold text-green-700 hover:text-green-800"
+          className="text-lg font-bold text-[#0f7a58] hover:text-[#0f1e35]"
         >
           🌿 ChopeAndPay
         </Link>
@@ -118,7 +118,7 @@ export default function PaymentSummary() {
                             <span
                               className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                                 isPaid
-                                  ? "bg-green-100 text-green-800"
+                                  ? "bg-[#d6ede6] text-[#1b2d4f]"
                                   : "bg-amber-100 text-amber-800"
                               }`}
                             >

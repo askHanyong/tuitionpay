@@ -42,7 +42,7 @@ const SECTIONS = [
             it at{" "}
             <Link
               to="/privacy"
-              className="font-medium text-green-600 hover:text-green-700"
+              className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
             >
               chopeandpay.com/privacy
             </Link>
@@ -108,7 +108,7 @@ function AccordionItem({ q, a, isOpen, onToggle }) {
         <svg
           className={
             isOpen
-              ? "h-5 w-5 flex-none rotate-180 text-green-600 transition-transform"
+              ? "h-5 w-5 flex-none rotate-180 text-[#5ecfaa] transition-transform"
               : "h-5 w-5 flex-none text-gray-400 transition-transform"
           }
           fill="none"
@@ -139,7 +139,7 @@ export default function Faq() {
       <div className="mx-auto max-w-2xl">
         <Link
           to="/"
-          className="text-sm font-medium text-green-600 hover:text-green-700"
+          className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
         >
           ← Back to Home
         </Link>
@@ -153,7 +153,7 @@ export default function Faq() {
         <div className="mt-8 space-y-10">
           {SECTIONS.map((section) => (
             <section key={section.title}>
-              <h2 className="text-lg font-semibold text-green-700">
+              <h2 className="text-lg font-semibold text-[#0f7a58]">
                 {section.title}
               </h2>
               <div className="mt-2">

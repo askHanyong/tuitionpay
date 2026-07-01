@@ -76,7 +76,7 @@ export default function ProgressReportModal({
             <select
               value={rangeOption}
               onChange={(e) => setRangeOption(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
             >
               {DATE_RANGE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -95,7 +95,7 @@ export default function ProgressReportModal({
               onChange={(e) => setNote(e.target.value)}
               placeholder={`e.g. ${student.name} has been making great progress with algebra. Keep practising the worksheets!`}
               rows={4}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
             />
           </div>
         </div>
@@ -103,7 +103,7 @@ export default function ProgressReportModal({
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <button
             onClick={handleGenerate}
-            className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
+            className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow"
           >
             📄 Generate PDF
           </button>

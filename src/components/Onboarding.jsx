@@ -118,9 +118,9 @@ export default function Onboarding({ onDismiss, onDone }) {
                   <span
                     className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                       done
-                        ? "bg-green-600 text-white"
+                        ? "bg-[#1b2d4f] text-white"
                         : active
-                          ? "bg-green-100 text-green-700 ring-2 ring-green-600"
+                          ? "bg-[#d6ede6] text-[#0f7a58] ring-2 ring-[#1b2d4f]"
                           : "bg-gray-100 text-gray-400"
                     }`}
                   >
@@ -128,7 +128,7 @@ export default function Onboarding({ onDismiss, onDone }) {
                   </span>
                   {stepNum < STEPS.length && (
                     <span
-                      className={`h-0.5 flex-1 ${done ? "bg-green-600" : "bg-gray-200"}`}
+                      className={`h-0.5 flex-1 ${done ? "bg-[#1b2d4f]" : "bg-gray-200"}`}
                     />
                   )}
                 </li>
@@ -159,7 +159,7 @@ export default function Onboarding({ onDismiss, onDone }) {
                 onChange={(e) =>
                   setStudentForm({ ...studentForm, name: e.target.value })
                 }
-                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
             <div>
@@ -172,7 +172,7 @@ export default function Onboarding({ onDismiss, onDone }) {
                 onChange={(e) =>
                   setStudentForm({ ...studentForm, subject: e.target.value })
                 }
-                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -191,7 +191,7 @@ export default function Onboarding({ onDismiss, onDone }) {
                       hourly_rate: e.target.value,
                     })
                   }
-                  className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                 />
               </div>
               <div>
@@ -209,7 +209,7 @@ export default function Onboarding({ onDismiss, onDone }) {
                       lesson_duration_hours: e.target.value,
                     })
                   }
-                  className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                 />
               </div>
             </div>
@@ -217,7 +217,7 @@ export default function Onboarding({ onDismiss, onDone }) {
             <button
               type="submit"
               disabled={submitting}
-              className="min-h-11 w-full rounded-md bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              className="min-h-11 w-full rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white hover:bg-[#15243f] disabled:opacity-50"
             >
               {submitting ? "Saving..." : "Add student"}
             </button>
@@ -240,7 +240,7 @@ export default function Onboarding({ onDismiss, onDone }) {
                 onChange={(e) =>
                   setLessonForm({ ...lessonForm, lesson_date: e.target.value })
                 }
-                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
             <div>
@@ -259,14 +259,14 @@ export default function Onboarding({ onDismiss, onDone }) {
                     duration_hours: e.target.value,
                   })
                 }
-                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="min-h-11 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             <button
               type="submit"
               disabled={submitting}
-              className="min-h-11 w-full rounded-md bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              className="min-h-11 w-full rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white hover:bg-[#15243f] disabled:opacity-50"
             >
               {submitting ? "Saving..." : "Log lesson"}
             </button>
@@ -285,7 +285,7 @@ export default function Onboarding({ onDismiss, onDone }) {
             </p>
             <button
               onClick={handleFinish}
-              className="min-h-11 w-full rounded-md bg-green-600 px-4 text-sm font-medium text-white hover:bg-green-700"
+              className="min-h-11 w-full rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white hover:bg-[#15243f]"
             >
               Go to Dashboard
             </button>

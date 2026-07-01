@@ -52,20 +52,20 @@ function AnnouncementBanner() {
   };
 
   return (
-    <div className="relative rounded-xl border border-green-200 bg-green-50 p-4 pr-10 shadow-sm sm:p-5">
+    <div className="relative rounded-xl border border-[#b8e8d9] bg-[#edf6f3] p-4 pr-10 shadow-sm sm:p-5">
       <button
         onClick={handleDismiss}
         aria-label="Dismiss announcement"
-        className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full text-green-700 hover:bg-green-100"
+        className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full text-[#0f7a58] hover:bg-[#d6ede6]"
       >
         ✕
       </button>
-      <p className="text-sm font-semibold text-green-900">
+      <p className="text-sm font-semibold text-[#0f1e35]">
         🍀 {ANNOUNCEMENT.headline}
       </p>
       <ul className="mt-2 space-y-1">
         {ANNOUNCEMENT.bullets.map((bullet) => (
-          <li key={bullet} className="text-sm text-green-800">
+          <li key={bullet} className="text-sm text-[#1b2d4f]">
             {bullet}
           </li>
         ))}
@@ -645,7 +645,7 @@ export default function Dashboard() {
           </p>
           <Link
             to="/students"
-            className="flex min-h-11 items-center rounded-md bg-green-600 px-5 text-sm font-medium text-white hover:bg-green-700"
+            className="flex min-h-11 items-center rounded-md bg-[#1b2d4f] px-5 text-sm font-medium text-white hover:bg-[#15243f]"
           >
             Add Student
           </Link>
@@ -658,26 +658,26 @@ export default function Dashboard() {
     <AppShell>
       <NotificationPrompt />
 
-      <div className="grid grid-cols-2 gap-3 rounded-xl bg-green-700 p-4 text-white shadow-sm sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 rounded-xl bg-[#1b2d4f] p-4 text-white shadow-sm sm:grid-cols-4">
         <div>
           <p className="text-2xl font-semibold">{students.length}</p>
-          <p className="text-xs text-green-100">Active students</p>
+          <p className="text-xs text-[#5ecfaa]">Active students</p>
         </div>
         <div>
           <p className="text-2xl font-semibold">{lessonsCompletedThisMonth}</p>
-          <p className="text-xs text-green-100">Lessons this month</p>
+          <p className="text-xs text-[#5ecfaa]">Lessons this month</p>
         </div>
         <div>
           <p className="text-2xl font-semibold">
             {formatSGD(collectedThisMonth)}
           </p>
-          <p className="text-xs text-green-100">Collected this month</p>
+          <p className="text-xs text-[#5ecfaa]">Collected this month</p>
         </div>
         <div>
           <p className="text-2xl font-semibold">
             {formatSGD(allPendingAmount)}
           </p>
-          <p className="text-xs text-green-100">Pending payment</p>
+          <p className="text-xs text-[#5ecfaa]">Pending payment</p>
         </div>
       </div>
 
@@ -732,7 +732,7 @@ export default function Dashboard() {
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="font-medium text-green-600 hover:text-green-700"
+                          className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
                         >
                           Open in Maps
                         </a>
@@ -745,7 +745,7 @@ export default function Dashboard() {
                     className={
                       done
                         ? "min-h-11 w-full rounded-md bg-gray-100 px-4 text-sm font-medium text-gray-500 sm:w-auto"
-                        : "min-h-11 w-full rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow sm:w-auto"
+                        : "min-h-11 w-full rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow sm:w-auto"
                     }
                   >
                     {done ? "✓ Done" : "✅ Mark as Done"}
@@ -794,7 +794,7 @@ export default function Dashboard() {
                   <div>
                     <Link
                       to={`/students/${s.id}`}
-                      className="text-sm font-medium text-gray-900 hover:text-green-700"
+                      className="text-sm font-medium text-gray-900 hover:text-[#1b2d4f]"
                     >
                       {s.name}
                     </Link>
@@ -807,7 +807,7 @@ export default function Dashboard() {
                       onClick={() =>
                         handleCollectPayment(status.collectCycle.id)
                       }
-                      className="min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 hover:shadow"
+                      className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
                     >
                       Collect Payment
                     </button>
@@ -827,7 +827,7 @@ export default function Dashboard() {
             </h2>
             <Link
               to="/students"
-              className="text-sm font-medium text-green-600 hover:text-green-700"
+              className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
             >
               Manage students →
             </Link>
@@ -835,7 +835,7 @@ export default function Dashboard() {
           {!loading && students.length > 0 && (
             <p className="mb-3 text-sm">
               {overdueCount === 0 && dueSoonCount === 0 ? (
-                <span className="font-medium text-green-700">
+                <span className="font-medium text-[#0f7a58]">
                   ✅ All payments up to date
                 </span>
               ) : (
@@ -848,7 +848,7 @@ export default function Dashboard() {
                     ⚠️ {dueSoonCount} due soon
                   </span>{" "}
                   ·{" "}
-                  <span className="font-medium text-green-700">
+                  <span className="font-medium text-[#0f7a58]">
                     ✅ {upToDateCount} up to date
                   </span>
                 </>
@@ -873,7 +873,7 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2">
                         <Link
                           to={`/students/${s.id}`}
-                          className="text-sm font-medium text-gray-900 hover:text-green-700"
+                          className="text-sm font-medium text-gray-900 hover:text-[#1b2d4f]"
                         >
                           {s.name}
                         </Link>
@@ -919,15 +919,15 @@ export default function Dashboard() {
                                   className="flex h-2 w-full max-w-40 flex-1 overflow-hidden rounded-full bg-gray-100 sm:w-24 sm:flex-none"
                                 >
                                   <div
-                                    className="h-full bg-green-600"
+                                    className="h-full bg-[#1b2d4f]"
                                     style={{ width: `${completedFrac * 100}%` }}
                                   />
                                   <div
-                                    className="h-full bg-green-200"
+                                    className="h-full bg-[#b8e8d9]"
                                     style={{
                                       width: `${scheduledFrac * 100}%`,
                                       backgroundImage:
-                                        "repeating-linear-gradient(45deg, #16a34a 0, #16a34a 2px, transparent 2px, transparent 6px)",
+                                        "repeating-linear-gradient(45deg, #5ecfaa 0, #5ecfaa 2px, transparent 2px, transparent 6px)",
                                     }}
                                   />
                                 </div>
@@ -946,7 +946,7 @@ export default function Dashboard() {
                             onClick={() =>
                               handleCollectPayment(status.collectCycle.id)
                             }
-                            className="min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 hover:shadow"
+                            className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
                           >
                             Collect Payment
                           </button>
@@ -975,7 +975,7 @@ export default function Dashboard() {
                 {monthLabel} earnings
               </h2>
               <p className="text-sm text-gray-700">
-                <span className="font-medium text-green-700">
+                <span className="font-medium text-[#0f7a58]">
                   ✅ Collected: {formatSGD(collectedThisMonth)}
                 </span>
                 {" · "}
@@ -997,7 +997,7 @@ export default function Dashboard() {
               </h2>
               <Link
                 to="/lessons"
-                className="text-sm font-medium text-green-600 hover:text-green-700"
+                className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
               >
                 Log a lesson →
               </Link>
@@ -1023,7 +1023,7 @@ export default function Dashboard() {
                         {formatDate(l.lesson_date)}
                       </p>
                     </div>
-                    <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
+                    <span className="rounded-full bg-[#edf6f3] px-2.5 py-1 text-xs font-medium text-[#0f7a58]">
                       {lessonBadgeLabel(l)}
                     </span>
                   </li>
@@ -1041,7 +1041,7 @@ export default function Dashboard() {
           </h2>
           <Link
             to="/payments"
-            className="text-sm font-medium text-green-600 hover:text-green-700"
+            className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
           >
             {pendingCount > 0
               ? `${pendingCount} notice${pendingCount > 1 ? "s" : ""} due →`

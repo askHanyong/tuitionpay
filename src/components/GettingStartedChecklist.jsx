@@ -56,10 +56,10 @@ export default function GettingStartedChecklist({
   if (celebrating) {
     return (
       <div
-        className="rounded-xl border-l-4 border-green-500 p-5 shadow-sm"
-        style={{ backgroundColor: "#f0fdf4" }}
+        className="rounded-xl border-l-4 border-[#5ecfaa] p-5 shadow-sm"
+        style={{ backgroundColor: "#edf6f3" }}
       >
-        <p className="text-sm font-medium text-green-800">
+        <p className="text-sm font-medium text-[#1b2d4f]">
           🎉 You&apos;re all set! You&apos;re ready to use ChopeAndPay like a
           pro.
         </p>
@@ -69,8 +69,8 @@ export default function GettingStartedChecklist({
 
   return (
     <div
-      className="rounded-xl border-l-4 border-green-500 p-5 shadow-sm"
-      style={{ backgroundColor: "#f0fdf4" }}
+      className="rounded-xl border-l-4 border-[#5ecfaa] p-5 shadow-sm"
+      style={{ backgroundColor: "#edf6f3" }}
     >
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-900">
@@ -81,9 +81,9 @@ export default function GettingStartedChecklist({
         </span>
       </div>
 
-      <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-green-100">
+      <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-[#d6ede6]">
         <div
-          className="h-full rounded-full bg-green-500 transition-all"
+          className="h-full rounded-full bg-[#5ecfaa] transition-all"
           style={{ width: `${(completedCount / STEPS.length) * 100}%` }}
         />
       </div>
@@ -93,7 +93,7 @@ export default function GettingStartedChecklist({
           <li key={step.key} className="flex items-center gap-2 text-sm">
             <span
               className={
-                stepDone[step.key] ? "text-green-600" : "text-gray-400"
+                stepDone[step.key] ? "text-[#5ecfaa]" : "text-gray-400"
               }
             >
               {stepDone[step.key] ? "☑" : "☐"}

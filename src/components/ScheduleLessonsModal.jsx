@@ -366,7 +366,7 @@ export default function ScheduleLessonsModal({
                 <select
                   value={subjectId}
                   onChange={(e) => setSubjectId(e.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                 >
                   {subjects.map((s) => (
                     <option key={s.id} value={s.id}>
@@ -384,7 +384,7 @@ export default function ScheduleLessonsModal({
               <select
                 value={dayOfWeek}
                 onChange={(e) => handleDayChange(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               >
                 {WEEKDAYS.map((d) => (
                   <option key={d} value={d}>
@@ -403,7 +403,7 @@ export default function ScheduleLessonsModal({
                 required
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
 
@@ -414,7 +414,7 @@ export default function ScheduleLessonsModal({
               <select
                 value={frequency}
                 onChange={(e) => setFrequency(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               >
                 <option value="weekly">Weekly</option>
                 <option value="fortnightly">Fortnightly</option>
@@ -430,7 +430,7 @@ export default function ScheduleLessonsModal({
                 required
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
 
@@ -441,7 +441,7 @@ export default function ScheduleLessonsModal({
                   name="endMode"
                   checked={endMode === "count"}
                   onChange={() => setEndMode("count")}
-                  className="h-4 w-4 text-green-600 focus:ring-green-500"
+                  className="h-4 w-4 text-[#5ecfaa] focus:ring-[#5ecfaa]"
                 />
                 End after ___ lessons
               </label>
@@ -453,7 +453,7 @@ export default function ScheduleLessonsModal({
                   onChange={(e) =>
                     setOccurrenceCount(parseInt(e.target.value, 10) || "")
                   }
-                  className="ml-6 w-32 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="ml-6 w-32 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                 />
               )}
 
@@ -463,7 +463,7 @@ export default function ScheduleLessonsModal({
                   name="endMode"
                   checked={endMode === "date"}
                   onChange={() => setEndMode("date")}
-                  className="h-4 w-4 text-green-600 focus:ring-green-500"
+                  className="h-4 w-4 text-[#5ecfaa] focus:ring-[#5ecfaa]"
                 />
                 End by date
               </label>
@@ -473,7 +473,7 @@ export default function ScheduleLessonsModal({
                   value={endDate}
                   min={startDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="ml-6 w-full max-w-[calc(100%-1.5rem)] rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                  className="ml-6 w-full max-w-[calc(100%-1.5rem)] rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                 />
               )}
             </div>
@@ -492,7 +492,7 @@ export default function ScheduleLessonsModal({
                 type="button"
                 onClick={handlePreview}
                 disabled={loadingPreview}
-                className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
+                className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] disabled:opacity-50"
               >
                 {loadingPreview ? "Checking..." : "Preview"}
               </button>
@@ -566,7 +566,7 @@ export default function ScheduleLessonsModal({
                       </>
                     )}
                     {!item.conflict && !item.excluded && (
-                      <span className="text-xs font-medium text-green-700">
+                      <span className="text-xs font-medium text-[#0f7a58]">
                         New
                       </span>
                     )}
@@ -605,7 +605,7 @@ export default function ScheduleLessonsModal({
                   type="button"
                   onClick={handleConfirm}
                   disabled={saving || createCount === 0}
-                  className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
+                  className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] disabled:opacity-50"
                 >
                   {saving ? "Scheduling..." : "Confirm and Schedule"}
                 </button>

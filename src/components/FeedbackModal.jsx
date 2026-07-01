@@ -37,7 +37,7 @@ export default function FeedbackModal({ onClose }) {
             href={buildFeedbackWhatsAppLink()}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition hover:border-green-300 hover:bg-green-50"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition hover:border-[#93d9c4] hover:bg-[#edf6f3]"
           >
             <span className="text-2xl">💬</span>
             <div>
@@ -47,7 +47,7 @@ export default function FeedbackModal({ onClose }) {
           </a>
           <a
             href={buildFeedbackMailtoLink()}
-            className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition hover:border-green-300 hover:bg-green-50"
+            className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 transition hover:border-[#93d9c4] hover:bg-[#edf6f3]"
           >
             <span className="text-2xl">✉️</span>
             <div>

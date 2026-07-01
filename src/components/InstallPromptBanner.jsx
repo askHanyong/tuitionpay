@@ -49,7 +49,7 @@ export default function InstallPromptBanner() {
       <div className="flex flex-none items-center gap-2">
         <button
           onClick={handleInstall}
-          className="min-h-9 rounded-md bg-green-600 px-3 text-sm font-medium text-white transition hover:bg-green-700"
+          className="min-h-9 rounded-md bg-[#1b2d4f] px-3 text-sm font-medium text-white transition hover:bg-[#15243f]"
         >
           Install
         </button>

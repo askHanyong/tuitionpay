@@ -13,7 +13,7 @@ export const TIER_BADGE_CLASSES = {
   amber: "bg-amber-100 text-amber-800",
   blue: "bg-blue-100 text-blue-800",
   grey: "bg-gray-100 text-gray-600",
-  green: "bg-green-100 text-green-800",
+  green: "bg-[#d6ede6] text-[#1b2d4f]",
 };
 
 export const TIER_BAR_CLASSES = {
@@ -21,7 +21,7 @@ export const TIER_BAR_CLASSES = {
   amber: "bg-amber-500",
   blue: "bg-blue-500",
   grey: "bg-gray-300",
-  green: "bg-green-500",
+  green: "bg-[#5ecfaa]",
 };
 
 function startOfDay(d) {

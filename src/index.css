@@ -2,6 +2,18 @@
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Brand palette — navy + mint */
+  --color-navy: #1b2d4f;
+  --color-navy-dark: #15243f;
+  --color-navy-deep: #0f1e35;
+  --color-mint: #5ecfaa;
+  --color-mint-muted: #45b585;
+  --color-mint-tint: #edf6f3;
+  --color-mint-light: #d6ede6;
+  --color-mint-border: #93d9c4;
+  --color-mint-border-light: #b8e8d9;
+  --color-success: #0f7a58;
 }
 
 body {

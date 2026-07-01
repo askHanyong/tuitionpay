@@ -82,7 +82,7 @@ export default function LessonDetailModal({
               href={buildGoogleMapsUrl(address)}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-medium text-green-600 hover:text-green-700"
+              className="text-xs font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
             >
               Open in Maps
             </a>
@@ -96,7 +96,7 @@ export default function LessonDetailModal({
         {isDone && lesson.students?.payment_mode === "per_lesson" && (
           <p
             className={`mt-3 text-sm font-medium ${
-              isPaid ? "text-green-700" : "text-red-700"
+              isPaid ? "text-[#0f7a58]" : "text-red-700"
             }`}
           >
             {isPaid ? "Paid ✓" : `Unpaid — ${formatSGD(amountDue)} due`}
@@ -140,7 +140,7 @@ export default function LessonDetailModal({
             {!isDone && (
               <button
                 onClick={onMarkDone}
-                className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
+                className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow"
               >
                 ✅ Mark as Done
               </button>
@@ -151,7 +151,7 @@ export default function LessonDetailModal({
               paymentCycle && (
                 <button
                   onClick={() => onMarkPaid(paymentCycle.id)}
-                  className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
+                  className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow"
                 >
                   💰 Mark as Paid
                 </button>

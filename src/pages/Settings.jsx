@@ -292,7 +292,7 @@ export default function Settings() {
             onChange={(e) => setPaynowNumber(e.target.value)}
             placeholder="e.g. 9123 4567"
             disabled={loading}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
           />
           <p className="mt-1 text-xs text-gray-500">
             Shown automatically in WhatsApp payment request messages.
@@ -304,7 +304,7 @@ export default function Settings() {
         <button
           type="submit"
           disabled={loading || saving}
-          className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow disabled:opacity-50"
+          className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow disabled:opacity-50"
         >
           {saving ? "Saving..." : "Save"}
         </button>
@@ -321,7 +321,7 @@ export default function Settings() {
         </p>
         {googleConnected ? (
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#d6ede6] px-2.5 py-0.5 text-xs font-medium text-[#1b2d4f]">
               ✓ Connected{googleEmail ? ` as ${googleEmail}` : ""}
             </span>
             <button
@@ -335,7 +335,7 @@ export default function Settings() {
         ) : (
           <button
             onClick={handleConnectGoogle}
-            className="min-h-11 rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
+            className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow"
           >
             Connect Google Calendar
           </button>
@@ -363,7 +363,7 @@ export default function Settings() {
                 onClick={() => handleToggleNotification(type.key)}
                 disabled={loading}
                 className={`relative inline-flex h-7 w-12 flex-none items-center rounded-full transition disabled:opacity-50 ${
-                  notifyPrefs[type.key] ? "bg-green-600" : "bg-gray-300"
+                  notifyPrefs[type.key] ? "bg-[#1b2d4f]" : "bg-gray-300"
                 }`}
               >
                 <span
@@ -387,7 +387,7 @@ export default function Settings() {
             href={buildFeedbackWhatsAppLink()}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex min-h-11 items-center rounded-md bg-green-600 px-4 text-sm font-medium text-white transition hover:bg-green-700 hover:shadow"
+            className="flex min-h-11 items-center rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow"
           >
             💬 WhatsApp us
           </a>
@@ -435,13 +435,13 @@ export default function Settings() {
         <div className="flex flex-wrap gap-4">
           <Link
             to="/privacy"
-            className="text-sm font-medium text-green-600 hover:text-green-700"
+            className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
           >
             Privacy Policy
           </Link>
           <Link
             to="/terms"
-            className="text-sm font-medium text-green-600 hover:text-green-700"
+            className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
           >
             Terms of Service
           </Link>

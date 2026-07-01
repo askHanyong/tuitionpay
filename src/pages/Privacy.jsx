@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 function Section({ title, children }) {
   return (
     <section className="mt-8">
-      <h2 className="text-lg font-semibold text-green-700">{title}</h2>
+      <h2 className="text-lg font-semibold text-[#0f7a58]">{title}</h2>
       <div className="mt-2 space-y-3 text-sm leading-relaxed text-gray-700">
         {children}
       </div>
@@ -17,7 +17,7 @@ export default function Privacy() {
       <div className="mx-auto max-w-2xl">
         <Link
           to="/"
-          className="text-sm font-medium text-green-600 hover:text-green-700"
+          className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
         >
           ← Back to Home
         </Link>
@@ -140,7 +140,7 @@ export default function Privacy() {
             request deletion of your account and all associated data by emailing{" "}
             <a
               href="mailto:mathstutorlimhy@gmail.com"
-              className="font-medium text-green-600 hover:text-green-700"
+              className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
             >
               mathstutorlimhy@gmail.com
             </a>
@@ -158,7 +158,7 @@ export default function Privacy() {
             To exercise these rights, contact{" "}
             <a
               href="mailto:mathstutorlimhy@gmail.com"
-              className="font-medium text-green-600 hover:text-green-700"
+              className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
             >
               mathstutorlimhy@gmail.com
             </a>
@@ -181,7 +181,7 @@ export default function Privacy() {
                 href="https://supabase.com/privacy"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-medium text-green-600 hover:text-green-700"
+                className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
               >
                 Supabase
               </a>{" "}
@@ -192,7 +192,7 @@ export default function Privacy() {
                 href="https://www.netlify.com/privacy/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-medium text-green-600 hover:text-green-700"
+                className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
               >
                 Netlify
               </a>{" "}
@@ -206,7 +206,7 @@ export default function Privacy() {
             For any privacy queries, contact Hanyong Lim at{" "}
             <a
               href="mailto:mathstutorlimhy@gmail.com"
-              className="font-medium text-green-600 hover:text-green-700"
+              className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
             >
               mathstutorlimhy@gmail.com
             </a>

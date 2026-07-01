@@ -19,7 +19,7 @@ const MonthlyReportTemplate = forwardRef(function MonthlyReportTemplate(
         color: "#111827",
       }}
     >
-      <h1 style={{ margin: 0, fontSize: "22px", color: "#15803d" }}>
+      <h1 style={{ margin: 0, fontSize: "22px", color: "#1b2d4f" }}>
         ChopeAndPay — Monthly Report
       </h1>
       <p style={{ margin: "6px 0 20px", fontSize: "14px", color: "#4b5563" }}>
@@ -52,7 +52,7 @@ const MonthlyReportTemplate = forwardRef(function MonthlyReportTemplate(
         }}
       >
         <thead>
-          <tr style={{ background: "#f0fdf4", color: "#15803d" }}>
+          <tr style={{ background: "#edf6f3", color: "#1b2d4f" }}>
             <th style={{ textAlign: "left", padding: "6px 8px" }}>Student</th>
             <th style={{ textAlign: "left", padding: "6px 8px" }}>Subject</th>
             <th style={{ textAlign: "left", padding: "6px 8px" }}>Level</th>
@@ -96,7 +96,7 @@ const MonthlyReportTemplate = forwardRef(function MonthlyReportTemplate(
         style={{
           fontSize: "15px",
           fontWeight: 600,
-          color: "#15803d",
+          color: "#1b2d4f",
           margin: "0 0 28px",
         }}
       >

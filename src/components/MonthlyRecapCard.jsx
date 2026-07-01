@@ -249,7 +249,7 @@ export default function MonthlyRecapCard({
   };
 
   return (
-    <section className="rounded-xl border border-green-200 bg-green-50 p-5 shadow-sm">
+    <section className="rounded-xl border border-[#b8e8d9] bg-[#edf6f3] p-5 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-900">
           {monthLabel} recap
@@ -258,14 +258,14 @@ export default function MonthlyRecapCard({
           <button
             onClick={() => goToMonth(-1)}
             aria-label="Previous month"
-            className="min-h-11 rounded-md border border-green-300 bg-white px-2.5 text-sm text-gray-600 hover:bg-green-100"
+            className="min-h-11 rounded-md border border-[#93d9c4] bg-white px-2.5 text-sm text-gray-600 hover:bg-[#d6ede6]"
           >
             ←
           </button>
           <button
             onClick={() => goToMonth(1)}
             aria-label="Next month"
-            className="min-h-11 rounded-md border border-green-300 bg-white px-2.5 text-sm text-gray-600 hover:bg-green-100"
+            className="min-h-11 rounded-md border border-[#93d9c4] bg-white px-2.5 text-sm text-gray-600 hover:bg-[#d6ede6]"
           >
             →
           </button>
@@ -282,7 +282,7 @@ export default function MonthlyRecapCard({
           </p>
         </div>
         <div className="text-center">
-          <p className="text-xl font-semibold text-green-700">
+          <p className="text-xl font-semibold text-[#0f7a58]">
             {formatSGD(current.collected)}
           </p>
           <p className="mt-1 text-xs font-medium text-gray-600">✅ Collected</p>
@@ -302,7 +302,7 @@ export default function MonthlyRecapCard({
             {change != null && (
               <span
                 className={`ml-1 font-semibold ${
-                  change >= 0 ? "text-green-600" : "text-red-600"
+                  change >= 0 ? "text-[#5ecfaa]" : "text-red-600"
                 }`}
               >
                 {change >= 0 ? "↑" : "↓"} {Math.abs(change)}% vs{" "}
@@ -320,14 +320,14 @@ export default function MonthlyRecapCard({
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
         <button
           onClick={handleDownloadPdf}
-          className="min-h-11 rounded-md border border-green-300 bg-white px-4 text-sm font-medium text-green-700 transition hover:bg-green-100"
+          className="min-h-11 rounded-md border border-[#93d9c4] bg-white px-4 text-sm font-medium text-[#0f7a58] transition hover:bg-[#d6ede6]"
         >
           📄 Download Report
         </button>
         <button
           onClick={handleSaveImage}
           disabled={generating}
-          className="min-h-11 rounded-md border border-green-300 bg-white px-4 text-sm font-medium text-green-700 transition hover:bg-green-100 disabled:opacity-50"
+          className="min-h-11 rounded-md border border-[#93d9c4] bg-white px-4 text-sm font-medium text-[#0f7a58] transition hover:bg-[#d6ede6] disabled:opacity-50"
         >
           {generating ? "Generating..." : "🖼️ Save as Image"}
         </button>

@@ -31,7 +31,7 @@ export default function About() {
       </header>
 
       <section className="mx-auto max-w-2xl px-4 py-16 sm:px-6 sm:py-24">
-        <p className="text-xs font-semibold uppercase tracking-wide text-green-700">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[#0f7a58]">
           Built by
         </p>
         <h1 className="mt-2 text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -72,7 +72,7 @@ export default function About() {
           {CREDENTIALS.map((c) => (
             <span
               key={c}
-              className="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800"
+              className="rounded-full bg-[#d6ede6] px-3 py-1 text-xs font-medium text-[#1b2d4f]"
             >
               {c}
             </span>
@@ -84,7 +84,7 @@ export default function About() {
             href="https://wa.me/6580448247"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex min-h-11 items-center rounded-md bg-green-600 px-5 text-sm font-semibold text-white shadow-lg transition hover:bg-green-700 hover:shadow-xl"
+            className="flex min-h-11 items-center rounded-md bg-[#1b2d4f] px-5 text-sm font-semibold text-white shadow-lg transition hover:bg-[#15243f] hover:shadow-xl"
           >
             💬 WhatsApp me
           </a>

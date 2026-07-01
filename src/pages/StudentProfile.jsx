@@ -274,7 +274,7 @@ export default function StudentProfile() {
         <p className="text-sm text-red-600">{error || "Student not found."}</p>
         <Link
           to="/students"
-          className="text-sm font-medium text-green-600 hover:text-green-700"
+          className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
         >
           ← Back to students
         </Link>
@@ -299,7 +299,7 @@ export default function StudentProfile() {
                 {student.name}
               </h1>
               {student.subject && (
-                <span className="inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                <span className="inline-block rounded-full bg-[#d6ede6] px-2.5 py-0.5 text-xs font-medium text-[#1b2d4f]">
                   {student.subject}
                 </span>
               )}
@@ -326,7 +326,7 @@ export default function StudentProfile() {
                   href={buildGoogleMapsUrl(student.address)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs font-medium text-green-600 hover:text-green-700"
+                  className="text-xs font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
                 >
                   Open in Maps
                 </a>
@@ -373,35 +373,35 @@ export default function StudentProfile() {
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-lg bg-green-50 p-3 text-center">
-            <p className="text-xl font-semibold text-green-800">
+          <div className="rounded-lg bg-[#edf6f3] p-3 text-center">
+            <p className="text-xl font-semibold text-[#1b2d4f]">
               {lessonStats.totalCount}
             </p>
-            <p className="mt-0.5 text-xs font-medium text-green-700">
+            <p className="mt-0.5 text-xs font-medium text-[#0f7a58]">
               Total lessons
             </p>
           </div>
-          <div className="rounded-lg bg-green-50 p-3 text-center">
-            <p className="text-xl font-semibold text-green-800">
+          <div className="rounded-lg bg-[#edf6f3] p-3 text-center">
+            <p className="text-xl font-semibold text-[#1b2d4f]">
               {lessonStats.monthCount}
             </p>
-            <p className="mt-0.5 text-xs font-medium text-green-700">
+            <p className="mt-0.5 text-xs font-medium text-[#0f7a58]">
               This month
             </p>
           </div>
-          <div className="rounded-lg bg-green-50 p-3 text-center">
-            <p className="text-xl font-semibold text-green-800">
+          <div className="rounded-lg bg-[#edf6f3] p-3 text-center">
+            <p className="text-xl font-semibold text-[#1b2d4f]">
               {lessonStats.yearCount}
             </p>
-            <p className="mt-0.5 text-xs font-medium text-green-700">
+            <p className="mt-0.5 text-xs font-medium text-[#0f7a58]">
               This year
             </p>
           </div>
-          <div className="rounded-lg bg-green-50 p-3 text-center">
-            <p className="text-xl font-semibold text-green-800">
+          <div className="rounded-lg bg-[#edf6f3] p-3 text-center">
+            <p className="text-xl font-semibold text-[#1b2d4f]">
               {formatSGD(lessonStats.earned)}
             </p>
-            <p className="mt-0.5 text-xs font-medium text-green-700">
+            <p className="mt-0.5 text-xs font-medium text-[#0f7a58]">
               Total earned
             </p>
           </div>
@@ -428,7 +428,7 @@ export default function StudentProfile() {
                         Scheduled
                       </span>
                     )}
-                    <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-medium text-green-700">
+                    <span className="rounded-full bg-[#edf6f3] px-2.5 py-0.5 text-xs font-medium text-[#0f7a58]">
                       {isMonthlyBilled
                         ? `Lesson ${lessonPosition.get(l.id) ?? "?"} · ${formatMonth(
                             new Date(`${l.lesson_date}T00:00:00`),
@@ -471,13 +471,13 @@ export default function StudentProfile() {
                       }
                       placeholder="Add a quick note for this lesson..."
                       rows={2}
-                      className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                     />
                     {noteDrafts[l.id] !== (l.notes ?? "") && (
                       <button
                         onClick={() => handleSaveNote(l.id)}
                         disabled={savingNoteId === l.id}
-                        className="mt-2 min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 disabled:opacity-50"
+                        className="mt-2 min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] disabled:opacity-50"
                       >
                         {savingNoteId === l.id ? "Saving..." : "Save note"}
                       </button>
@@ -502,7 +502,7 @@ export default function StudentProfile() {
               <li key={c.id} className="relative">
                 <span
                   className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ${
-                    c.status === "paid" ? "bg-green-500" : "bg-red-500"
+                    c.status === "paid" ? "bg-[#5ecfaa]" : "bg-red-500"
                   }`}
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -524,7 +524,7 @@ export default function StudentProfile() {
                 {c.status === "paid" ? (
                   <button
                     onClick={() => handleSendReceipt(c)}
-                    className="mt-2 min-h-11 rounded-md bg-green-600 px-3 text-xs font-medium text-white transition hover:bg-green-700 hover:shadow"
+                    className="mt-2 min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
                   >
                     💬 Send WhatsApp Receipt
                   </button>
