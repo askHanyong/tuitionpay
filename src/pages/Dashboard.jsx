@@ -499,9 +499,48 @@ export default function Dashboard() {
   ).length;
   const overdueCount = overdueStudents.length;
   const upToDateCount = students.length - overdueCount - dueSoonCount;
-  const pendingCyclesTotal = [...paymentStatusByStudent.values()]
-    .filter((s) => s.tier === "red" || s.tier === "amber")
-    .reduce((sum, s) => sum + (s.amountDue ?? 0), 0);
+  // Compute all outstanding pending using the same projection the Payments
+  // page uses: actual payment_cycles rows first, then mid-cycle lessons-mode
+  // students who are 1 lesson away from completion, projecting their full
+  // cycle amount so the figure matches what the Payments page shows.
+  const allPendingAmount = (() => {
+    const pendingStudentIds = new Set(
+      paymentCycles
+        .filter((c) => c.status === "pending")
+        .map((c) => c.student_id),
+    );
+    const fromCycles = paymentCycles
+      .filter((c) => c.status === "pending")
+      .reduce((sum, c) => sum + Number(c.amount_due), 0);
+    const fromMidCycle = students
+      .filter(
+        (stu) =>
+          (stu.payment_mode ?? "lessons") === "lessons" &&
+          !pendingStudentIds.has(stu.id),
+      )
+      .reduce((sum, stu) => {
+        const openLessons = (lessonsByStudent.get(stu.id) ?? []).filter(
+          (l) => !l.payment_cycle_id,
+        );
+        const openCount = openLessons.length;
+        if (openCount === 0) return sum;
+        const cycleCount = stu.payment_cycle_count ?? 4;
+        if (openCount < cycleCount - 1) return sum;
+        const cycleLessons = [...openLessons]
+          .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1))
+          .slice(-cycleCount);
+        const cycleAmount = cycleLessons.reduce(
+          (s, l) => s + lessonAmount(l, stu),
+          0,
+        );
+        const expectedAmount =
+          openCount === cycleCount - 1
+            ? (cycleAmount / openCount) * cycleCount
+            : cycleAmount;
+        return sum + expectedAmount;
+      }, 0);
+    return fromCycles + fromMidCycle;
+  })();
 
   const todayLessonNumber = (lesson) =>
     lesson.is_completed
@@ -636,7 +675,7 @@ export default function Dashboard() {
         </div>
         <div>
           <p className="text-2xl font-semibold">
-            {formatSGD(pendingCyclesTotal)}
+            {formatSGD(allPendingAmount)}
           </p>
           <p className="text-xs text-green-100">Pending payment</p>
         </div>
@@ -736,6 +775,7 @@ export default function Dashboard() {
         students={students}
         scheduledLessons={scheduledLessons}
         tutorName={user?.user_metadata?.full_name}
+        currentMonthPendingOverride={allPendingAmount}
       />
 
       {!loading && overdueStudents.length > 0 && (

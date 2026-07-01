@@ -154,6 +154,7 @@ export default function MonthlyRecapCard({
   students = [],
   scheduledLessons = [],
   tutorName,
+  currentMonthPendingOverride,
 }) {
   const [monthDate, setMonthDate] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -166,17 +167,34 @@ export default function MonthlyRecapCard({
     [monthDate],
   );
 
-  const current = useMemo(
-    () =>
-      computeForMonth(
-        monthDate,
-        lessons,
-        paymentCycles,
-        students,
-        scheduledLessons,
-      ),
-    [monthDate, lessons, paymentCycles, students, scheduledLessons],
-  );
+  const current = useMemo(() => {
+    const computed = computeForMonth(
+      monthDate,
+      lessons,
+      paymentCycles,
+      students,
+      scheduledLessons,
+    );
+    const now = new Date();
+    const isCurrentMonth =
+      monthDate.getFullYear() === now.getFullYear() &&
+      monthDate.getMonth() === now.getMonth();
+    if (isCurrentMonth && currentMonthPendingOverride != null) {
+      return {
+        ...computed,
+        pending: currentMonthPendingOverride,
+        total: computed.collected + currentMonthPendingOverride,
+      };
+    }
+    return computed;
+  }, [
+    monthDate,
+    lessons,
+    paymentCycles,
+    students,
+    scheduledLessons,
+    currentMonthPendingOverride,
+  ]);
   const previous = useMemo(
     () =>
       computeForMonth(
