@@ -717,20 +717,33 @@ export default function Dashboard() {
                   return (
                     <li
                       key={l.id}
-                      className="flex flex-col gap-3 rounded-lg border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between"
+                      className={`flex items-center justify-between gap-4 rounded-lg border p-4 transition-colors ${
+                        done
+                          ? "border-[#b8e8d9] bg-[#edf6f3]"
+                          : "border-gray-100 bg-white"
+                      }`}
                     >
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          {l.students?.name}
-                          {l.lesson_time && ` · ${formatLessonTime(l.lesson_time)}`}
-                          {(l.subject ?? l.students?.subject) &&
-                            ` · ${l.subject ?? l.students?.subject}`}
-                        </p>
-                        <p className="mt-0.5 text-xs text-gray-500">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-baseline gap-x-1.5">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {l.students?.name}
+                          </p>
+                          {l.lesson_time && (
+                            <span className="text-sm text-gray-500">
+                              {formatLessonTime(l.lesson_time)}
+                            </span>
+                          )}
+                          {(l.subject ?? l.students?.subject) && (
+                            <span className="text-sm text-gray-500">
+                              · {l.subject ?? l.students?.subject}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-xs text-gray-400">
                           {lessonBadgeLabel(l)}
                         </p>
-                        {l.students?.address && (
-                          <p className="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
+                        {l.students?.address && !done && (
+                          <p className="mt-0.5 flex items-center gap-2 text-xs text-gray-400">
                             <span>📍 {l.students.address}</span>
                             <a
                               href={buildGoogleMapsUrl(l.students.address)}
@@ -744,17 +757,18 @@ export default function Dashboard() {
                           </p>
                         )}
                       </div>
-                      <button
-                        onClick={() => !done && handleMarkDone(l.id)}
-                        disabled={done}
-                        className={
-                          done
-                            ? "min-h-11 w-full rounded-md bg-gray-100 px-4 text-sm font-medium text-gray-500 sm:w-auto"
-                            : "min-h-11 w-full rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow sm:w-auto"
-                        }
-                      >
-                        {done ? "✓ Done" : "✅ Mark as Done"}
-                      </button>
+                      {done ? (
+                        <span className="flex-none rounded-md bg-[#d1fae5] px-3 py-1.5 text-xs font-semibold text-[#065f46]">
+                          ✓ Completed
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleMarkDone(l.id)}
+                          className="min-h-11 flex-none rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow"
+                        >
+                          ✓ Done
+                        </button>
+                      )}
                     </li>
                   );
                 })}
