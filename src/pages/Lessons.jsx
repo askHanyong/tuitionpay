@@ -646,8 +646,7 @@ export default function Lessons() {
 
   const subjectsLabel = (student) => {
     const subs = subjectsByStudent[student.id] ?? [];
-    if (subs.length > 0) return subs.map((s) => s.subject).filter(Boolean).join(" · ");
-    return student.subject ?? "";
+    return subs.map((s) => s.subject).filter(Boolean).join(" · ");
   };
 
   const handleEditLesson = (lesson) => {
@@ -1409,12 +1408,7 @@ export default function Lessons() {
                 >
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <span className="flex flex-wrap items-center gap-2 font-medium text-gray-900">
-                      <Link
-                        to={`/students/${l.student_id}`}
-                        className="hover:text-[#1b2d4f]"
-                      >
-                        {l.students?.name}
-                      </Link>
+                      <span>{l.students?.name}</span>
                       {isLessonCompleted(l) ? (
                         <span className="inline-block rounded-full bg-[#d6ede6] px-2 py-0.5 text-xs font-medium text-[#1b2d4f]">
                           Completed
@@ -1475,12 +1469,7 @@ export default function Lessons() {
                         {formatDateTime(l.lesson_date, l.lesson_time)}
                       </td>
                       <td className="px-4 py-3 text-gray-700">
-                        <Link
-                          to={`/students/${l.student_id}`}
-                          className="hover:text-[#1b2d4f]"
-                        >
-                          {l.students?.name}
-                        </Link>
+                        {l.students?.name}
                       </td>
                       <td className="px-4 py-3">
                         {isLessonCompleted(l) ? (
