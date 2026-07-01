@@ -299,12 +299,12 @@ export default function AppShell({ children }) {
                 key={item.to}
                 to={item.to}
                 className={`flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
-                  active ? "text-[#5ecfaa]" : "text-gray-400"
+                  active ? "text-[#5ecfaa]" : "text-[#9ca3af]"
                 }`}
               >
                 <NavIcon
                   name={item.icon}
-                  className={`h-6 w-6 ${active ? "text-[#5ecfaa]" : "text-gray-400"}`}
+                  className={`h-6 w-6 ${active ? "text-[#5ecfaa]" : "text-[#9ca3af]"}`}
                 />
                 {item.label}
               </Link>
