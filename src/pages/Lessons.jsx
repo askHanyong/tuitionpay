@@ -15,7 +15,38 @@ import {
   updateCalendarEvent,
 } from "../lib/googleCalendar";
 import { showAppNotification } from "../lib/notifications";
+import { computeStudentPaymentStatus } from "../lib/paymentStatus";
 import AppShell from "../components/AppShell";
+
+function getInitials(name) {
+  const parts = (name ?? "").trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return (parts[0] ?? "").slice(0, 2).toUpperCase();
+}
+
+const AVATAR_COLORS = {
+  red:   { bg: "#fee2e2", color: "#991b1b" },
+  amber: { bg: "#fef3c7", color: "#92400e" },
+  green: { bg: "#d1fae5", color: "#065f46" },
+  blue:  { bg: "#d1fae5", color: "#065f46" },
+  grey:  { bg: "#f3f4f6", color: "#6b7280" },
+};
+
+function StudentAvatar({ name, tier }) {
+  const { bg, color } = AVATAR_COLORS[tier] ?? AVATAR_COLORS.grey;
+  return (
+    <span
+      style={{
+        width: 44, height: 44, minWidth: 44, borderRadius: "50%",
+        backgroundColor: bg, color,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 15, fontWeight: 500, userSelect: "none",
+      }}
+    >
+      {getInitials(name)}
+    </span>
+  );
+}
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -161,6 +192,9 @@ export default function Lessons() {
   const [deleting, setDeleting] = useState(false);
   const [conflictWarning, setConflictWarning] = useState(null);
   const [checkingConflict, setCheckingConflict] = useState(false);
+  const [step, setStep] = useState(1);
+  const [paymentTierByStudent, setPaymentTierByStudent] = useState(new Map());
+  const [successCycle, setSuccessCycle] = useState(null);
 
   const [defaultDateFrom] = useState(() => daysAgo(30));
   const [defaultDateTo] = useState(() => today());
@@ -192,6 +226,7 @@ export default function Lessons() {
         { data: studentsData, error: studentsError },
         { data: lessonsData, error: lessonsError },
         { data: subjectsData },
+        { data: cyclesData },
       ] = await Promise.all([
         supabase
           .from("students")
@@ -213,6 +248,10 @@ export default function Lessons() {
           .select("*")
           .eq("tutor_id", user.id)
           .order("created_at", { ascending: true }),
+        supabase
+          .from("payment_cycles")
+          .select("*")
+          .eq("tutor_id", user.id),
       ]);
       if (studentsError) setError(studentsError.message);
       if (lessonsError) setError(lessonsError.message);
@@ -224,6 +263,41 @@ export default function Lessons() {
         subjectsMap[row.student_id].push(row);
       }
       setSubjectsByStudent(subjectsMap);
+
+      // Compute payment tier per student for avatar colour coding
+      const pendingCyclesByStudent = new Map();
+      const paidCyclesByStudent = new Map();
+      const completedLessonsByStudent = new Map();
+      const scheduledLessonsByStudent = new Map();
+      const openCountByStudent = new Map();
+      for (const c of cyclesData ?? []) {
+        const map = c.status === "paid" ? paidCyclesByStudent : pendingCyclesByStudent;
+        if (!map.has(c.student_id)) map.set(c.student_id, []);
+        map.get(c.student_id).push(c);
+      }
+      for (const l of lessonsData ?? []) {
+        const targetMap = l.is_completed ? completedLessonsByStudent : scheduledLessonsByStudent;
+        if (!targetMap.has(l.student_id)) targetMap.set(l.student_id, []);
+        targetMap.get(l.student_id).push(l);
+        if (l.is_completed && !l.payment_cycle_id) {
+          openCountByStudent.set(l.student_id, (openCountByStudent.get(l.student_id) ?? 0) + 1);
+        }
+      }
+      const now = new Date();
+      const tierMap = new Map();
+      for (const s of studentsData ?? []) {
+        const status = computeStudentPaymentStatus(s, {
+          pendingCycles: pendingCyclesByStudent.get(s.id) ?? [],
+          paidCycles: paidCyclesByStudent.get(s.id) ?? [],
+          completedLessons: completedLessonsByStudent.get(s.id) ?? [],
+          scheduledLessons: scheduledLessonsByStudent.get(s.id) ?? [],
+          openCount: openCountByStudent.get(s.id) ?? 0,
+          now,
+        });
+        tierMap.set(s.id, status?.tier ?? "grey");
+      }
+      setPaymentTierByStudent(tierMap);
+
       const firstStudentId = (studentsData ?? [])[0]?.id;
       const firstSubject = subjectsMap[firstStudentId]?.[0];
       setForm((f) => ({
@@ -544,6 +618,7 @@ export default function Lessons() {
 
   const resetForm = () => {
     setEditingId(null);
+    setStep(1);
     setForm((f) =>
       emptyForm(
         students,
@@ -551,6 +626,28 @@ export default function Lessons() {
         mostRecentLessonTime(lessons, students[0]?.id),
       ),
     );
+  };
+
+  const handleSelectStudent = (student) => {
+    const firstSubject = subjectsByStudent[student.id]?.[0];
+    setForm({
+      student_id: student.id,
+      subject_id: firstSubject?.id ?? "",
+      lesson_date: prefillDate ?? today(),
+      lesson_time: mostRecentLessonTime(lessons, student.id),
+      duration_hours:
+        firstSubject?.lesson_duration_hours ?? student.lesson_duration_hours ?? "",
+      rate: firstSubject?.hourly_rate ?? student.hourly_rate ?? "",
+      notes: "",
+    });
+    setSuccessCycle(null);
+    setStep(2);
+  };
+
+  const subjectsLabel = (student) => {
+    const subs = subjectsByStudent[student.id] ?? [];
+    if (subs.length > 0) return subs.map((s) => s.subject).filter(Boolean).join(" · ");
+    return student.subject ?? "";
   };
 
   const handleEditLesson = (lesson) => {
@@ -704,9 +801,7 @@ export default function Lessons() {
       });
 
       if (isFuture) {
-        setInfo(
-          "Lesson scheduled. It'll count toward billing once its date arrives.",
-        );
+        showToast("Lesson scheduled. It'll count toward billing once its date arrives.");
       } else if ((beforeCount ?? 0) + 1 >= 4) {
         const { data: cycle } = await supabase
           .from("payment_cycles")
@@ -716,10 +811,8 @@ export default function Lessons() {
           .order("created_at", { ascending: false })
           .limit(1)
           .single();
-        setNewCycle(cycle ?? null);
-        setInfo(
-          "Lesson logged. 4 lessons have now accumulated — a payment notice is ready below.",
-        );
+        setSuccessCycle(cycle ?? null);
+        showToast("Lesson logged. Payment notice ready!");
         if (cycle) {
           const { data: tutor } = await supabase
             .from("tutors")
@@ -733,10 +826,10 @@ export default function Lessons() {
           }
         }
       } else {
-        setInfo("Lesson logged.");
+        showToast("Lesson logged!");
       }
 
-      setForm((f) => ({ ...f, notes: "" }));
+      setStep(1);
       await reloadLessons();
     } catch (err) {
       setError(err.message);
@@ -747,12 +840,13 @@ export default function Lessons() {
   };
 
   const handleCopyNotice = async () => {
-    if (!newCycle) return;
+    const cycle = successCycle ?? newCycle;
+    if (!cycle) return;
     const message = buildPaymentNoticeMessage({
-      studentName: newCycle.students?.name,
-      amountDue: newCycle.amount_due,
-      periodStart: newCycle.period_start,
-      periodEnd: newCycle.period_end,
+      studentName: cycle.students?.name,
+      amountDue: cycle.amount_due,
+      periodStart: cycle.period_start,
+      periodEnd: cycle.period_end,
       tutorName: user?.user_metadata?.full_name,
     });
     await navigator.clipboard.writeText(message);
@@ -789,6 +883,124 @@ export default function Lessons() {
     showToast("Lesson deleted successfully");
   };
 
+  const lessonFormFields = (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {(subjectsByStudent[form.student_id] ?? []).length > 1 && (
+        <div className="sm:col-span-2">
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Subject
+          </label>
+          <select
+            required
+            value={form.subject_id}
+            onChange={(e) => handleSubjectChange(e.target.value)}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+          >
+            {subjectsByStudent[form.student_id].map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.subject}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">
+          Date
+        </label>
+        <input
+          type="date"
+          required
+          value={form.lesson_date}
+          onChange={(e) => setForm({ ...form, lesson_date: e.target.value })}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">
+          Lesson time (optional)
+        </label>
+        <input
+          type="time"
+          value={form.lesson_time}
+          onChange={(e) => setForm({ ...form, lesson_time: e.target.value })}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">
+          Duration (hours)
+        </label>
+        <input
+          type="number"
+          required
+          min="0"
+          step="0.25"
+          value={form.duration_hours}
+          onChange={(e) => setForm({ ...form, duration_hours: e.target.value })}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">
+          Rate (SGD/hr)
+        </label>
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          value={form.rate}
+          onChange={(e) => setForm({ ...form, rate: e.target.value })}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+        />
+      </div>
+
+      <div className="sm:col-span-2">
+        <label className="mb-1 block text-sm font-medium text-gray-700">
+          Lesson notes (optional)
+        </label>
+        <textarea
+          value={form.notes}
+          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          placeholder="e.g. Covered algebra chapter 3, struggling with fractions..."
+          rows={3}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+        />
+      </div>
+    </div>
+  );
+
+  const conflictOverlay = conflictWarning && (
+    <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3">
+      <p className="text-sm text-amber-800">
+        ⚠️ You have a conflict at that time in your Google Calendar. Save
+        anyway?
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setConflictWarning(null)}
+          disabled={submitting}
+          className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={handleConfirmSaveAnyway}
+          disabled={submitting}
+          className="min-h-11 rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-50"
+        >
+          {submitting ? "Saving..." : "Yes, save anyway"}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <AppShell>
       {students.length === 0 && !loading ? (
@@ -801,15 +1013,13 @@ export default function Lessons() {
             Add a student →
           </Link>
         </p>
-      ) : (
+      ) : editingId ? (
+        /* ── Edit existing lesson ── */
         <form
           onSubmit={handleSubmit}
           className="space-y-4 rounded-md border border-gray-200 bg-white p-5"
         >
-          <h2 className="text-base font-semibold text-gray-900">
-            {editingId ? "Edit lesson" : "Log a lesson"}
-          </h2>
-
+          <h2 className="text-base font-semibold text-gray-900">Edit lesson</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -828,7 +1038,6 @@ export default function Lessons() {
                 ))}
               </select>
             </div>
-
             {(subjectsByStudent[form.student_id] ?? []).length > 1 && (
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -848,57 +1057,39 @@ export default function Lessons() {
                 </select>
               </div>
             )}
-
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Date
-              </label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Date</label>
               <input
                 type="date"
                 required
                 value={form.lesson_date}
-                onChange={(e) =>
-                  setForm({ ...form, lesson_date: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, lesson_date: e.target.value })}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
-
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Lesson time (optional)
-              </label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Lesson time (optional)</label>
               <input
                 type="time"
                 value={form.lesson_time}
-                onChange={(e) =>
-                  setForm({ ...form, lesson_time: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, lesson_time: e.target.value })}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
-
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Duration (hours)
-              </label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Duration (hours)</label>
               <input
                 type="number"
                 required
                 min="0"
                 step="0.25"
                 value={form.duration_hours}
-                onChange={(e) =>
-                  setForm({ ...form, duration_hours: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, duration_hours: e.target.value })}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
-
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Rate (SGD/hr)
-              </label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Rate (SGD/hr)</label>
               <input
                 type="number"
                 min="0"
@@ -908,11 +1099,8 @@ export default function Lessons() {
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
-
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Lesson notes (optional)
-              </label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Lesson notes (optional)</label>
               <textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
@@ -922,37 +1110,9 @@ export default function Lessons() {
               />
             </div>
           </div>
-
           {error && <p className="text-sm text-red-600">{error}</p>}
           {info && <p className="text-sm text-[#5ecfaa]">{info}</p>}
-
-          {conflictWarning && (
-            <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3">
-              <p className="text-sm text-amber-800">
-                ⚠️ You have a conflict at that time in your Google Calendar.
-                Save anyway?
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setConflictWarning(null)}
-                  disabled={submitting}
-                  className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmSaveAnyway}
-                  disabled={submitting}
-                  className="min-h-11 rounded-md bg-amber-600 px-4 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-50"
-                >
-                  {submitting ? "Saving..." : "Yes, save anyway"}
-                </button>
-              </div>
-            </div>
-          )}
-
+          {conflictOverlay}
           <div className="flex gap-2">
             <button
               type="submit"
@@ -960,57 +1120,147 @@ export default function Lessons() {
               className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow disabled:opacity-50"
               id="log-lesson-form-submit"
             >
+              {checkingConflict ? "Checking calendar..." : submitting ? "Saving..." : "Save changes"}
+            </button>
+            <button
+              type="button"
+              onClick={resetForm}
+              className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : step === 1 ? (
+        /* ── Step 1: Pick a student ── */
+        <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
+          <h2 className="text-base font-semibold text-gray-900">Log a lesson — who did you teach?</h2>
+
+          {successCycle && (
+            <div className="flex items-start justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 p-4">
+              <div>
+                <p className="text-sm font-medium text-amber-900">Payment notice ready 💰</p>
+                <p className="mt-0.5 text-sm text-amber-800">
+                  {successCycle.students?.name} owes{" "}
+                  <span className="font-semibold">{formatSGD(successCycle.amount_due)}</span>{" "}
+                  for lessons {formatDate(successCycle.period_start)} to{" "}
+                  {formatDate(successCycle.period_end)}.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <button
+                    onClick={handleCopyNotice}
+                    className="min-h-9 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white hover:bg-[#15243f]"
+                  >
+                    {copied ? "Copied!" : "Copy notice"}
+                  </button>
+                  <Link
+                    to="/payments"
+                    className="flex min-h-9 items-center rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-100"
+                  >
+                    View payments
+                  </Link>
+                </div>
+              </div>
+              <button
+                onClick={() => setSuccessCycle(null)}
+                className="flex-none text-amber-600 hover:text-amber-800"
+                aria-label="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {loading ? (
+            <p className="text-sm text-gray-500">Loading...</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {students.map((s) => {
+                const tier = paymentTierByStudent.get(s.id) ?? "grey";
+                const subs = subjectsLabel(s);
+                const rateStr = s.hourly_rate ? `$${s.hourly_rate}/hr` : null;
+                const durStr = s.lesson_duration_hours
+                  ? `${s.lesson_duration_hours}h`
+                  : null;
+                const detail = [rateStr, durStr].filter(Boolean).join(" · ");
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => handleSelectStudent(s)}
+                    className="flex min-h-[100px] flex-col items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white p-3 text-center transition hover:border-[#5ecfaa] hover:bg-[#edf6f3] focus:outline-none focus:ring-2 focus:ring-[#5ecfaa]"
+                  >
+                    <StudentAvatar name={s.name} tier={tier} />
+                    <span className="text-sm font-semibold text-[#1b2d4f] leading-tight">
+                      {s.name}
+                    </span>
+                    {subs && (
+                      <span className="text-xs font-medium text-[#0f7a58] leading-tight">
+                        {subs}
+                      </span>
+                    )}
+                    {detail && (
+                      <span className="text-xs text-gray-400">{detail}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      ) : (
+        /* ── Step 2: Fill in lesson details ── */
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4 rounded-md border border-gray-200 bg-white p-5"
+        >
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className="flex h-9 w-9 flex-none items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"
+              aria-label="Back to student picker"
+            >
+              ←
+            </button>
+            <div className="flex items-center gap-2">
+              <StudentAvatar
+                name={students.find((s) => s.id === form.student_id)?.name ?? ""}
+                tier={paymentTierByStudent.get(form.student_id) ?? "grey"}
+              />
+              <h2 className="text-base font-semibold text-gray-900">
+                {students.find((s) => s.id === form.student_id)?.name ?? "Lesson"}
+              </h2>
+            </div>
+          </div>
+
+          {lessonFormFields}
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          {conflictOverlay}
+
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={submitting || checkingConflict}
+              className="min-h-11 rounded-md bg-[#1b2d4f] px-5 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow disabled:opacity-50"
+              id="log-lesson-form-submit"
+            >
               {checkingConflict
                 ? "Checking calendar..."
                 : submitting
-                  ? editingId
-                    ? "Saving..."
-                    : "Logging..."
-                  : editingId
-                    ? "Save changes"
-                    : "Log lesson"}
+                  ? "Logging..."
+                  : "Log lesson"}
             </button>
-            {editingId && (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            >
+              Back
+            </button>
           </div>
         </form>
-      )}
-
-      {newCycle && (
-        <section className="rounded-md border border-amber-200 bg-amber-50 p-5">
-          <h2 className="mb-2 text-base font-semibold text-gray-900">
-            Payment notice ready
-          </h2>
-          <p className="mb-3 text-sm text-gray-700">
-            {newCycle.students?.name} now owes{" "}
-            <span className="font-semibold">
-              {formatSGD(newCycle.amount_due)}
-            </span>{" "}
-            for lessons {formatDate(newCycle.period_start)} to{" "}
-            {formatDate(newCycle.period_end)}.
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={handleCopyNotice}
-              className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-sm font-medium text-white hover:bg-[#15243f]"
-            >
-              {copied ? "Copied!" : "Copy payment notice"}
-            </button>
-            <Link
-              to="/payments"
-              className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              View all payments
-            </Link>
-          </div>
-        </section>
       )}
 
       <section>
