@@ -208,7 +208,7 @@ export default function MonthlyRecapCard({
   );
 
   const change =
-    previous.total > 0
+    previous.total > 0 && current.totalLessons > 0
       ? Math.round(((current.total - previous.total) / previous.total) * 100)
       : null;
 
