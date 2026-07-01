@@ -824,16 +824,26 @@ export default function Students() {
                   key={s.id}
                   className="rounded-md border border-gray-200 bg-white p-4"
                 >
-                  <div className="mb-2 flex items-center justify-between">
-                    <Link
-                      to={`/students/${s.id}`}
-                      className="font-medium text-gray-900 hover:text-[#1b2d4f]"
-                    >
-                      {s.name}
-                    </Link>
-                    <span className="text-sm text-gray-700">
-                      {s.hourly_rate != null ? `$${s.hourly_rate}/hr` : "—"}
-                    </span>
+                  <div className="mb-2 flex items-center gap-3">
+                    <StudentAvatar
+                      name={s.name}
+                      tier={
+                        s.archived
+                          ? "grey"
+                          : (paymentStatusByStudent[s.id]?.tier ?? "grey")
+                      }
+                    />
+                    <div className="flex flex-1 items-center justify-between">
+                      <Link
+                        to={`/students/${s.id}`}
+                        className="font-medium text-gray-900 hover:text-[#1b2d4f]"
+                      >
+                        {s.name}
+                      </Link>
+                      <span className="text-sm text-gray-700">
+                        {s.hourly_rate != null ? `$${s.hourly_rate}/hr` : "—"}
+                      </span>
+                    </div>
                   </div>
                   <p className="mb-2 text-sm text-gray-500">
                     {subjectsLabel(s.id, s.subject) || "—"}
@@ -916,12 +926,22 @@ export default function Students() {
                     <Fragment key={s.id}>
                       <tr className="transition hover:bg-gray-50">
                         <td className="px-4 py-3 text-gray-900">
-                          <Link
-                            to={`/students/${s.id}`}
-                            className="hover:text-[#1b2d4f]"
-                          >
-                            {s.name}
-                          </Link>
+                          <div className="flex items-center gap-3">
+                            <StudentAvatar
+                              name={s.name}
+                              tier={
+                                s.archived
+                                  ? "grey"
+                                  : (paymentStatusByStudent[s.id]?.tier ?? "grey")
+                              }
+                            />
+                            <Link
+                              to={`/students/${s.id}`}
+                              className="hover:text-[#1b2d4f]"
+                            >
+                              {s.name}
+                            </Link>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-gray-700">
                           {subjectsLabel(s.id, s.subject) || "—"}
@@ -1012,6 +1032,46 @@ export default function Students() {
         />
       )}
     </AppShell>
+  );
+}
+
+function getInitials(name) {
+  const parts = (name ?? "").trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return (parts[0] ?? "").slice(0, 2).toUpperCase();
+}
+
+const AVATAR_COLORS = {
+  red: { bg: "#fee2e2", color: "#991b1b" },
+  amber: { bg: "#fef3c7", color: "#92400e" },
+  green: { bg: "#d1fae5", color: "#065f46" },
+  blue: { bg: "#d1fae5", color: "#065f46" },
+  grey: { bg: "#f3f4f6", color: "#6b7280" },
+};
+
+function StudentAvatar({ name, tier }) {
+  const { bg, color } = AVATAR_COLORS[tier] ?? AVATAR_COLORS.grey;
+  return (
+    <span
+      style={{
+        width: 44,
+        height: 44,
+        minWidth: 44,
+        borderRadius: "50%",
+        backgroundColor: bg,
+        color,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 15,
+        fontWeight: 500,
+        userSelect: "none",
+      }}
+    >
+      {getInitials(name)}
+    </span>
   );
 }
 
