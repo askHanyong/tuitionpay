@@ -279,9 +279,38 @@ export default function AppShell({ children }) {
           )}
         </header>
 
-        <main className="mx-auto max-w-[1200px] space-y-8 px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
+        <main className="mx-auto max-w-[1200px] space-y-8 px-4 py-6 pb-24 sm:px-6 sm:py-8 sm:pb-8 lg:px-10 lg:py-10">
           {children}
         </main>
+
+        {/* Bottom nav — mobile only */}
+        <nav
+          className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-gray-200 bg-white md:hidden"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+          {NAV_ITEMS.filter((item) =>
+            ["/dashboard", "/students", "/lessons", "/payments"].includes(
+              item.to,
+            ),
+          ).map((item) => {
+            const active = pathname.startsWith(item.to);
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`flex flex-1 flex-col items-center justify-center gap-1 py-2 text-[10px] font-medium transition-colors ${
+                  active ? "text-[#5ecfaa]" : "text-gray-400"
+                }`}
+              >
+                <NavIcon
+                  name={item.icon}
+                  className={`h-6 w-6 ${active ? "text-[#5ecfaa]" : "text-gray-400"}`}
+                />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
       </div>
     </div>
   );
