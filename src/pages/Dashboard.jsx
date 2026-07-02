@@ -163,6 +163,7 @@ export default function Dashboard() {
   const [scheduledLessons, setScheduledLessons] = useState([]);
   const [hasScheduledLesson, setHasScheduledLesson] = useState(false);
   const [checklistDismissed, setChecklistDismissed] = useState(true);
+  const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [notifyPrefs, setNotifyPrefs] = useState({
     notify_lesson_reminders: true,
@@ -244,13 +245,16 @@ export default function Dashboard() {
       const { data: tutorData } = await supabase
         .from("tutors")
         .select(
-          "notify_lesson_reminders, notify_payment_due, notify_weekly_summary, onboarding_dismissed",
+          "notify_lesson_reminders, notify_payment_due, notify_weekly_summary, onboarding_dismissed, google_calendar_tokens",
         )
         .eq("id", user.id)
         .single();
       if (tutorData) {
         setNotifyPrefs(tutorData);
         setChecklistDismissed(Boolean(tutorData.onboarding_dismissed));
+        setGoogleCalendarConnected(
+          Boolean(tutorData.google_calendar_tokens?.access_token),
+        );
       }
       await loadAll();
     };
@@ -771,9 +775,8 @@ export default function Dashboard() {
             <GettingStartedChecklist
               tutorId={user.id}
               hasStudent={students.length > 0}
-              hasScheduledLesson={hasScheduledLesson}
-              hasCompletedLesson={lessons.length > 0}
-              hasPaidCycle={paymentCycles.some((c) => c.status === "paid")}
+              hasLesson={lessons.length > 0}
+              googleCalendarConnected={googleCalendarConnected}
               dismissed={checklistDismissed}
               onDismissed={() => setChecklistDismissed(true)}
             />
