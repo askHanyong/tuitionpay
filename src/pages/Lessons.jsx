@@ -195,6 +195,10 @@ export default function Lessons() {
   const [step, setStep] = useState(1);
   const [paymentTierByStudent, setPaymentTierByStudent] = useState(new Map());
   const [successCycle, setSuccessCycle] = useState(null);
+  const [parentSummary, setParentSummary] = useState("");
+  const [summarizing, setSummarizing] = useState(false);
+  const [summaryError, setSummaryError] = useState(null);
+  const [summaryCopied, setSummaryCopied] = useState(false);
 
   const [defaultDateFrom] = useState(() => daysAgo(30));
   const [defaultDateTo] = useState(() => today());
@@ -616,9 +620,38 @@ export default function Lessons() {
     }));
   };
 
+  const handleSummarize = async () => {
+    setSummarizing(true);
+    setSummaryError(null);
+    setParentSummary("");
+    try {
+      const res = await fetch("/.netlify/functions/summarize-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: form.notes }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Unknown error");
+      setParentSummary(data.summary ?? "");
+    } catch (err) {
+      setSummaryError(err.message || "Couldn't generate summary, please try again.");
+    } finally {
+      setSummarizing(false);
+    }
+  };
+
+  const handleCopySummary = async () => {
+    if (!parentSummary) return;
+    await navigator.clipboard.writeText(parentSummary);
+    setSummaryCopied(true);
+    setTimeout(() => setSummaryCopied(false), 2000);
+  };
+
   const resetForm = () => {
     setEditingId(null);
     setStep(1);
+    setParentSummary("");
+    setSummaryError(null);
     setForm((f) =>
       emptyForm(
         students,
@@ -641,6 +674,8 @@ export default function Lessons() {
       notes: "",
     });
     setSuccessCycle(null);
+    setParentSummary("");
+    setSummaryError(null);
     setStep(2);
   };
 
@@ -736,6 +771,7 @@ export default function Lessons() {
             duration_minutes: Math.round(durationHours * 60),
             rate: form.rate === "" ? null : Number(form.rate),
             notes: form.notes.trim() || null,
+            parent_summary: parentSummary.trim() || null,
             status,
             is_completed,
           })
@@ -781,6 +817,7 @@ export default function Lessons() {
           duration_minutes: Math.round(durationHours * 60),
           rate: form.rate === "" ? null : Number(form.rate),
           notes: form.notes.trim() || null,
+          parent_summary: parentSummary.trim() || null,
           status,
           is_completed,
         })
@@ -964,11 +1001,53 @@ export default function Lessons() {
         </label>
         <textarea
           value={form.notes}
-          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+          onChange={(e) => {
+            setForm({ ...form, notes: e.target.value });
+            if (parentSummary) setParentSummary("");
+            if (summaryError) setSummaryError(null);
+          }}
           placeholder="e.g. Covered algebra chapter 3, struggling with fractions..."
           rows={3}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
         />
+
+        <button
+          type="button"
+          onClick={handleSummarize}
+          disabled={!form.notes.trim() || summarizing}
+          className="mt-2 flex items-center gap-1.5 rounded-md border border-[#93d9c4] bg-[#edf6f3] px-3 py-1.5 text-xs font-medium text-[#0f7a58] transition hover:bg-[#d6ede6] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {summarizing ? (
+            <>
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[#5ecfaa] border-t-transparent" />
+              Summarising…
+            </>
+          ) : (
+            "✨ Summarise for parent"
+          )}
+        </button>
+
+        {summaryError && (
+          <p className="mt-2 text-xs text-red-600">{summaryError}</p>
+        )}
+
+        {parentSummary && (
+          <div className="mt-3 rounded-md border border-[#b8e8d9] bg-[#edf6f3] p-3">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <p className="text-xs font-medium text-[#0f7a58]">
+                Parent summary
+              </p>
+              <button
+                type="button"
+                onClick={handleCopySummary}
+                className="rounded px-2 py-0.5 text-xs font-medium text-[#0f7a58] hover:bg-[#d6ede6]"
+              >
+                {summaryCopied ? "Copied!" : "Copy"}
+              </button>
+            </div>
+            <p className="text-sm text-[#1b2d4f]">{parentSummary}</p>
+          </div>
+        )}
       </div>
     </div>
   );
