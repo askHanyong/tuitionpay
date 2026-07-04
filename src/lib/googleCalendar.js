@@ -129,25 +129,30 @@ export async function findCalendarConflict(accessToken, startISO, endISO) {
 
 export async function createCalendarEvent(
   accessToken,
-  { summary, description, location, start, end, timeZone = "Asia/Singapore" },
+  { summary, description, location, start, end, timeZone = "Asia/Singapore", createMeetLink = false, meetRequestId },
 ) {
-  const res = await fetch(
+  const url = new URL(
     "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        summary,
-        description,
-        ...(location ? { location } : {}),
-        start: { dateTime: start, timeZone },
-        end: { dateTime: end, timeZone },
-      }),
-    },
   );
+  if (createMeetLink) url.searchParams.set("conferenceDataVersion", "1");
+
+  const res = await fetch(url.toString(), {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      summary,
+      description,
+      ...(location ? { location } : {}),
+      start: { dateTime: start, timeZone },
+      end: { dateTime: end, timeZone },
+      ...(createMeetLink
+        ? { conferenceData: { createRequest: { requestId: meetRequestId || crypto.randomUUID() } } }
+        : {}),
+    }),
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(
@@ -164,25 +169,30 @@ export async function createCalendarEvent(
 export async function updateCalendarEvent(
   accessToken,
   eventId,
-  { summary, description, location, start, end, timeZone = "Asia/Singapore" },
+  { summary, description, location, start, end, timeZone = "Asia/Singapore", createMeetLink = false, meetRequestId },
 ) {
-  const res = await fetch(
+  const url = new URL(
     `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}`,
-    {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        summary,
-        description,
-        location: location || "",
-        start: { dateTime: start, timeZone },
-        end: { dateTime: end, timeZone },
-      }),
-    },
   );
+  if (createMeetLink) url.searchParams.set("conferenceDataVersion", "1");
+
+  const res = await fetch(url.toString(), {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      summary,
+      description,
+      location: location || "",
+      start: { dateTime: start, timeZone },
+      end: { dateTime: end, timeZone },
+      ...(createMeetLink
+        ? { conferenceData: { createRequest: { requestId: meetRequestId || crypto.randomUUID() } } }
+        : {}),
+    }),
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(

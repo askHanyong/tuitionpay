@@ -66,6 +66,7 @@ const emptyForm = (students, prefillDate, defaultTime) => ({
   duration_hours: students[0]?.lesson_duration_hours ?? "",
   rate: students[0]?.hourly_rate ?? "",
   notes: "",
+  lesson_mode: "f2f",
 });
 
 // Most recently used lesson_time for a student, based on the latest lesson_date.
@@ -199,6 +200,7 @@ export default function Lessons() {
   const [summarizing, setSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState(null);
   const [summaryCopied, setSummaryCopied] = useState(false);
+  const [meetLinkCopied, setMeetLinkCopied] = useState(null);
 
   const [defaultDateFrom] = useState(() => daysAgo(30));
   const [defaultDateTo] = useState(() => today());
@@ -329,6 +331,7 @@ export default function Lessons() {
             duration_hours: lesson.duration_minutes / 60,
             rate: lesson.rate ?? "",
             notes: lesson.notes ?? "",
+            lesson_mode: lesson.lesson_mode ?? "f2f",
           });
         }
       }
@@ -490,9 +493,10 @@ export default function Lessons() {
     notes,
     lessonNumber,
     subject,
+    isOnline,
   }) => {
     const tokens = await getTutorGoogleTokens();
-    if (!tokens?.access_token) return;
+    if (!tokens?.access_token) return null;
 
     const student = students.find((s) => s.id === studentId);
     const start = new Date(`${lessonDate}T${lessonTime || "09:00"}:00`);
@@ -507,6 +511,8 @@ export default function Lessons() {
 
     console.log("Student address for calendar:", student?.address);
 
+    let meetLink = null;
+
     const attempt = async () => {
       const accessToken = await getValidAccessToken(user.id, tokens);
       const event = await createCalendarEvent(accessToken, {
@@ -516,10 +522,16 @@ export default function Lessons() {
         location: student?.address || undefined,
         start: start.toISOString(),
         end: end.toISOString(),
+        createMeetLink: isOnline,
+        meetRequestId: lessonId,
       });
+      meetLink =
+        event.conferenceData?.entryPoints?.find((ep) => ep.entryPointType === "video")?.uri ?? null;
+      const updates = { google_event_id: event.id };
+      if (meetLink) updates.meet_link = meetLink;
       await supabase
         .from("lessons")
-        .update({ google_event_id: event.id })
+        .update(updates)
         .eq("id", lessonId)
         .eq("tutor_id", user.id);
     };
@@ -527,18 +539,18 @@ export default function Lessons() {
     try {
       await attempt();
     } catch {
-      // Retry once in case the access token expired between the read above
-      // and the create call (e.g. a stale token cached client-side).
       try {
         await attempt();
       } catch {
         showToast("Lesson saved, but Google Calendar sync failed.", "error");
       }
     }
+    return meetLink;
   };
 
   const updateLessonInGoogleCalendar = async ({
     eventId,
+    lessonId,
     studentId,
     lessonDate,
     lessonTime,
@@ -546,9 +558,10 @@ export default function Lessons() {
     notes,
     lessonLabel,
     subject,
+    isOnline,
   }) => {
     const tokens = await getTutorGoogleTokens();
-    if (!tokens?.access_token) return;
+    if (!tokens?.access_token) return null;
 
     const student = students.find((s) => s.id === studentId);
     const start = new Date(`${lessonDate}T${lessonTime || "09:00"}:00`);
@@ -556,16 +569,22 @@ export default function Lessons() {
 
     console.log("Student address for calendar:", student?.address);
 
+    let meetLink = null;
+
     const attempt = async () => {
       const accessToken = await getValidAccessToken(user.id, tokens);
-      await updateCalendarEvent(accessToken, eventId, {
+      const event = await updateCalendarEvent(accessToken, eventId, {
         summary: `${student?.name ?? "Lesson"} — ${subject || student?.subject || "Lesson"}`,
         description:
           notes || lessonLabel || `Lesson for ${student?.name ?? "student"}`,
         location: student?.address || "",
         start: start.toISOString(),
         end: end.toISOString(),
+        createMeetLink: isOnline,
+        meetRequestId: lessonId,
       });
+      meetLink =
+        event.conferenceData?.entryPoints?.find((ep) => ep.entryPointType === "video")?.uri ?? null;
     };
 
     try {
@@ -577,6 +596,7 @@ export default function Lessons() {
         showToast("Lesson saved, but Google Calendar sync failed.", "error");
       }
     }
+    return meetLink;
   };
 
   const deleteLessonFromGoogleCalendar = async (lesson) => {
@@ -640,6 +660,12 @@ export default function Lessons() {
     }
   };
 
+  const handleCopyMeetLink = async (lessonId, url) => {
+    await navigator.clipboard.writeText(url);
+    setMeetLinkCopied(lessonId);
+    setTimeout(() => setMeetLinkCopied(null), 2000);
+  };
+
   const handleCopySummary = async () => {
     if (!parentSummary) return;
     await navigator.clipboard.writeText(parentSummary);
@@ -672,6 +698,7 @@ export default function Lessons() {
         firstSubject?.lesson_duration_hours ?? student.lesson_duration_hours ?? "",
       rate: firstSubject?.hourly_rate ?? student.hourly_rate ?? "",
       notes: "",
+      lesson_mode: "f2f",
     });
     setSuccessCycle(null);
     setParentSummary("");
@@ -696,6 +723,7 @@ export default function Lessons() {
       duration_hours: lesson.duration_minutes / 60,
       rate: lesson.rate ?? "",
       notes: lesson.notes ?? "",
+      lesson_mode: lesson.lesson_mode ?? "f2f",
     });
     document
       .getElementById("log-lesson-form-submit")
@@ -760,6 +788,11 @@ export default function Lessons() {
           : (original?.is_completed ?? false);
 
       if (editingId) {
+        const isOnline = form.lesson_mode === "online";
+        // f2f clears any existing meet link; online preserves existing link
+        // (we'll try to get/refresh it from calendar below if possible)
+        const existingMeetLink = isOnline ? (original?.meet_link ?? null) : null;
+
         const { error } = await supabase
           .from("lessons")
           .update({
@@ -772,6 +805,8 @@ export default function Lessons() {
             rate: form.rate === "" ? null : Number(form.rate),
             notes: form.notes.trim() || null,
             parent_summary: parentSummary.trim() || null,
+            lesson_mode: form.lesson_mode,
+            meet_link: existingMeetLink,
             status,
             is_completed,
           })
@@ -780,15 +815,24 @@ export default function Lessons() {
         if (error) throw error;
 
         if (original?.google_event_id) {
-          await updateLessonInGoogleCalendar({
+          const calMeetLink = await updateLessonInGoogleCalendar({
             eventId: original.google_event_id,
+            lessonId: editingId,
             studentId: form.student_id,
             lessonDate: form.lesson_date,
             lessonTime: form.lesson_time,
             durationMinutes: Math.round(durationHours * 60),
             notes: form.notes.trim(),
             subject: subjectText,
+            isOnline,
           });
+          if (isOnline && calMeetLink) {
+            await supabase
+              .from("lessons")
+              .update({ meet_link: calMeetLink })
+              .eq("id", editingId)
+              .eq("tutor_id", user.id);
+          }
         }
 
         setInfo("Lesson updated.");
@@ -805,6 +849,8 @@ export default function Lessons() {
         .is("payment_cycle_id", null)
         .eq("is_completed", true);
 
+      const isOnline = form.lesson_mode === "online";
+
       const { data: inserted, error } = await supabase
         .from("lessons")
         .insert({
@@ -818,6 +864,7 @@ export default function Lessons() {
           rate: form.rate === "" ? null : Number(form.rate),
           notes: form.notes.trim() || null,
           parent_summary: parentSummary.trim() || null,
+          lesson_mode: form.lesson_mode,
           status,
           is_completed,
         })
@@ -834,6 +881,7 @@ export default function Lessons() {
         notes: form.notes.trim(),
         lessonNumber: ((beforeCount ?? 0) % 4) + 1,
         subject: subjectText,
+        isOnline,
       });
 
       if (isFuture) {
@@ -993,6 +1041,31 @@ export default function Lessons() {
           onChange={(e) => setForm({ ...form, rate: e.target.value })}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
         />
+      </div>
+
+      <div className="sm:col-span-2">
+        <label className="mb-1 block text-sm font-medium text-gray-700">
+          Lesson mode
+        </label>
+        <div className="flex overflow-hidden rounded-md border border-gray-300">
+          {[
+            { value: "f2f", label: "Face-to-face" },
+            { value: "online", label: "Online" },
+          ].map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setForm({ ...form, lesson_mode: opt.value })}
+              className={`flex-1 py-2 text-sm font-medium transition ${
+                form.lesson_mode === opt.value
+                  ? "bg-[#1b2d4f] text-white"
+                  : "bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="sm:col-span-2">
@@ -1176,6 +1249,28 @@ export default function Lessons() {
                 onChange={(e) => setForm({ ...form, rate: e.target.value })}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Lesson mode</label>
+              <div className="flex overflow-hidden rounded-md border border-gray-300">
+                {[
+                  { value: "f2f", label: "Face-to-face" },
+                  { value: "online", label: "Online" },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setForm({ ...form, lesson_mode: opt.value })}
+                    className={`flex-1 py-2 text-sm font-medium transition ${
+                      form.lesson_mode === opt.value
+                        ? "bg-[#1b2d4f] text-white"
+                        : "bg-white text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="sm:col-span-2">
               <label className="mb-1 block text-sm font-medium text-gray-700">Lesson notes (optional)</label>
@@ -1525,6 +1620,25 @@ export default function Lessons() {
                       </span>
                     )}
                   </p>
+                  {l.meet_link && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <a
+                        href={l.meet_link}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-xs font-medium text-[#0f7a58] underline"
+                      >
+                        🎥 Join Meet
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyMeetLink(l.id, l.meet_link)}
+                        className="text-xs text-gray-500 hover:text-gray-700"
+                      >
+                        {meetLinkCopied === l.id ? "Copied!" : "Copy link"}
+                      </button>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -1538,6 +1652,7 @@ export default function Lessons() {
                     <th className="px-4 py-2 font-medium">Duration</th>
                     <th className="px-4 py-2 font-medium">Rate</th>
                     <th className="px-4 py-2 font-medium">Payment</th>
+                    <th className="px-4 py-2 font-medium">Meet</th>
                     <th className="px-4 py-2 font-medium"></th>
                   </tr>
                 </thead>
@@ -1578,6 +1693,29 @@ export default function Lessons() {
                           <span className="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
                             Unpaid
                           </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        {l.meet_link ? (
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={l.meet_link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs font-medium text-[#0f7a58] underline"
+                            >
+                              🎥 Join
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyMeetLink(l.id, l.meet_link)}
+                              className="text-xs text-gray-500 hover:text-gray-700"
+                            >
+                              {meetLinkCopied === l.id ? "Copied!" : "Copy"}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
