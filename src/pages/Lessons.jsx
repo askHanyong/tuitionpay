@@ -571,11 +571,20 @@ export default function Lessons() {
     const student = students.find((s) => s.id === studentId);
     // lesson_time from Supabase is "HH:MM:SS"; slice to "HH:MM" to avoid
     // producing the invalid string "HH:MM:SS:00" when appending ":00".
-    const timeStr = (lessonTime ?? "09:00").slice(0, 5);
+    // Use || (not ??) so an empty string also falls back to "09:00".
+    const timeStr = (lessonTime || "09:00").slice(0, 5);
     const start = new Date(`${lessonDate}T${timeStr}:00`);
     const end = new Date(start.getTime() + durationMinutes * 60000);
+    const startIsValid = !isNaN(start.getTime());
 
-    console.log("[Calendar update] lessonDate:", lessonDate, "lessonTime raw:", lessonTime, "timeStr:", timeStr, "start:", start.toISOString?.() ?? "INVALID DATE");
+    console.log(
+      "[Calendar update] lessonDate:", lessonDate,
+      "| lessonTime raw:", JSON.stringify(lessonTime),
+      "| timeStr:", timeStr,
+      "| startIsValid:", startIsValid,
+      "| start:", startIsValid ? start.toISOString() : "INVALID DATE",
+      "| eventId:", eventId,
+    );
 
     let meetLink = null;
 
@@ -603,11 +612,11 @@ export default function Lessons() {
         await attempt();
       } catch (err2) {
         console.error("[Calendar update] attempt 2 failed:", err2?.name, err2?.message, err2);
+        const errMsg = String(err2?.message ?? "").toLowerCase();
         const msg =
-          String(err2?.message ?? "").toLowerCase().includes("token") ||
-          String(err2?.message ?? "").toLowerCase().includes("auth")
+          errMsg.includes("token") || errMsg.includes("auth") || errMsg.includes("401")
             ? "Lesson saved. Google Calendar sync failed — reconnect Google Calendar in Settings."
-            : "Lesson saved, but Google Calendar sync failed.";
+            : `Lesson saved, but Google Calendar sync failed: ${err2?.message || "unknown error"}`;
         showToast(msg, "error");
       }
     }
@@ -830,6 +839,7 @@ export default function Lessons() {
         if (error) throw error;
 
         if (original?.google_event_id) {
+          console.log("[Calendar update] calling updateLessonInGoogleCalendar, eventId:", original.google_event_id, "lessonTime:", form.lesson_time);
           const calMeetLink = await updateLessonInGoogleCalendar({
             eventId: original.google_event_id,
             lessonId: editingId,
