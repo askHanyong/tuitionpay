@@ -129,6 +129,7 @@ export default function ScheduleLessonsModal({
     lesson_time: time || null,
     duration_minutes: Math.round(Number(durationHours) * 60),
     rate: rate ?? null,
+    lesson_mode: "f2f",
     status: date > todayKey() ? "scheduled" : "completed",
     is_completed: false,
   });
@@ -142,13 +143,17 @@ export default function ScheduleLessonsModal({
     return tutor?.google_calendar_tokens ?? null;
   };
 
-  const pushLessonToGoogleCalendar = async (tokens, lesson) => {
+  // Fetches tokens fresh from Supabase each time so that if Google refreshes
+  // (rotates) the token mid-batch, later lessons in the loop still get a valid
+  // token rather than reusing a stale object from before the loop started.
+  const pushLessonToGoogleCalendar = async (lesson) => {
+    const tokens = await getTutorGoogleTokens();
+    if (!tokens?.access_token) return { ok: false, reason: "not connected" };
+
     const start = new Date(
       `${lesson.lesson_date}T${lesson.lesson_time || "09:00"}:00`,
     );
     const end = new Date(start.getTime() + lesson.duration_minutes * 60000);
-
-    console.log("Student address for calendar:", student.address);
 
     const attempt = async () => {
       const accessToken = await getValidAccessToken(user.id, tokens);
@@ -168,14 +173,19 @@ export default function ScheduleLessonsModal({
 
     try {
       await attempt();
-    } catch {
+      return { ok: true };
+    } catch (err1) {
       try {
         await attempt();
-      } catch {
-        return false;
+        return { ok: true };
+      } catch (err2) {
+        console.error(
+          `Calendar sync failed for lesson ${lesson.lesson_date}:`,
+          err2,
+        );
+        return { ok: false, reason: err2?.message ?? "unknown error" };
       }
     }
-    return true;
   };
 
   const handlePreview = async () => {
@@ -289,16 +299,23 @@ export default function ScheduleLessonsModal({
       }
 
       if (inserted.length) {
+        // Check once whether Google Calendar is connected before looping.
+        // Each pushLessonToGoogleCalendar call fetches its own fresh tokens
+        // internally — this check is just to skip the loop entirely when
+        // Google Calendar hasn't been connected.
         const tokens = await getTutorGoogleTokens();
         if (tokens?.access_token) {
-          let failures = 0;
+          const failedDates = [];
           for (const lesson of inserted) {
-            const ok = await pushLessonToGoogleCalendar(tokens, lesson);
-            if (!ok) failures += 1;
+            const result = await pushLessonToGoogleCalendar(lesson);
+            if (!result.ok) failedDates.push(lesson.lesson_date);
           }
-          if (failures > 0) {
+          if (failedDates.length > 0) {
+            const dateList = failedDates
+              .map((d) => new Date(`${d}T00:00:00`).toLocaleDateString("en-SG", { day: "numeric", month: "short" }))
+              .join(", ");
             showToast(
-              `Lessons saved, but ${failures} failed to sync to Google Calendar.`,
+              `Lessons saved, but ${failedDates.length} failed to sync to Google Calendar: ${dateList}. Try reconnecting Google Calendar in Settings if this keeps happening.`,
               "error",
             );
           }
