@@ -499,7 +499,10 @@ export default function Lessons() {
     if (!tokens?.access_token) return null;
 
     const student = students.find((s) => s.id === studentId);
-    const start = new Date(`${lessonDate}T${lessonTime || "09:00"}:00`);
+    // lesson_time from Supabase is "HH:MM:SS"; slice to "HH:MM" so appending
+    // ":00" produces "HH:MM:00" not the invalid "HH:MM:SS:00".
+    const timeStr = (lessonTime || "09:00").slice(0, 5);
+    const start = new Date(`${lessonDate}T${timeStr}:00`);
     const end = new Date(start.getTime() + durationMinutes * 60000);
     const mode = student?.payment_mode ?? "lessons";
     const isMonthlyBilled = mode === "monthly" || mode === "custom_date";
@@ -509,12 +512,19 @@ export default function Lessons() {
         ? `Lesson ${lessonNumber}`
         : `Lesson ${lessonNumber} of ${student?.payment_cycle_count ?? 4}`;
 
-    console.log("Student address for calendar:", student?.address);
+    console.log(
+      "[Calendar create] lessonDate:", lessonDate,
+      "| lessonTime raw:", JSON.stringify(lessonTime),
+      "| timeStr:", timeStr,
+      "| startIsValid:", !isNaN(start.getTime()),
+      "| start:", !isNaN(start.getTime()) ? start.toISOString() : "INVALID DATE",
+    );
 
     let meetLink = null;
 
     const attempt = async () => {
       const accessToken = await getValidAccessToken(user.id, tokens);
+      console.log("[Calendar create] calling createCalendarEvent for lessonId:", lessonId);
       const event = await createCalendarEvent(accessToken, {
         summary: `${student?.name ?? "Lesson"} — ${subject || student?.subject || "Lesson"}`,
         description:
@@ -539,14 +549,16 @@ export default function Lessons() {
     try {
       await attempt();
     } catch (err) {
+      console.error("[Calendar create] attempt 1 failed:", err?.name, err?.message, err);
       try {
         await attempt();
       } catch (err2) {
+        console.error("[Calendar create] attempt 2 failed:", err2?.name, err2?.message, err2);
+        const errMsg = String(err2?.message ?? "").toLowerCase();
         const msg =
-          String(err2?.message ?? "").toLowerCase().includes("token") ||
-          String(err2?.message ?? "").toLowerCase().includes("auth")
+          errMsg.includes("token") || errMsg.includes("auth") || errMsg.includes("401")
             ? "Lesson saved. Google Calendar sync failed — reconnect Google Calendar in Settings."
-            : "Lesson saved, but Google Calendar sync failed.";
+            : `Lesson saved, but Google Calendar sync failed: ${err2?.message || "unknown error"}`;
         showToast(msg, "error");
       }
     }
