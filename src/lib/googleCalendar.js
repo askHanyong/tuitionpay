@@ -136,6 +136,10 @@ export async function createCalendarEvent(
   );
   if (createMeetLink) url.searchParams.set("conferenceDataVersion", "1");
 
+  // Strip the UTC "Z" so Google uses the timeZone field for local time.
+  const localStart = start.replace(/\.\d{3}Z$/, "").replace(/Z$/, "");
+  const localEnd = end.replace(/\.\d{3}Z$/, "").replace(/Z$/, "");
+
   const res = await fetch(url.toString(), {
     method: "POST",
     headers: {
@@ -146,8 +150,8 @@ export async function createCalendarEvent(
       summary,
       description,
       ...(location ? { location } : {}),
-      start: { dateTime: start, timeZone },
-      end: { dateTime: end, timeZone },
+      start: { dateTime: localStart, timeZone },
+      end: { dateTime: localEnd, timeZone },
       ...(createMeetLink
         ? { conferenceData: { createRequest: { requestId: meetRequestId || crypto.randomUUID() } } }
         : {}),
@@ -176,30 +180,42 @@ export async function updateCalendarEvent(
   );
   if (createMeetLink) url.searchParams.set("conferenceDataVersion", "1");
 
+  // Send local time without a timezone offset so that Google uses the
+  // timeZone field. toISOString() produces a UTC "Z" string which causes
+  // Google to ignore timeZone entirely and store the event in UTC — so we
+  // strip the Z and trailing milliseconds to send a local-time string instead.
+  const localStart = start.replace(/\.\d{3}Z$/, "").replace(/Z$/, "");
+  const localEnd = end.replace(/\.\d{3}Z$/, "").replace(/Z$/, "");
+
+  const requestBody = {
+    summary,
+    description,
+    location: location || "",
+    start: { dateTime: localStart, timeZone },
+    end: { dateTime: localEnd, timeZone },
+    ...(createMeetLink
+      ? { conferenceData: { createRequest: { requestId: meetRequestId || crypto.randomUUID() } } }
+      : {}),
+  };
+
+  console.log("[updateCalendarEvent] PATCH", url.toString(), JSON.stringify(requestBody));
+
   const res = await fetch(url.toString(), {
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      summary,
-      description,
-      location: location || "",
-      start: { dateTime: start, timeZone },
-      end: { dateTime: end, timeZone },
-      ...(createMeetLink
-        ? { conferenceData: { createRequest: { requestId: meetRequestId || crypto.randomUUID() } } }
-        : {}),
-    }),
+    body: JSON.stringify(requestBody),
   });
+  const body = await res.json().catch(() => ({}));
+  console.log("[updateCalendarEvent] response status:", res.status, "body:", JSON.stringify(body));
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
     throw new Error(
       body.error?.message || "Failed to update Google Calendar event.",
     );
   }
-  return res.json();
+  return body;
 }
 
 export async function deleteCalendarEvent(accessToken, eventId) {
