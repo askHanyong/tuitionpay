@@ -35,17 +35,7 @@ function computeForMonth(
     )
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
 
-  // Projected earnings = every lesson this month (taught + upcoming) summed
-  // as duration × rate. Payment collection method is ignored — this is purely
-  // based on the lesson schedule.
   const studentsById = new Map(students.map((s) => [s.id, s]));
-  const scheduledThisMonth = (scheduledLessons ?? []).filter((l) =>
-    isSameMonth(l.lesson_date, monthDate),
-  );
-  const projectedEarnings = [...monthLessons, ...scheduledThisMonth].reduce(
-    (sum, l) => sum + lessonAmount(l, studentsById.get(l.student_id)),
-    0,
-  );
   // A payment cycle only gets created once its full lesson group has
   // landed, so a student mid-cycle has no payment_cycles row yet. Their full
   // cycle amount only counts as pending once the cycle is far enough along
@@ -144,12 +134,36 @@ function computeForMonth(
   const isCurrentMonth =
     monthDate.getFullYear() === now.getFullYear() &&
     monthDate.getMonth() === now.getMonth();
+  const isPastMonth =
+    monthDate.getFullYear() < now.getFullYear() ||
+    (monthDate.getFullYear() === now.getFullYear() &&
+      monthDate.getMonth() < now.getMonth());
   // Pending amounts only make sense for the month that's still in progress --
   // a month that has already ended is fully settled or already reflected in
   // history, so it should never display a pending balance.
   const pending = isCurrentMonth
     ? pendingFromCycles + pendingFromMidCycleLessons
     : 0;
+
+  // Projected earnings for past months: use the settled collected+pending
+  // total so the number matches reality. Using lesson-based math for past
+  // months produces wrong results because "Collected" attributes a payment
+  // cycle's full amount to the month its LAST lesson fell in, while
+  // lesson-based math splits it across whichever months each individual
+  // lesson occurred in — they will always disagree whenever a cycle spans a
+  // month boundary.
+  // For the current and future months: sum duration × rate for all lessons
+  // scheduled in the month (taught so far + upcoming), since cycles haven't
+  // all closed yet and we genuinely need to project forward.
+  const scheduledThisMonth = (scheduledLessons ?? []).filter((l) =>
+    isSameMonth(l.lesson_date, monthDate),
+  );
+  const projectedEarnings = isPastMonth
+    ? collected + pending
+    : [...monthLessons, ...scheduledThisMonth].reduce(
+        (sum, l) => sum + lessonAmount(l, studentsById.get(l.student_id)),
+        0,
+      );
 
   return {
     totalLessons: monthLessons.length,
