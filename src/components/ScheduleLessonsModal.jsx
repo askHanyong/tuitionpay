@@ -150,9 +150,10 @@ export default function ScheduleLessonsModal({
     const tokens = await getTutorGoogleTokens();
     if (!tokens?.access_token) return { ok: false, reason: "not connected" };
 
-    const start = new Date(
-      `${lesson.lesson_date}T${lesson.lesson_time || "09:00"}:00`,
-    );
+    // lesson_time from Supabase is "HH:MM:SS"; slice to "HH:MM" before
+    // appending ":00" to avoid producing the invalid string "HH:MM:SS:00".
+    const timeStr = (lesson.lesson_time ?? "09:00").slice(0, 5);
+    const start = new Date(`${lesson.lesson_date}T${timeStr}:00`);
     const end = new Date(start.getTime() + lesson.duration_minutes * 60000);
 
     const attempt = async () => {
