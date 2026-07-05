@@ -538,11 +538,16 @@ export default function Lessons() {
 
     try {
       await attempt();
-    } catch {
+    } catch (err) {
       try {
         await attempt();
-      } catch {
-        showToast("Lesson saved, but Google Calendar sync failed.", "error");
+      } catch (err2) {
+        const msg =
+          String(err2?.message ?? "").toLowerCase().includes("token") ||
+          String(err2?.message ?? "").toLowerCase().includes("auth")
+            ? "Lesson saved. Google Calendar sync failed — reconnect Google Calendar in Settings."
+            : "Lesson saved, but Google Calendar sync failed.";
+        showToast(msg, "error");
       }
     }
     return meetLink;
@@ -589,11 +594,16 @@ export default function Lessons() {
 
     try {
       await attempt();
-    } catch {
+    } catch (err) {
       try {
         await attempt();
-      } catch {
-        showToast("Lesson saved, but Google Calendar sync failed.", "error");
+      } catch (err2) {
+        const msg =
+          String(err2?.message ?? "").toLowerCase().includes("token") ||
+          String(err2?.message ?? "").toLowerCase().includes("auth")
+            ? "Lesson saved. Google Calendar sync failed — reconnect Google Calendar in Settings."
+            : "Lesson saved, but Google Calendar sync failed.";
+        showToast(msg, "error");
       }
     }
     return meetLink;
