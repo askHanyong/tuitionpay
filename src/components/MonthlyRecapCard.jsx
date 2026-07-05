@@ -34,12 +34,23 @@ function computeForMonth(
       (c) => c.status === "pending" && isSameMonth(c.period_end, monthDate),
     )
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
+
+  // Projected earnings = every lesson this month (taught + upcoming) summed
+  // as duration × rate. Payment collection method is ignored — this is purely
+  // based on the lesson schedule.
+  const studentsById = new Map(students.map((s) => [s.id, s]));
+  const scheduledThisMonth = (scheduledLessons ?? []).filter((l) =>
+    isSameMonth(l.lesson_date, monthDate),
+  );
+  const projectedEarnings = [...monthLessons, ...scheduledThisMonth].reduce(
+    (sum, l) => sum + lessonAmount(l, studentsById.get(l.student_id)),
+    0,
+  );
   // A payment cycle only gets created once its full lesson group has
   // landed, so a student mid-cycle has no payment_cycles row yet. Their full
   // cycle amount only counts as pending once the cycle is far enough along
   // to be imminent -- at least (payment_cycle_count - 1) completed unbilled
   // lessons -- not from the very first lesson of the cycle.
-  const studentsById = new Map(students.map((s) => [s.id, s]));
   const unbilledCountByStudent = new Map();
   for (const l of lessons) {
     if (l.payment_cycle_id) continue;
@@ -144,6 +155,7 @@ function computeForMonth(
     totalLessons: monthLessons.length,
     collected,
     pending,
+    projectedEarnings,
     total: collected + pending,
   };
 }
@@ -161,11 +173,6 @@ export default function MonthlyRecapCard({
   );
   const [generating, setGenerating] = useState(false);
   const reportRef = useRef(null);
-
-  const prevMonthDate = useMemo(
-    () => new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1),
-    [monthDate],
-  );
 
   const current = useMemo(() => {
     const computed = computeForMonth(
@@ -195,34 +202,14 @@ export default function MonthlyRecapCard({
     scheduledLessons,
     currentMonthPendingOverride,
   ]);
-  const previous = useMemo(
-    () =>
-      computeForMonth(
-        prevMonthDate,
-        lessons,
-        paymentCycles,
-        students,
-        scheduledLessons,
-      ),
-    [prevMonthDate, lessons, paymentCycles, students, scheduledLessons],
-  );
-
-  const change =
-    previous.total > 0 && current.totalLessons > 0
-      ? Math.round(((current.total - previous.total) / previous.total) * 100)
-      : null;
-
   const message =
-    current.total > 3000
+    current.projectedEarnings > 3000
       ? "🔥 Amazing month! You're on fire!"
-      : current.total >= 2000
+      : current.projectedEarnings >= 2000
         ? "💪 Solid month! Keep it going!"
         : "📈 Building up — every lesson counts!";
 
   const monthLabel = formatMonth(monthDate);
-  const prevMonthLabel = prevMonthDate.toLocaleDateString("en-SG", {
-    month: "short",
-  });
 
   const goToMonth = (offset) => {
     setMonthDate(
@@ -295,20 +282,10 @@ export default function MonthlyRecapCard({
         </div>
         <div className="text-center">
           <p className="text-xl font-semibold text-gray-900">
-            {formatSGD(current.total)}
+            {formatSGD(current.projectedEarnings)}
           </p>
           <p className="mt-1 text-xs font-medium text-gray-600">
-            💰 Total projected
-            {change != null && (
-              <span
-                className={`ml-1 font-semibold ${
-                  change >= 0 ? "text-[#5ecfaa]" : "text-red-600"
-                }`}
-              >
-                {change >= 0 ? "↑" : "↓"} {Math.abs(change)}% vs{" "}
-                {prevMonthLabel}
-              </span>
-            )}
+            📈 Projected earnings
           </p>
         </div>
       </div>
