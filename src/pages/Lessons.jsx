@@ -569,10 +569,13 @@ export default function Lessons() {
     if (!tokens?.access_token) return null;
 
     const student = students.find((s) => s.id === studentId);
-    const start = new Date(`${lessonDate}T${lessonTime || "09:00"}:00`);
+    // lesson_time from Supabase is "HH:MM:SS"; slice to "HH:MM" to avoid
+    // producing the invalid string "HH:MM:SS:00" when appending ":00".
+    const timeStr = (lessonTime ?? "09:00").slice(0, 5);
+    const start = new Date(`${lessonDate}T${timeStr}:00`);
     const end = new Date(start.getTime() + durationMinutes * 60000);
 
-    console.log("Student address for calendar:", student?.address);
+    console.log("[Calendar update] lessonDate:", lessonDate, "lessonTime raw:", lessonTime, "timeStr:", timeStr, "start:", start.toISOString?.() ?? "INVALID DATE");
 
     let meetLink = null;
 
@@ -595,9 +598,11 @@ export default function Lessons() {
     try {
       await attempt();
     } catch (err) {
+      console.error("[Calendar update] attempt 1 failed:", err?.name, err?.message, err);
       try {
         await attempt();
       } catch (err2) {
+        console.error("[Calendar update] attempt 2 failed:", err2?.name, err2?.message, err2);
         const msg =
           String(err2?.message ?? "").toLowerCase().includes("token") ||
           String(err2?.message ?? "").toLowerCase().includes("auth")
