@@ -721,16 +721,19 @@ export default function Dashboard() {
             onDone={loadAll}
           />
         )}
-        <div className="flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-white px-6 py-16 text-center shadow-sm">
-          <p className="mb-4 text-5xl">🎓</p>
-          <p className="mb-6 max-w-sm text-sm text-gray-600">
-            Welcome! Add your first student to get started.
+        <div className="flex flex-col items-center justify-center rounded-xl border border-[#b8e8d9] bg-[#edf6f3] px-6 py-20 text-center shadow-sm">
+          <p className="mb-4 text-6xl">🎓</p>
+          <h2 className="mb-2 text-xl font-semibold text-[#1b2d4f]">
+            Let&apos;s get started!
+          </h2>
+          <p className="mb-8 max-w-xs text-sm text-gray-600">
+            Add your first student to begin tracking lessons and payments.
           </p>
           <Link
             to="/students"
-            className="flex min-h-11 items-center rounded-md bg-[#1b2d4f] px-5 text-sm font-medium text-white hover:bg-[#15243f]"
+            className="flex min-h-11 items-center gap-1.5 rounded-md bg-[#1b2d4f] px-6 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow"
           >
-            Add Student
+            + Add Student
           </Link>
         </div>
       </AppShell>
