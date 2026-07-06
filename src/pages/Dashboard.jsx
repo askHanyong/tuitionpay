@@ -27,14 +27,14 @@ const tomorrowKey = () => toDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
 // Update this in one place to ship a new "What's new" banner -- bumping
 // the id makes it reappear for everyone even if they dismissed a past one.
 const ANNOUNCEMENT = {
-  id: "whats-new-2026-07-01",
+  id: "whats-new-2026-07-06",
   headline: "What's new in ChopeAndPay ✨",
   bullets: [
-    "🎨 Fresh new look — navy + mint colour scheme, cleaner layout",
-    "📚 Multiple subjects per student — add as many subjects as a student takes, each with its own rate and duration",
-    "🗂️ Archive students — hide past students from your active list without losing their history",
-    "📊 Student stats — see total lessons, this month, this year, and total earned right on each student's profile",
-    "💰 Dashboard summary — active students, lessons this month, and collected/pending payments at a glance",
+    "🌐 Online or face-to-face — mark lessons as online or in-person; online lessons automatically generate a Google Meet link",
+    "✨ AI lesson summaries — turn your rough lesson notes into a clean, parent-friendly summary with one tap",
+    "💰 Smarter monthly recap — see your projected earnings for the month based on your full lesson schedule, regardless of payment cycle",
+    "💬 We'd love your feedback — reach us anytime via the floating feedback button (WhatsApp or email)",
+    "📅 More reliable calendar sync — smoother syncing when editing lessons or scheduling in bulk",
   ],
 };
 
