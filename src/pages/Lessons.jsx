@@ -502,7 +502,7 @@ export default function Lessons() {
     // lesson_time from Supabase is "HH:MM:SS"; slice to "HH:MM" so appending
     // ":00" produces "HH:MM:00" not the invalid "HH:MM:SS:00".
     const timeStr = (lessonTime || "09:00").slice(0, 5);
-    const start = new Date(`${lessonDate}T${timeStr}:00`);
+    const start = new Date(`${lessonDate}T${timeStr}:00+08:00`);
     const end = new Date(start.getTime() + durationMinutes * 60000);
     const mode = student?.payment_mode ?? "lessons";
     const isMonthlyBilled = mode === "monthly" || mode === "custom_date";
@@ -585,7 +585,7 @@ export default function Lessons() {
     // producing the invalid string "HH:MM:SS:00" when appending ":00".
     // Use || (not ??) so an empty string also falls back to "09:00".
     const timeStr = (lessonTime || "09:00").slice(0, 5);
-    const start = new Date(`${lessonDate}T${timeStr}:00`);
+    const start = new Date(`${lessonDate}T${timeStr}:00+08:00`);
     const end = new Date(start.getTime() + durationMinutes * 60000);
     const startIsValid = !isNaN(start.getTime());
 
