@@ -21,8 +21,21 @@ const emptySubjectRow = () => ({
   lesson_duration_hours: "",
 });
 
+// Preset avatar colors — bg is the circle fill, text is the initial color.
+export const AVATAR_PRESET_COLORS = [
+  { bg: "#d1fae5", text: "#065f46", label: "Mint" },
+  { bg: "#dbeafe", text: "#1e40af", label: "Sky blue" },
+  { bg: "#ede9fe", text: "#5b21b6", label: "Soft purple" },
+  { bg: "#fee2e2", text: "#991b1b", label: "Coral" },
+  { bg: "#fef3c7", text: "#92400e", label: "Amber" },
+  { bg: "#ccfbf1", text: "#0f766e", label: "Teal" },
+  { bg: "#fce7f3", text: "#9d174d", label: "Rose" },
+  { bg: "#f3f4f6", text: "#374151", label: "Slate" },
+];
+
 const emptyForm = {
   name: "",
+  avatar_color: "",
   subjects: [emptySubjectRow()],
   address: "",
   payment_mode: "lessons",
@@ -234,6 +247,7 @@ export default function Students() {
                 lesson_duration_hours: student.lesson_duration_hours ?? "",
               },
             ],
+      avatar_color: student.avatar_color ?? "",
       address: student.address ?? "",
       payment_mode: student.payment_mode ?? "lessons",
       payment_cycle_count: String(student.payment_cycle_count ?? 4),
@@ -299,6 +313,7 @@ export default function Students() {
 
     const payload = {
       name: form.name.trim(),
+      avatar_color: form.avatar_color || null,
       subject: primary.subject.trim() || null,
       level: primary.level || null,
       hourly_rate:
@@ -531,6 +546,45 @@ export default function Students() {
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa] sm:max-w-sm"
           />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-gray-700">
+            Avatar colour
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {AVATAR_PRESET_COLORS.map((c) => {
+              const selected = form.avatar_color === c.bg;
+              return (
+                <button
+                  key={c.bg}
+                  type="button"
+                  aria-label={c.label}
+                  title={c.label}
+                  onClick={() =>
+                    setForm({ ...form, avatar_color: selected ? "" : c.bg })
+                  }
+                  style={{ backgroundColor: c.bg }}
+                  className={`relative flex h-9 w-9 items-center justify-center rounded-full transition ${
+                    selected
+                      ? "ring-2 ring-[#1b2d4f] ring-offset-2"
+                      : "hover:ring-2 hover:ring-gray-300 hover:ring-offset-1"
+                  }`}
+                >
+                  {selected && (
+                    <span style={{ color: c.text }} className="text-xs font-bold">
+                      ✓
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1.5 text-xs text-gray-400">
+            {form.avatar_color
+              ? "Colour selected — tap again to clear."
+              : "No colour selected — will use default based on payment status."}
+          </p>
         </div>
 
         <div className="space-y-3">
@@ -827,6 +881,7 @@ export default function Students() {
                   <div className="mb-2 flex items-center gap-3">
                     <StudentAvatar
                       name={s.name}
+                      avatarColor={s.avatar_color}
                       tier={
                         s.archived
                           ? "grey"
@@ -929,6 +984,7 @@ export default function Students() {
                           <div className="flex items-center gap-3">
                             <StudentAvatar
                               name={s.name}
+                              avatarColor={s.avatar_color}
                               tier={
                                 s.archived
                                   ? "grey"
@@ -1051,8 +1107,15 @@ const AVATAR_COLORS = {
   grey: { bg: "#f3f4f6", color: "#6b7280" },
 };
 
-function StudentAvatar({ name, tier }) {
-  const { bg, color } = AVATAR_COLORS[tier] ?? AVATAR_COLORS.grey;
+function StudentAvatar({ name, tier, avatarColor }) {
+  // avatarColor is the stored bg hex (e.g. "#d1fae5"). Look up its matching
+  // text color from the preset list; fall back to tier-based colors if unset.
+  const preset = avatarColor
+    ? AVATAR_PRESET_COLORS.find((c) => c.bg === avatarColor)
+    : null;
+  const { bg, color } = preset
+    ? { bg: preset.bg, color: preset.text }
+    : (AVATAR_COLORS[tier] ?? AVATAR_COLORS.grey);
   return (
     <span
       style={{
