@@ -153,8 +153,10 @@ export default function ScheduleLessonsModal({
     // lesson_time from Supabase is "HH:MM:SS"; slice to "HH:MM" before
     // appending ":00" to avoid producing the invalid string "HH:MM:SS:00".
     const timeStr = (lesson.lesson_time ?? "09:00").slice(0, 5);
-    const start = new Date(`${lesson.lesson_date}T${timeStr}:00+08:00`);
-    const end = new Date(start.getTime() + lesson.duration_minutes * 60000);
+    const startStr = `${lesson.lesson_date}T${timeStr}:00+08:00`;
+    const startMs = new Date(startStr).getTime();
+    const endMs = startMs + lesson.duration_minutes * 60000;
+    const endStr = new Date(endMs + 8 * 3600000).toISOString().slice(0, 19) + "+08:00";
 
     const attempt = async () => {
       const accessToken = await getValidAccessToken(user.id, tokens);
@@ -162,8 +164,8 @@ export default function ScheduleLessonsModal({
         summary: `${student.name} — ${subjectText || "Lesson"}`,
         description: `Lesson for ${student.name}`,
         location: student.address || undefined,
-        start: start.toISOString(),
-        end: end.toISOString(),
+        start: startStr,
+        end: endStr,
       });
       await supabase
         .from("lessons")

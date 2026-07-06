@@ -502,8 +502,14 @@ export default function Lessons() {
     // lesson_time from Supabase is "HH:MM:SS"; slice to "HH:MM" so appending
     // ":00" produces "HH:MM:00" not the invalid "HH:MM:SS:00".
     const timeStr = (lessonTime || "09:00").slice(0, 5);
-    const start = new Date(`${lessonDate}T${timeStr}:00+08:00`);
-    const end = new Date(start.getTime() + durationMinutes * 60000);
+    // Build SGT dateTime strings with explicit +08:00 offset so Google
+    // Calendar always receives Singapore local time, regardless of what
+    // timezone the browser is set to. toISOString() produces a UTC "Z"
+    // string which causes Google to ignore the timeZone field.
+    const startStr = `${lessonDate}T${timeStr}:00+08:00`;
+    const startMs = new Date(startStr).getTime();
+    const endMs = startMs + durationMinutes * 60000;
+    const endStr = new Date(endMs + 8 * 3600000).toISOString().slice(0, 19) + "+08:00";
     const mode = student?.payment_mode ?? "lessons";
     const isMonthlyBilled = mode === "monthly" || mode === "custom_date";
     const isPerLesson = mode === "per_lesson";
@@ -515,9 +521,8 @@ export default function Lessons() {
     console.log(
       "[Calendar create] lessonDate:", lessonDate,
       "| lessonTime raw:", JSON.stringify(lessonTime),
-      "| timeStr:", timeStr,
-      "| startIsValid:", !isNaN(start.getTime()),
-      "| start:", !isNaN(start.getTime()) ? start.toISOString() : "INVALID DATE",
+      "| startStr:", startStr,
+      "| endStr:", endStr,
     );
 
     let meetLink = null;
@@ -530,8 +535,8 @@ export default function Lessons() {
         description:
           notes || `${lessonLabel} for ${student?.name ?? "student"}`,
         location: student?.address || undefined,
-        start: start.toISOString(),
-        end: end.toISOString(),
+        start: startStr,
+        end: endStr,
         createMeetLink: isOnline,
         meetRequestId: lessonId,
       });
@@ -585,16 +590,16 @@ export default function Lessons() {
     // producing the invalid string "HH:MM:SS:00" when appending ":00".
     // Use || (not ??) so an empty string also falls back to "09:00".
     const timeStr = (lessonTime || "09:00").slice(0, 5);
-    const start = new Date(`${lessonDate}T${timeStr}:00+08:00`);
-    const end = new Date(start.getTime() + durationMinutes * 60000);
-    const startIsValid = !isNaN(start.getTime());
+    const startStr = `${lessonDate}T${timeStr}:00+08:00`;
+    const startMs = new Date(startStr).getTime();
+    const endMs = startMs + durationMinutes * 60000;
+    const endStr = new Date(endMs + 8 * 3600000).toISOString().slice(0, 19) + "+08:00";
 
     console.log(
       "[Calendar update] lessonDate:", lessonDate,
       "| lessonTime raw:", JSON.stringify(lessonTime),
-      "| timeStr:", timeStr,
-      "| startIsValid:", startIsValid,
-      "| start:", startIsValid ? start.toISOString() : "INVALID DATE",
+      "| startStr:", startStr,
+      "| endStr:", endStr,
       "| eventId:", eventId,
     );
 
@@ -607,8 +612,8 @@ export default function Lessons() {
         description:
           notes || lessonLabel || `Lesson for ${student?.name ?? "student"}`,
         location: student?.address || "",
-        start: start.toISOString(),
-        end: end.toISOString(),
+        start: startStr,
+        end: endStr,
         createMeetLink: isOnline,
         meetRequestId: lessonId,
       });
