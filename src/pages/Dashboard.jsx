@@ -35,6 +35,7 @@ const ANNOUNCEMENT = {
     "💰 Smarter monthly recap — see your projected earnings for the month based on your full lesson schedule, regardless of payment cycle",
     "💬 We'd love your feedback — reach us anytime via the floating feedback button (WhatsApp or email)",
     "📅 More reliable calendar sync — smoother syncing when editing lessons or scheduling in bulk",
+    "🔜 Coming up — Sync to Google Calendar (currently in review with Google, opening to all users soon!)",
   ],
 };
 
