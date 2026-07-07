@@ -92,6 +92,8 @@ export default function Settings() {
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [feedbackDone, setFeedbackDone] = useState(false);
+  const [deletedStudents, setDeletedStudents] = useState([]);
+  const [restoringId, setRestoringId] = useState(null);
 
   const loadGoogleStatus = async () => {
     const { data } = await supabase
@@ -122,9 +124,35 @@ export default function Settings() {
         });
       }
       setLoading(false);
+
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: deleted } = await supabase
+        .from("students")
+        .select("id, name, archived, deleted_at")
+        .eq("tutor_id", user.id)
+        .not("deleted_at", "is", null)
+        .gte("deleted_at", thirtyDaysAgo)
+        .order("deleted_at", { ascending: false });
+      setDeletedStudents(deleted ?? []);
     };
     load();
   }, [user.id]);
+
+  const handleRestoreStudent = async (student) => {
+    setRestoringId(student.id);
+    const { error } = await supabase
+      .from("students")
+      .update({ deleted_at: null })
+      .eq("id", student.id)
+      .eq("tutor_id", user.id);
+    setRestoringId(null);
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    setDeletedStudents((prev) => prev.filter((s) => s.id !== student.id));
+    showToast(`${student.name} restored.`);
+  };
 
   const handleToggleNotification = async (key) => {
     const nextValue = !notifyPrefs[key];
@@ -446,6 +474,50 @@ export default function Settings() {
         <p className="text-xs text-gray-500">
           Your data is exported as CSV, compatible with Excel and Google Sheets
         </p>
+      </section>
+
+      <section className="space-y-3 rounded-md border border-gray-200 bg-white p-5">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Recently deleted</h2>
+          <p className="mt-1 text-xs text-gray-500">
+            Students deleted in the last 30 days. Tap Restore to bring them back.
+          </p>
+        </div>
+        {deletedStudents.length === 0 ? (
+          <p className="text-sm text-gray-400">No recently deleted students.</p>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {deletedStudents.map((s) => {
+              const deletedAgo = (() => {
+                const ms = Date.now() - new Date(s.deleted_at).getTime();
+                const mins = Math.floor(ms / 60000);
+                if (mins < 60) return `${mins}m ago`;
+                const hrs = Math.floor(mins / 60);
+                if (hrs < 24) return `${hrs}h ago`;
+                return `${Math.floor(hrs / 24)}d ago`;
+              })();
+              return (
+                <li key={s.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                  <div>
+                    <span className="text-sm font-medium text-gray-900">{s.name}</span>
+                    <span className="ml-2 text-xs text-gray-400">
+                      Deleted {deletedAgo}
+                      {s.archived && " · was archived"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={restoringId === s.id}
+                    onClick={() => handleRestoreStudent(s)}
+                    className="flex-none rounded-md border border-[#b8e8d9] bg-[#edf6f3] px-3 py-1.5 text-xs font-semibold text-[#1b2d4f] hover:bg-[#d6ede6] disabled:opacity-50"
+                  >
+                    {restoringId === s.id ? "Restoring…" : "Restore"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
 
       <section className="space-y-3 rounded-md border border-gray-200 bg-white p-5">
