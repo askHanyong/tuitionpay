@@ -1012,6 +1012,28 @@ export default function Lessons() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleToggleComplete = async (lesson) => {
+    const next = !lesson.is_completed;
+    setLessons((prev) =>
+      prev.map((l) => (l.id === lesson.id ? { ...l, is_completed: next } : l)),
+    );
+    const { error } = await supabase
+      .from("lessons")
+      .update({ is_completed: next })
+      .eq("id", lesson.id)
+      .eq("tutor_id", user.id);
+    if (error) {
+      setLessons((prev) =>
+        prev.map((l) =>
+          l.id === lesson.id ? { ...l, is_completed: !next } : l,
+        ),
+      );
+      showToast(error.message, "error");
+    } else {
+      await reloadLessons();
+    }
+  };
+
   const handleDelete = (id) => {
     setDeleteTarget(id);
   };
@@ -1650,7 +1672,10 @@ export default function Lessons() {
         ) : (
           <>
             <ul className="space-y-3 sm:hidden">
-              {displayedLessons.map((l) => (
+              {displayedLessons.map((l) => {
+                const isToday = l.lesson_date === today();
+                const completed = isLessonCompleted(l);
+                return (
                 <li
                   key={l.id}
                   className="rounded-md border border-gray-200 bg-white p-4"
@@ -1658,7 +1683,7 @@ export default function Lessons() {
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <span className="flex flex-wrap items-center gap-2 font-medium text-gray-900">
                       <span>{l.students?.name}</span>
-                      {isLessonCompleted(l) ? (
+                      {completed ? (
                         <span className="inline-block rounded-full bg-[#d6ede6] px-2 py-0.5 text-xs font-medium text-[#1b2d4f]">
                           Completed
                         </span>
@@ -1683,7 +1708,7 @@ export default function Lessons() {
                     {(l.duration_minutes / 60).toFixed(2)}h
                     {l.rate != null && ` · $${l.rate}/hr`}
                     {" · "}
-                    {!isLessonCompleted(l) ? (
+                    {!completed ? (
                       <span className="text-gray-400">—</span>
                     ) : l.payment_cycle_id ? (
                       <span className="inline-block rounded-full bg-[#d6ede6] px-2 py-0.5 text-xs font-medium text-[#1b2d4f]">
@@ -1714,8 +1739,33 @@ export default function Lessons() {
                       </button>
                     </div>
                   )}
+                  {isToday && (
+                    <div className="mt-3 flex items-center gap-2">
+                      {completed ? (
+                        <>
+                          <span className="text-xs font-medium text-[#065f46]">✓ Marked complete</span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleComplete(l)}
+                            className="text-xs text-gray-400 underline hover:text-gray-600"
+                          >
+                            Undo
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleComplete(l)}
+                          className="rounded-md bg-[#1b2d4f] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#15243f]"
+                        >
+                          ✓ Mark as complete
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </li>
-              ))}
+                );
+              })}
             </ul>
             <div className="hidden overflow-hidden rounded-md border border-gray-200 bg-white sm:block">
               <table className="w-full text-left text-sm">
@@ -1728,11 +1778,15 @@ export default function Lessons() {
                     <th className="px-4 py-2 font-medium">Rate</th>
                     <th className="px-4 py-2 font-medium">Payment</th>
                     <th className="px-4 py-2 font-medium">Meet</th>
+                    <th className="px-4 py-2 font-medium">Today</th>
                     <th className="px-4 py-2 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {displayedLessons.map((l) => (
+                  {displayedLessons.map((l) => {
+                    const isToday = l.lesson_date === today();
+                    const completed = isLessonCompleted(l);
+                    return (
                     <tr key={l.id} className="transition hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-900">
                         {formatDateTime(l.lesson_date, l.lesson_time)}
@@ -1741,7 +1795,7 @@ export default function Lessons() {
                         {l.students?.name}
                       </td>
                       <td className="px-4 py-3">
-                        {isLessonCompleted(l) ? (
+                        {completed ? (
                           <span className="inline-block rounded-full bg-[#d6ede6] px-2 py-0.5 text-xs font-medium text-[#1b2d4f]">
                             Completed
                           </span>
@@ -1793,6 +1847,32 @@ export default function Lessons() {
                           <span className="text-gray-400">—</span>
                         )}
                       </td>
+                      <td className="px-4 py-3">
+                        {isToday ? (
+                          completed ? (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-medium text-[#065f46]">✓ Done</span>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleComplete(l)}
+                                className="text-xs text-gray-400 underline hover:text-gray-600"
+                              >
+                                Undo
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleComplete(l)}
+                              className="rounded-md bg-[#1b2d4f] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#15243f]"
+                            >
+                              ✓ Mark done
+                            </button>
+                          )
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-right">
                         <LessonActionsMenu
                           onAddToCalendar={() => handleAddToCalendar(l)}
@@ -1801,7 +1881,8 @@ export default function Lessons() {
                         />
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

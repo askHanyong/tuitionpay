@@ -691,6 +691,27 @@ export default function Dashboard() {
     }
   };
 
+  const handleUndoDone = async (lessonId) => {
+    setTodayLessons((prev) =>
+      prev.map((l) => (l.id === lessonId ? { ...l, is_completed: false } : l)),
+    );
+    const { error } = await supabase
+      .from("lessons")
+      .update({ is_completed: false })
+      .eq("id", lessonId)
+      .eq("tutor_id", user.id);
+    if (error) {
+      setTodayLessons((prev) =>
+        prev.map((l) =>
+          l.id === lessonId ? { ...l, is_completed: true } : l,
+        ),
+      );
+      showToast(error.message, "error");
+      return;
+    }
+    await loadAll();
+  };
+
   const handleCollectPayment = async (cycleId) => {
     const { error } = await supabase
       .from("payment_cycles")
@@ -845,9 +866,17 @@ export default function Dashboard() {
                         )}
                       </div>
                       {done ? (
-                        <span className="flex-none rounded-md bg-[#d1fae5] px-3 py-1.5 text-xs font-semibold text-[#065f46]">
-                          ✓ Completed
-                        </span>
+                        <div className="flex flex-none items-center gap-2">
+                          <span className="rounded-md bg-[#d1fae5] px-3 py-1.5 text-xs font-semibold text-[#065f46]">
+                            ✓ Done
+                          </span>
+                          <button
+                            onClick={() => handleUndoDone(l.id)}
+                            className="text-xs text-gray-400 hover:text-gray-600 underline"
+                          >
+                            Undo
+                          </button>
+                        </div>
                       ) : (
                         <button
                           onClick={() => handleMarkDone(l.id)}
