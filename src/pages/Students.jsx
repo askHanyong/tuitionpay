@@ -80,6 +80,8 @@ export default function Students() {
   const [lastLessonByStudent, setLastLessonByStudent] = useState({});
   const [paymentStatusByStudent, setPaymentStatusByStudent] = useState({});
   const [view, setView] = useState("active");
+  const [undoDelete, setUndoDelete] = useState(null); // { id, name, timer }
+
 
   const refreshLessonsFor = async (studentId) => {
     const { data } = await supabase
@@ -199,6 +201,7 @@ export default function Students() {
       .from("students")
       .select("*")
       .eq("tutor_id", user.id)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
     if (error) setError(error.message);
     setStudents(data ?? []);
@@ -404,22 +407,44 @@ export default function Students() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this student? This cannot be undone.")) return;
+  const handleDelete = async (student) => {
     setError(null);
     const { error } = await supabase
       .from("students")
-      .delete()
-      .eq("id", id)
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", student.id)
       .eq("tutor_id", user.id);
     if (error) {
       setError(error.message);
       showToast(error.message, "error");
       return;
     }
-    if (editingId === id) resetForm();
+    if (editingId === student.id) resetForm();
+    // Remove from local list immediately (optimistic)
+    setStudents((prev) => prev.filter((s) => s.id !== student.id));
+    // Clear any previous undo timer
+    setUndoDelete((prev) => {
+      if (prev?.timer) clearTimeout(prev.timer);
+      return null;
+    });
+    const timer = setTimeout(() => setUndoDelete(null), 7000);
+    setUndoDelete({ id: student.id, name: student.name, timer });
+  };
+
+  const handleUndoDelete = async () => {
+    if (!undoDelete) return;
+    clearTimeout(undoDelete.timer);
+    const { error } = await supabase
+      .from("students")
+      .update({ deleted_at: null })
+      .eq("id", undoDelete.id)
+      .eq("tutor_id", user.id);
+    setUndoDelete(null);
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
     await loadStudents();
-    showToast("Student deleted.");
   };
 
   const handleArchive = async (student) => {
@@ -527,6 +552,21 @@ export default function Students() {
 
   return (
     <AppShell>
+      {/* Undo-delete toast */}
+      {undoDelete && (
+        <div className="fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-lg">
+          <span className="text-sm text-gray-700">
+            <span className="font-medium">{undoDelete.name}</span> deleted
+          </span>
+          <button
+            type="button"
+            onClick={handleUndoDelete}
+            className="rounded-md bg-[#1b2d4f] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#15243f]"
+          >
+            Undo
+          </button>
+        </div>
+      )}
       <form
         onSubmit={handleSubmit}
         className="space-y-4 rounded-md border border-gray-200 bg-white p-5"
@@ -947,7 +987,7 @@ export default function Students() {
                           Archive
                         </button>
                         <button
-                          onClick={() => handleDelete(s.id)}
+                          onClick={() => handleDelete(s)}
                           className="text-sm font-medium text-red-600 hover:text-red-700"
                         >
                           Delete
@@ -1052,7 +1092,7 @@ export default function Students() {
                                 Archive
                               </button>
                               <button
-                                onClick={() => handleDelete(s.id)}
+                                onClick={() => handleDelete(s)}
                                 className="font-medium text-red-600 hover:text-red-700"
                               >
                                 Delete

@@ -246,6 +246,7 @@ export default function Lessons() {
           .select("*")
           .eq("tutor_id", user.id)
           .eq("archived", false)
+          .is("deleted_at", null)
           .order("name"),
         supabase
           .from("lessons")

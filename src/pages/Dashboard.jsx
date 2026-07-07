@@ -238,19 +238,25 @@ export default function Dashboard() {
         .eq("tutor_id", user.id)
         .eq("is_completed", false),
     ]);
+    const nonDeletedStudents = (studentsData ?? []).filter((s) => !s.deleted_at);
     const archivedStudentIds = new Set(
-      (studentsData ?? []).filter((s) => s.archived).map((s) => s.id),
+      nonDeletedStudents.filter((s) => s.archived).map((s) => s.id),
     );
     const excludeArchived = (rows) =>
       (rows ?? []).filter((r) => !archivedStudentIds.has(r.student_id));
+    const deletedStudentIds = new Set(
+      (studentsData ?? []).filter((s) => s.deleted_at).map((s) => s.id),
+    );
+    const excludeDeleted = (rows) =>
+      (rows ?? []).filter((r) => !deletedStudentIds.has(r.student_id));
 
-    setStudents((studentsData ?? []).filter((s) => !s.archived));
-    setLessons(excludeArchived(lessonsData));
-    setPaymentCycles(excludeArchived(cyclesData));
-    setTodayLessons(excludeArchived(todayData));
-    setNextWeekLessons(excludeArchived(tomorrowData));
-    setScheduledLessons(excludeArchived(scheduledData));
-    setHasScheduledLesson(excludeArchived(scheduledData).length > 0);
+    setStudents(nonDeletedStudents.filter((s) => !s.archived));
+    setLessons(excludeDeleted(excludeArchived(lessonsData)));
+    setPaymentCycles(excludeDeleted(excludeArchived(cyclesData)));
+    setTodayLessons(excludeDeleted(excludeArchived(todayData)));
+    setNextWeekLessons(excludeDeleted(excludeArchived(tomorrowData)));
+    setScheduledLessons(excludeDeleted(excludeArchived(scheduledData)));
+    setHasScheduledLesson(excludeDeleted(excludeArchived(scheduledData)).length > 0);
     setLoading(false);
   };
 

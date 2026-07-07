@@ -48,11 +48,13 @@ export default function Payments() {
         supabase.from("students").select("*").eq("tutor_id", user.id),
       ]);
     if (error) setError(error.message);
-    const archivedStudentIds = new Set(
-      (studentsData ?? []).filter((s) => s.archived).map((s) => s.id),
+    const excludedStudentIds = new Set(
+      (studentsData ?? [])
+        .filter((s) => s.archived || s.deleted_at)
+        .map((s) => s.id),
     );
     const activeCycles = (data ?? []).filter(
-      (c) => !archivedStudentIds.has(c.student_id),
+      (c) => !excludedStudentIds.has(c.student_id),
     );
     setCycles(activeCycles);
     setTutorProfile(tutorData ?? {});

@@ -77,6 +77,7 @@ export default function StudentProfile() {
         .select("*")
         .eq("id", id)
         .eq("tutor_id", user.id)
+        .is("deleted_at", null)
         .single(),
       supabase
         .from("lessons")
