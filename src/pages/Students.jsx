@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
@@ -58,6 +59,117 @@ const SORT_OPTIONS = [
   { value: "rate_high", label: "Highest hourly rate" },
   { value: "rate_low", label: "Lowest hourly rate" },
 ];
+
+function StudentActionsMenu({ student, onEdit, onArchive, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [menuPos, setMenuPos] = useState(null);
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e) => {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target) &&
+        menuRef.current && !menuRef.current.contains(e.target)
+      ) {
+        setOpen(false);
+        setConfirmDelete(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  const toggleOpen = () => {
+    if (!open && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const menuHeight = confirmDelete ? 120 : 148;
+      const openUpward = rect.bottom + menuHeight > window.innerHeight;
+      setMenuPos({
+        left: rect.right - 192,
+        top: openUpward ? rect.top - menuHeight : rect.bottom + 4,
+      });
+    }
+    if (open) setConfirmDelete(false);
+    setOpen((o) => !o);
+  };
+
+  const close = () => { setOpen(false); setConfirmDelete(false); };
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={toggleOpen}
+        aria-label="More actions"
+        className="flex h-9 w-9 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+      >
+        ⋯
+      </button>
+      {open && menuPos && createPortal(
+        <div
+          ref={menuRef}
+          style={{ position: "fixed", left: menuPos.left, top: menuPos.top }}
+          className="z-50 w-48 rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+        >
+          {confirmDelete ? (
+            <div className="px-3 py-2">
+              <p className="mb-2 text-sm text-gray-700">
+                Delete <span className="font-semibold">{student.name}</span>?{" "}
+                <span className="text-gray-500">Can be recovered within 30 days.</span>
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { close(); onDelete(student); }}
+                  className="flex-1 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                >
+                  Delete
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => { close(); onEdit(student); }}
+                className="block w-full px-3 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => { close(); onArchive(student); }}
+                className="block w-full px-3 py-2.5 text-left text-sm text-gray-500 hover:bg-gray-50"
+              >
+                Archive
+              </button>
+              <div className="my-1 border-t border-gray-100" />
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                className="block w-full px-3 py-2.5 text-left text-sm text-red-600 hover:bg-red-50"
+              >
+                Delete
+              </button>
+            </>
+          )}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
 
 export default function Students() {
   const { user } = useAuth();
@@ -448,12 +560,6 @@ export default function Students() {
   };
 
   const handleArchive = async (student) => {
-    if (
-      !window.confirm(
-        `Archive ${student.name}? They won't appear in your active list but their history is preserved.`,
-      )
-    )
-      return;
     setError(null);
     const { error } = await supabase
       .from("students")
@@ -959,40 +1065,26 @@ export default function Students() {
                         Unarchive
                       </button>
                     ) : (
-                      <>
+                      <div className="flex items-center gap-2">
                         <button
                           onClick={() => toggleLessons(s.id)}
                           className="text-sm font-medium text-gray-700 hover:text-gray-900"
                         >
-                          {expandedId === s.id
-                            ? "Hide lessons"
-                            : "View lessons"}
+                          {expandedId === s.id ? "Hide lessons" : "View lessons"}
                         </button>
                         <button
                           onClick={() => setScheduleStudent(s)}
                           className="text-sm font-medium text-gray-700 hover:text-gray-900"
                         >
-                          Schedule Lessons
+                          Schedule
                         </button>
-                        <button
-                          onClick={() => handleEdit(s)}
-                          className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleArchive(s)}
-                          className="text-sm font-medium text-gray-500 hover:text-gray-700"
-                        >
-                          Archive
-                        </button>
-                        <button
-                          onClick={() => handleDelete(s)}
-                          className="text-sm font-medium text-red-600 hover:text-red-700"
-                        >
-                          Delete
-                        </button>
-                      </>
+                        <StudentActionsMenu
+                          student={s}
+                          onEdit={handleEdit}
+                          onArchive={handleArchive}
+                          onDelete={handleDelete}
+                        />
+                      </div>
                     )}
                   </div>
                   {expandedId === s.id && (
@@ -1064,40 +1156,26 @@ export default function Students() {
                               Unarchive
                             </button>
                           ) : (
-                            <>
+                            <div className="flex items-center justify-end gap-3">
                               <button
                                 onClick={() => toggleLessons(s.id)}
-                                className="mr-3 font-medium text-gray-700 hover:text-gray-900"
+                                className="text-sm font-medium text-gray-700 hover:text-gray-900"
                               >
-                                {expandedId === s.id
-                                  ? "Hide lessons"
-                                  : "View lessons"}
+                                {expandedId === s.id ? "Hide lessons" : "View lessons"}
                               </button>
                               <button
                                 onClick={() => setScheduleStudent(s)}
-                                className="mr-3 font-medium text-gray-700 hover:text-gray-900"
+                                className="text-sm font-medium text-gray-700 hover:text-gray-900"
                               >
-                                Schedule Lessons
+                                Schedule
                               </button>
-                              <button
-                                onClick={() => handleEdit(s)}
-                                className="mr-3 font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleArchive(s)}
-                                className="mr-3 font-medium text-gray-500 hover:text-gray-700"
-                              >
-                                Archive
-                              </button>
-                              <button
-                                onClick={() => handleDelete(s)}
-                                className="font-medium text-red-600 hover:text-red-700"
-                              >
-                                Delete
-                              </button>
-                            </>
+                              <StudentActionsMenu
+                                student={s}
+                                onEdit={handleEdit}
+                                onArchive={handleArchive}
+                                onDelete={handleDelete}
+                              />
+                            </div>
                           )}
                         </td>
                       </tr>
