@@ -23,6 +23,17 @@ import NotificationPrompt from "../components/NotificationPrompt";
 
 const todayKey = () => toDateKey(new Date());
 const tomorrowKey = () => toDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
+const nDaysFromNow = (n) =>
+  toDateKey(new Date(Date.now() + n * 24 * 60 * 60 * 1000));
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatDayLabel(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  return `${DAY_NAMES[d.getDay()]}, ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+}
 
 // Update this in one place to ship a new "What's new" banner -- bumping
 // the id makes it reappear for everyone even if they dismissed a past one.
@@ -160,7 +171,7 @@ export default function Dashboard() {
   const [lessons, setLessons] = useState([]);
   const [paymentCycles, setPaymentCycles] = useState([]);
   const [todayLessons, setTodayLessons] = useState([]);
-  const [tomorrowLessons, setTomorrowLessons] = useState([]);
+  const [nextWeekLessons, setNextWeekLessons] = useState([]);
   const [scheduledLessons, setScheduledLessons] = useState([]);
   const [hasScheduledLesson, setHasScheduledLesson] = useState(false);
   const [checklistDismissed, setChecklistDismissed] = useState(true);
@@ -213,9 +224,11 @@ export default function Dashboard() {
         .order("lesson_time", { ascending: true }),
       supabase
         .from("lessons")
-        .select("*, students(name)")
+        .select("id, lesson_date, lesson_time, student_id, subject, students(name, subject)")
         .eq("tutor_id", user.id)
-        .eq("lesson_date", tomorrowKey())
+        .gt("lesson_date", todayKey())
+        .lte("lesson_date", nDaysFromNow(7))
+        .order("lesson_date", { ascending: true })
         .order("lesson_time", { ascending: true }),
       supabase
         .from("lessons")
@@ -235,7 +248,7 @@ export default function Dashboard() {
     setLessons(excludeArchived(lessonsData));
     setPaymentCycles(excludeArchived(cyclesData));
     setTodayLessons(excludeArchived(todayData));
-    setTomorrowLessons(excludeArchived(tomorrowData));
+    setNextWeekLessons(excludeArchived(tomorrowData));
     setScheduledLessons(excludeArchived(scheduledData));
     setHasScheduledLesson(excludeArchived(scheduledData).length > 0);
     setLoading(false);
@@ -890,18 +903,53 @@ export default function Dashboard() {
                 })}
               </ul>
             )}
-            {!loading && tomorrowLessons.length > 0 && (
-              <p className="mt-4 text-xs text-gray-400">
-                Tomorrow:{" "}
-                {tomorrowLessons
-                  .map(
-                    (l) =>
-                      `${l.students?.name} at ${formatLessonTime(l.lesson_time)}`,
-                  )
-                  .join(" · ")}
-              </p>
-            )}
           </section>
+
+          {/* Next 7 days */}
+          {!loading && (
+            <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+              <h2 className="mb-4 text-base font-semibold text-gray-900">Next 7 days</h2>
+              <ul className="divide-y divide-gray-100">
+                {Array.from({ length: 7 }, (_, i) => {
+                  const dateStr = nDaysFromNow(i + 1);
+                  const dayLessons = nextWeekLessons.filter(
+                    (l) => l.lesson_date === dateStr,
+                  );
+                  return (
+                    <li key={dateStr} className="flex gap-3 py-3 first:pt-0 last:pb-0">
+                      <div className="w-24 flex-none pt-0.5">
+                        <span className="text-sm font-medium text-[#1b2d4f]">
+                          {formatDayLabel(dateStr)}
+                        </span>
+                      </div>
+                      {dayLessons.length === 0 ? (
+                        <span className="text-sm text-gray-400">No lessons</span>
+                      ) : (
+                        <ul className="flex flex-col gap-1.5">
+                          {dayLessons.map((l) => {
+                            const subject = l.subject ?? l.students?.subject;
+                            return (
+                              <li key={l.id} className="flex flex-wrap items-baseline gap-x-1.5 text-sm">
+                                <span className="font-medium text-gray-900">{l.students?.name}</span>
+                                {subject && (
+                                  <span className="text-gray-500">· {subject}</span>
+                                )}
+                                {l.lesson_time && (
+                                  <span className="text-[#0f7a58]">
+                                    · {formatLessonTime(l.lesson_time)}
+                                  </span>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
 
           {/* Monthly recap — mobile only (desktop version lives in right panel) */}
           <div className="md:hidden">
