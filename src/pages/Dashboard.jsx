@@ -691,7 +691,7 @@ export default function Dashboard() {
       showToast(error.message, "error");
       return;
     }
-    showToast("Lesson marked as done.");
+    showToast("Lesson marked complete ✓", "celebrate");
     await loadAll();
     if (notifyPrefs.notify_payment_due) {
       const { data: newCycles } = await supabase

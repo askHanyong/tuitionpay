@@ -1029,8 +1029,9 @@ export default function Lessons() {
           l.id === lesson.id ? { ...l, is_completed: !next } : l,
         ),
       );
-      showToast(error.message, "error");
+      showToast("Something went wrong, please try again", "error");
     } else {
+      if (next) showToast("Lesson marked complete ✓", "celebrate");
       await reloadLessons();
     }
   };
