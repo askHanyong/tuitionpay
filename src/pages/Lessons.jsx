@@ -16,10 +16,12 @@ import {
 } from "../lib/googleCalendar";
 import { showAppNotification } from "../lib/notifications";
 import { computeStudentPaymentStatus } from "../lib/paymentStatus";
+import { AVATAR_PRESET_COLORS } from "./Students";
 import AppShell from "../components/AppShell";
 
 function getInitials(name) {
-  const parts = (name ?? "").trim().split(/\s+/);
+  const clean = (name ?? "").replace(/\s*\(.*?\)\s*/g, "").trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return (parts[0] ?? "").slice(0, 2).toUpperCase();
 }
@@ -32,8 +34,13 @@ const AVATAR_COLORS = {
   grey:  { bg: "#f3f4f6", color: "#6b7280" },
 };
 
-function StudentAvatar({ name, tier }) {
-  const { bg, color } = AVATAR_COLORS[tier] ?? AVATAR_COLORS.grey;
+function StudentAvatar({ name, tier, avatarColor }) {
+  const preset = avatarColor
+    ? AVATAR_PRESET_COLORS.find((c) => c.bg === avatarColor)
+    : null;
+  const { bg, color } = preset
+    ? { bg: preset.bg, color: preset.text }
+    : (AVATAR_COLORS[tier] ?? AVATAR_COLORS.grey);
   return (
     <span
       style={{
@@ -1430,7 +1437,7 @@ export default function Lessons() {
                     onClick={() => handleSelectStudent(s)}
                     className="flex min-h-[100px] flex-col items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white p-3 text-center transition hover:border-[#5ecfaa] hover:bg-[#edf6f3] focus:outline-none focus:ring-2 focus:ring-[#5ecfaa]"
                   >
-                    <StudentAvatar name={s.name} tier={tier} />
+                    <StudentAvatar name={s.name} tier={tier} avatarColor={s.avatar_color} />
                     <span className="text-sm font-semibold text-[#1b2d4f] leading-tight">
                       {s.name}
                     </span>
@@ -1467,6 +1474,7 @@ export default function Lessons() {
               <StudentAvatar
                 name={students.find((s) => s.id === form.student_id)?.name ?? ""}
                 tier={paymentTierByStudent.get(form.student_id) ?? "grey"}
+                avatarColor={students.find((s) => s.id === form.student_id)?.avatar_color}
               />
               <h2 className="text-base font-semibold text-gray-900">
                 {students.find((s) => s.id === form.student_id)?.name ?? "Lesson"}
