@@ -1,6 +1,7 @@
 import { Route, BrowserRouter, Routes } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ToastProvider } from "./contexts/ToastContext";
+import { TerminologyProvider } from "./contexts/TerminologyContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import OfflineBanner from "./components/OfflineBanner";
 import InstallPromptBanner from "./components/InstallPromptBanner";
@@ -25,6 +26,7 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <TerminologyProvider>
         <ToastProvider>
           <OfflineBanner />
           <InstallPromptBanner />
@@ -103,6 +105,7 @@ function App() {
             <Route path="/terms" element={<Terms />} />
           </Routes>
         </ToastProvider>
+        </TerminologyProvider>
       </AuthProvider>
     </BrowserRouter>
   );

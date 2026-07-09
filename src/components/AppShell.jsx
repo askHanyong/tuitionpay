@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useTerms } from "../contexts/TerminologyContext";
 
 const ICONS = {
   dashboard: (
@@ -53,14 +54,16 @@ const ICONS = {
   ),
 };
 
-const NAV_ITEMS = [
-  { to: "/dashboard", label: "Dashboard", icon: "dashboard" },
-  { to: "/students", label: "Students", icon: "students" },
-  { to: "/lessons", label: "Lessons", icon: "lessons" },
-  { to: "/payments", label: "Payments", icon: "payments" },
-  { to: "/calendar", label: "Calendar", icon: "calendar" },
-  { to: "/settings", label: "Settings", icon: "settings" },
-];
+function buildNavItems(terms) {
+  return [
+    { to: "/dashboard", label: "Dashboard", icon: "dashboard" },
+    { to: "/students", label: terms.students, icon: "students" },
+    { to: "/lessons", label: terms.lessons, icon: "lessons" },
+    { to: "/payments", label: "Payments", icon: "payments" },
+    { to: "/calendar", label: "Calendar", icon: "calendar" },
+    { to: "/settings", label: "Settings", icon: "settings" },
+  ];
+}
 
 function NavIcon({ name, className }) {
   return (
@@ -153,6 +156,8 @@ export default function AppShell({ children }) {
   const { user, signOut } = useAuth();
   const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const terms = useTerms();
+  const NAV_ITEMS = buildNavItems(terms);
 
   return (
     <div className="min-h-screen bg-gray-50 lg:flex">
