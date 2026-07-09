@@ -167,6 +167,7 @@ function FeedbackPromptCard({ lessonCount }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const isPractitioner = user?.user_metadata?.user_type === "practitioner";
   const [students, setStudents] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [paymentCycles, setPaymentCycles] = useState([]);
@@ -188,8 +189,10 @@ export default function Dashboard() {
   const pendingCount = paymentCycles.filter(
     (c) => c.status === "pending",
   ).length;
+  // Practitioners skip the onboarding popup entirely — they go straight to
+  // the normal empty-state Dashboard ("Add your first client").
   const showOnboarding =
-    !loading && students.length === 0 && !onboardingDismissed;
+    !loading && students.length === 0 && !onboardingDismissed && !isPractitioner;
 
   const loadAll = async () => {
     const [
@@ -271,7 +274,7 @@ export default function Dashboard() {
         .single();
       if (tutorData) {
         setNotifyPrefs(tutorData);
-        setChecklistDismissed(Boolean(tutorData.onboarding_dismissed));
+        setChecklistDismissed(isPractitioner || Boolean(tutorData.onboarding_dismissed));
         setGoogleCalendarConnected(
           Boolean(tutorData.google_calendar_tokens?.access_token),
         );
