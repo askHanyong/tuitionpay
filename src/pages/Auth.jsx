@@ -38,12 +38,13 @@ export default function Auth() {
         }
         const { data, error } = await signUp(email, password, fullName);
         if (error) throw error;
-        // Write user_type to the tutors row the DB trigger just created
+        // Write user_type after a short delay so the DB trigger that creates
+        // the tutors row has time to complete before we update it.
         if (data?.user?.id) {
+          await new Promise((r) => setTimeout(r, 1500));
           await supabase
             .from("tutors")
-            .update({ user_type: userType })
-            .eq("id", data.user.id);
+            .upsert({ id: data.user.id, user_type: userType }, { onConflict: "id" });
         }
         setInfo("Check your email to confirm your account, then log in.");
         setMode("login");
