@@ -4,6 +4,7 @@ import { Link, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
+import { useTerms } from "../contexts/TerminologyContext";
 import { buildPaymentNoticeMessage, formatSGD } from "../lib/paymentNotice";
 import { formatDate, formatDateTime } from "../utils/dateFormat";
 import { buildLessonIcs, downloadIcs } from "../lib/ics";
@@ -89,6 +90,7 @@ function isLessonCompleted(lesson) {
 }
 
 function LessonActionsMenu({ onAddToCalendar, onEdit, onDelete }) {
+  const terms = useTerms();
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState(null);
   const buttonRef = useRef(null);
@@ -129,7 +131,7 @@ function LessonActionsMenu({ onAddToCalendar, onEdit, onDelete }) {
         ref={buttonRef}
         type="button"
         onClick={toggleOpen}
-        aria-label="Lesson actions"
+        aria-label={`${terms.lesson} actions`}
         className="flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700"
       >
         ⋯
@@ -182,6 +184,7 @@ function LessonActionsMenu({ onAddToCalendar, onEdit, onDelete }) {
 export default function Lessons() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const terms = useTerms();
   const location = useLocation();
   const prefillDate = location.state?.lessonDate;
   const editLessonId = location.state?.editLessonId;
@@ -570,8 +573,8 @@ export default function Lessons() {
         const errMsg = String(err2?.message ?? "").toLowerCase();
         const msg =
           errMsg.includes("token") || errMsg.includes("auth") || errMsg.includes("401")
-            ? "Lesson saved. Google Calendar sync failed — reconnect Google Calendar in Settings."
-            : `Lesson saved, but Google Calendar sync failed: ${err2?.message || "unknown error"}`;
+            ? `${terms.lesson} saved. Google Calendar sync failed — reconnect Google Calendar in Settings.`
+            : `${terms.lesson} saved, but Google Calendar sync failed: ${err2?.message || "unknown error"}`;
         showToast(msg, "error");
       }
     }
@@ -640,8 +643,8 @@ export default function Lessons() {
         const errMsg = String(err2?.message ?? "").toLowerCase();
         const msg =
           errMsg.includes("token") || errMsg.includes("auth") || errMsg.includes("401")
-            ? "Lesson saved. Google Calendar sync failed — reconnect Google Calendar in Settings."
-            : `Lesson saved, but Google Calendar sync failed: ${err2?.message || "unknown error"}`;
+            ? `${terms.lesson} saved. Google Calendar sync failed — reconnect Google Calendar in Settings.`
+            : `${terms.lesson} saved, but Google Calendar sync failed: ${err2?.message || "unknown error"}`;
         showToast(msg, "error");
       }
     }
@@ -910,7 +913,7 @@ export default function Lessons() {
           });
         }
 
-        setInfo("Lesson updated.");
+        setInfo(`${terms.lesson} updated.`);
         resetForm();
         await reloadLessons();
         return;
@@ -960,7 +963,7 @@ export default function Lessons() {
       });
 
       if (isFuture) {
-        showToast("Lesson scheduled. It'll count toward billing once its date arrives.");
+        showToast(`${terms.lesson} scheduled. It'll count toward billing once its date arrives.`);
       } else if ((beforeCount ?? 0) + 1 >= 4) {
         const { data: cycle } = await supabase
           .from("payment_cycles")
@@ -971,7 +974,7 @@ export default function Lessons() {
           .limit(1)
           .single();
         setSuccessCycle(cycle ?? null);
-        showToast("Lesson logged. Payment notice ready!");
+        showToast(`${terms.lesson} logged. Payment notice ready!`);
         if (cycle) {
           const { data: tutor } = await supabase
             .from("tutors")
@@ -985,7 +988,7 @@ export default function Lessons() {
           }
         }
       } else {
-        showToast("Lesson logged!");
+        showToast(`${terms.lesson} logged!`);
       }
 
       setStep(1);
@@ -1031,7 +1034,7 @@ export default function Lessons() {
       );
       showToast("Something went wrong, please try again", "error");
     } else {
-      if (next) showToast("Lesson marked complete ✓", "celebrate");
+      if (next) showToast(`${terms.lesson} marked complete ✓`, "celebrate");
       await reloadLessons();
     }
   };
@@ -1062,7 +1065,7 @@ export default function Lessons() {
     setLessons((prev) => prev.filter((l) => l.id !== id));
     setDeleteTarget(null);
     await reloadLessons();
-    showToast("Lesson deleted successfully");
+    showToast(`${terms.lesson} deleted successfully`);
   };
 
   const lessonFormFields = (
@@ -1254,12 +1257,12 @@ export default function Lessons() {
     <AppShell>
       {students.length === 0 && !loading ? (
         <p className="rounded-md border border-gray-200 bg-white p-5 text-sm text-gray-500">
-          Add a student first before logging lessons.{" "}
+          Add a {terms.student.toLowerCase()} first before logging {terms.lessons.toLowerCase()}.{" "}
           <Link
             to="/students"
             className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
           >
-            Add a student →
+            Add a {terms.student.toLowerCase()} →
           </Link>
         </p>
       ) : editingId ? (
@@ -1268,11 +1271,11 @@ export default function Lessons() {
           onSubmit={handleSubmit}
           className="space-y-4 rounded-md border border-gray-200 bg-white p-5"
         >
-          <h2 className="text-base font-semibold text-gray-900">Edit lesson</h2>
+          <h2 className="text-base font-semibold text-gray-900">Edit {terms.lesson.toLowerCase()}</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
-                Student
+                {terms.student}
               </label>
               <select
                 required
@@ -1405,7 +1408,7 @@ export default function Lessons() {
       ) : step === 1 ? (
         /* ── Step 1: Pick a student ── */
         <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
-          <h2 className="text-base font-semibold text-gray-900">Log a lesson — who did you teach?</h2>
+          <h2 className="text-base font-semibold text-gray-900">Log a {terms.lesson.toLowerCase()} — who did you see?</h2>
 
           {successCycle && (
             <div className="flex items-start justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 p-4">
@@ -1490,7 +1493,7 @@ export default function Lessons() {
               type="button"
               onClick={() => setStep(1)}
               className="flex h-9 w-9 flex-none items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"
-              aria-label="Back to student picker"
+              aria-label={`Back to ${terms.student.toLowerCase()} picker`}
             >
               ←
             </button>
@@ -1522,7 +1525,7 @@ export default function Lessons() {
                 ? "Checking calendar..."
                 : submitting
                   ? "Logging..."
-                  : "Log lesson"}
+                  : `Log ${terms.lesson.toLowerCase()}`}
             </button>
             <button
               type="button"
@@ -1537,7 +1540,7 @@ export default function Lessons() {
 
       <section>
         <h2 className="mb-3 text-base font-semibold text-gray-900">
-          Recent lessons
+          Recent {terms.lessons.toLowerCase()}
         </h2>
 
         {!loading && lessons.length > 0 && (
@@ -1545,14 +1548,14 @@ export default function Lessons() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-500">
-                  Student
+                  {terms.student}
                 </label>
                 <select
                   value={studentFilter}
                   onChange={(e) => setStudentFilter(e.target.value)}
                   className="min-h-11 w-full rounded-md border border-gray-300 px-2 text-sm"
                 >
-                  <option value="all">All students</option>
+                  <option value="all">All {terms.students.toLowerCase()}</option>
                   {students.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
@@ -1590,7 +1593,7 @@ export default function Lessons() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Student name or date"
+                  placeholder={`${terms.student} name or date`}
                   className="min-h-11 w-full rounded-md border border-gray-300 px-2 text-sm"
                 />
               </div>

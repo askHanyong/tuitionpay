@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
+import { useTerms } from "../contexts/TerminologyContext";
 import { toDateKey } from "../lib/date";
 import { formatDate } from "../utils/dateFormat";
 import {
@@ -81,6 +82,7 @@ export default function ScheduleLessonsModal({
 }) {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const terms = useTerms();
   const [dayOfWeek, setDayOfWeek] = useState(WEEKDAYS[0]);
   const [time, setTime] = useState("09:00");
   const [frequency, setFrequency] = useState("weekly");
@@ -195,7 +197,7 @@ export default function ScheduleLessonsModal({
     setError(null);
     if (durationHours == null) {
       setError(
-        "Set this student's lesson duration in their profile before scheduling.",
+        `Set this ${terms.student.toLowerCase()}'s ${terms.lesson.toLowerCase()} duration in their profile before scheduling.`,
       );
       return;
     }
@@ -207,7 +209,7 @@ export default function ScheduleLessonsModal({
     let dates;
     if (endMode === "count") {
       if (!occurrenceCount || occurrenceCount < 1) {
-        setError("Enter how many lessons to schedule.");
+        setError(`Enter how many ${terms.lessons.toLowerCase()} to schedule.`);
         return;
       }
       dates = generateOccurrencesByCount({
@@ -318,7 +320,7 @@ export default function ScheduleLessonsModal({
               .map((d) => new Date(`${d}T00:00:00`).toLocaleDateString("en-SG", { day: "numeric", month: "short" }))
               .join(", ");
             showToast(
-              `Lessons saved, but ${failedDates.length} failed to sync to Google Calendar: ${dateList}. Try reconnecting Google Calendar in Settings if this keeps happening.`,
+              `${terms.lessons} saved, but ${failedDates.length} failed to sync to Google Calendar: ${dateList}. Try reconnecting Google Calendar in Settings if this keeps happening.`,
               "error",
             );
           }
@@ -327,8 +329,8 @@ export default function ScheduleLessonsModal({
 
       showToast(
         inserted.length
-          ? `✅ ${inserted.length} lesson${inserted.length === 1 ? "" : "s"} scheduled successfully.`
-          : "No lessons were scheduled.",
+          ? `✅ ${inserted.length} ${inserted.length === 1 ? terms.lesson.toLowerCase() : terms.lessons.toLowerCase()} scheduled successfully.`
+          : `No ${terms.lessons.toLowerCase()} were scheduled.`,
       );
       onScheduled?.();
       onClose();
@@ -350,8 +352,8 @@ export default function ScheduleLessonsModal({
     if (!preview || preview.length === 0) return "";
     const last = preview[preview.length - 1].date;
     return endMode === "count"
-      ? `${preview.length} lesson${preview.length === 1 ? "" : "s"} scheduled, last on ${formatDate(last)}`
-      : `${preview.length} lesson${preview.length === 1 ? "" : "s"} scheduled between ${formatDate(startDate)} and ${formatDate(endDate)}`;
+      ? `${preview.length} ${preview.length === 1 ? terms.lesson.toLowerCase() : terms.lessons.toLowerCase()} scheduled, last on ${formatDate(last)}`
+      : `${preview.length} ${preview.length === 1 ? terms.lesson.toLowerCase() : terms.lessons.toLowerCase()} scheduled between ${formatDate(startDate)} and ${formatDate(endDate)}`;
   })();
 
   return (
@@ -365,7 +367,7 @@ export default function ScheduleLessonsModal({
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold text-gray-900">
-            Schedule lessons for {student.name}
+            Schedule {terms.lessons.toLowerCase()} for {student.name}
           </h2>
           <button
             onClick={onClose}
@@ -463,7 +465,7 @@ export default function ScheduleLessonsModal({
                   onChange={() => setEndMode("count")}
                   className="h-4 w-4 text-[#5ecfaa] focus:ring-[#5ecfaa]"
                 />
-                End after ___ lessons
+                End after ___ {terms.lessons.toLowerCase()}
               </label>
               {endMode === "count" && (
                 <input
@@ -521,7 +523,7 @@ export default function ScheduleLessonsModal({
         ) : (
           <div className="space-y-4">
             <p className="text-sm font-medium text-gray-900">
-              Lessons to be scheduled ({preview.length} total):
+              {terms.lessons} to be scheduled ({preview.length} total):
             </p>
             <p className="text-xs text-gray-500">{previewSummary}</p>
             {conflictCount > 0 && (
@@ -556,7 +558,7 @@ export default function ScheduleLessonsModal({
                     {item.conflict && !item.excluded && (
                       <>
                         <span className="text-amber-800">
-                          You already have a lesson with {student.name} on{" "}
+                          You already have a {terms.lesson.toLowerCase()} with {student.name} on{" "}
                           {formatDate(item.date)} — skip or replace?
                         </span>
                         <button
@@ -610,8 +612,7 @@ export default function ScheduleLessonsModal({
 
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm text-gray-700">
-                <span className="font-semibold">{createCount}</span> lesson
-                {createCount === 1 ? "" : "s"} will be created
+                <span className="font-semibold">{createCount}</span> {createCount === 1 ? terms.lesson.toLowerCase() : terms.lessons.toLowerCase()} will be created
               </p>
               <div className="flex gap-2">
                 <button

@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
+import { useTerms } from "../contexts/TerminologyContext";
 import AppShell from "../components/AppShell";
 import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
 import { formatDate } from "../utils/dateFormat";
@@ -174,6 +175,7 @@ function StudentActionsMenu({ student, onEdit, onArchive, onDelete }) {
 export default function Students() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const terms = useTerms();
   const location = useLocation();
   const navigate = useNavigate();
   const [students, setStudents] = useState([]);
@@ -510,7 +512,7 @@ export default function Students() {
 
       resetForm();
       await loadStudents();
-      showToast(editingId ? "Student updated." : "Student added.");
+      showToast(editingId ? `${terms.student} updated.` : `${terms.student} added.`);
     } catch (err) {
       setError(err.message);
       showToast(err.message, "error");
@@ -573,7 +575,7 @@ export default function Students() {
     }
     if (editingId === student.id) resetForm();
     await loadStudents();
-    showToast("Student archived.");
+    showToast(`${terms.student} archived.`);
   };
 
   const handleUnarchive = async (student) => {
@@ -589,7 +591,7 @@ export default function Students() {
       return;
     }
     await loadStudents();
-    showToast("Student unarchived.");
+    showToast(`${terms.student} unarchived.`);
   };
 
   const subjectsLabel = (studentId, fallback) =>
@@ -678,7 +680,7 @@ export default function Students() {
         className="space-y-4 rounded-md border border-gray-200 bg-white p-5"
       >
         <h2 className="text-base font-semibold text-gray-900">
-          {editingId ? "Edit student" : "Add a student"}
+          {editingId ? `Edit ${terms.student.toLowerCase()}` : `Add a ${terms.student.toLowerCase()}`}
         </h2>
 
         <div>
@@ -917,7 +919,7 @@ export default function Students() {
               ? "Saving..."
               : editingId
                 ? "Save changes"
-                : "Add student"}
+                : `Add ${terms.student.toLowerCase()}`}
           </button>
           {editingId && (
             <button
@@ -933,7 +935,7 @@ export default function Students() {
 
       <section>
         <h2 className="mb-3 text-base font-semibold text-gray-900">
-          Your students
+          Your {terms.students.toLowerCase()}
         </h2>
 
         <div className="mb-4 flex gap-2 border-b border-gray-200">
@@ -970,7 +972,7 @@ export default function Students() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search students by name or subject..."
+              placeholder={`Search ${terms.students.toLowerCase()} by name or subject...`}
               className="min-h-11 w-full rounded-md border border-gray-300 px-9 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
             />
             {searchTerm && (
@@ -999,7 +1001,7 @@ export default function Students() {
 
         {normalizedSearch && !loading && (
           <p className="mb-4 inline-block rounded-full bg-[#d6ede6] px-3 py-1 text-xs font-medium text-[#1b2d4f]">
-            Showing {sortedStudents.length} of {viewStudents.length} students
+            Showing {sortedStudents.length} of {viewStudents.length} {terms.students.toLowerCase()}
           </p>
         )}
 
@@ -1008,12 +1010,12 @@ export default function Students() {
         ) : viewStudents.length === 0 ? (
           <p className="text-sm text-gray-500">
             {view === "archived"
-              ? "No archived students."
-              : "No students yet."}
+              ? `No archived ${terms.students.toLowerCase()}.`
+              : `No ${terms.students.toLowerCase()} yet.`}
           </p>
         ) : sortedStudents.length === 0 ? (
           <p className="text-sm text-gray-500">
-            🔍 No students found for &quot;{searchTerm.trim()}&quot; — try a
+            🔍 No {terms.students.toLowerCase()} found for &quot;{searchTerm.trim()}&quot; — try a
             different name or subject.
           </p>
         ) : (
@@ -1049,7 +1051,7 @@ export default function Students() {
                   <p className="mb-2 text-sm text-gray-500">
                     {subjectsLabel(s.id, s.subject) || "—"}
                     {s.lesson_duration_hours != null &&
-                      ` · ${s.lesson_duration_hours}h lessons`}
+                      ` · ${s.lesson_duration_hours}h ${terms.lessons.toLowerCase()}`}
                   </p>
                   <span
                     className={`mb-3 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${progressFor(s).classes}`}
@@ -1070,7 +1072,7 @@ export default function Students() {
                           onClick={() => toggleLessons(s.id)}
                           className="text-sm font-medium text-gray-700 hover:text-gray-900"
                         >
-                          {expandedId === s.id ? "Hide lessons" : "View lessons"}
+                          {expandedId === s.id ? `Hide ${terms.lessons.toLowerCase()}` : `View ${terms.lessons.toLowerCase()}`}
                         </button>
                         <button
                           onClick={() => setScheduleStudent(s)}
@@ -1161,7 +1163,7 @@ export default function Students() {
                                 onClick={() => toggleLessons(s.id)}
                                 className="text-sm font-medium text-gray-700 hover:text-gray-900"
                               >
-                                {expandedId === s.id ? "Hide lessons" : "View lessons"}
+                                {expandedId === s.id ? `Hide ${terms.lessons.toLowerCase()}` : `View ${terms.lessons.toLowerCase()}`}
                               </button>
                               <button
                                 onClick={() => setScheduleStudent(s)}

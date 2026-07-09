@@ -14,6 +14,7 @@ import { getWeekSummaryKey, showAppNotification } from "../lib/notifications";
 import { buildGoogleMapsUrl } from "../lib/maps";
 import { lessonAmount } from "../lib/paymentMode";
 import { useToast } from "../contexts/ToastContext";
+import { useTerms } from "../contexts/TerminologyContext";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
 import Onboarding from "../components/Onboarding";
@@ -167,6 +168,7 @@ function FeedbackPromptCard({ lessonCount }) {
 export default function Dashboard() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const terms = useTerms();
   const isPractitioner = user?.user_metadata?.user_type === "practitioner";
   const [students, setStudents] = useState([]);
   const [lessons, setLessons] = useState([]);
@@ -694,7 +696,7 @@ export default function Dashboard() {
       showToast(error.message, "error");
       return;
     }
-    showToast("Lesson marked complete ✓", "celebrate");
+    showToast(`${terms.lesson} marked complete ✓`, "celebrate");
     await loadAll();
     if (notifyPrefs.notify_payment_due) {
       const { data: newCycles } = await supabase
@@ -794,11 +796,11 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 gap-3 rounded-xl bg-[#1b2d4f] p-4 text-white shadow-sm sm:grid-cols-4">
             <div>
               <p className="text-2xl font-semibold">{students.length}</p>
-              <p className="text-xs text-[#5ecfaa]">Active students</p>
+              <p className="text-xs text-[#5ecfaa]">Active {terms.students.toLowerCase()}</p>
             </div>
             <div>
               <p className="text-2xl font-semibold">{lessonsCompletedThisMonth}</p>
-              <p className="text-xs text-[#5ecfaa]">Lessons this month</p>
+              <p className="text-xs text-[#5ecfaa]">{terms.lessons} this month</p>
             </div>
             <div>
               <p className="text-2xl font-semibold">
@@ -832,13 +834,13 @@ export default function Dashboard() {
           {/* Today's lessons */}
           <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
             <h2 className="mb-4 text-base font-semibold text-gray-900">
-              Today&apos;s lessons
+              Today&apos;s {terms.lessons.toLowerCase()}
             </h2>
             {loading ? (
               <p className="text-sm text-gray-500">Loading...</p>
             ) : todayLessons.length === 0 ? (
               <p className="text-sm text-gray-500">
-                🎉 No lessons today — enjoy your day off!
+                🎉 No {terms.lessons.toLowerCase()} today — enjoy your day off!
               </p>
             ) : (
               <ul className="space-y-3">
@@ -932,7 +934,7 @@ export default function Dashboard() {
                         </span>
                       </div>
                       {dayLessons.length === 0 ? (
-                        <span className="text-sm text-gray-400">No lessons</span>
+                        <span className="text-sm text-gray-400">No {terms.lessons.toLowerCase()}</span>
                       ) : (
                         <ul className="flex flex-col gap-1.5">
                           {dayLessons.map((l) => {
@@ -1053,7 +1055,7 @@ export default function Dashboard() {
             {loading ? (
               <p className="text-sm text-gray-500">Loading...</p>
             ) : students.length === 0 ? (
-              <p className="text-sm text-gray-500">No students yet.</p>
+              <p className="text-sm text-gray-500">No {terms.students.toLowerCase()} yet.</p>
             ) : (
               <ul className="divide-y divide-gray-100">
                 {sortedStudents.map((s) => {
@@ -1085,8 +1087,8 @@ export default function Dashboard() {
                         )}
                         <p className="mt-0.5 text-xs text-gray-400">
                           {lastLessonDate
-                            ? `Last lesson: ${formatRelative(lastLessonDate, { includeTime: false })}`
-                            : "No lessons yet"}
+                            ? `Last ${terms.lesson.toLowerCase()}: ${formatRelative(lastLessonDate, { includeTime: false })}`
+                            : `No ${terms.lessons.toLowerCase()} yet`}
                         </p>
                       </div>
                       <div className="flex flex-col gap-1.5 sm:items-end">
@@ -1226,20 +1228,20 @@ export default function Dashboard() {
           <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-semibold text-gray-900">
-                Upcoming Lessons
+                Upcoming {terms.lessons}
               </h2>
               <Link
                 to="/lessons"
                 className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
               >
-                Log a lesson →
+                Log a {terms.lesson.toLowerCase()} →
               </Link>
             </div>
             {loading ? (
               <p className="text-sm text-gray-500">Loading...</p>
             ) : upcomingLessons.length === 0 ? (
               <p className="text-sm text-gray-500">
-                No upcoming lessons this week 🎉
+                No upcoming {terms.lessons.toLowerCase()} this week 🎉
               </p>
             ) : (
               <ul className="divide-y divide-gray-100">

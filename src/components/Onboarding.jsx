@@ -3,12 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
-
-const STEPS = [
-  { label: "Add your first student" },
-  { label: "Log your first lesson" },
-  { label: "You're all set!" },
-];
+import { useTerms } from "../contexts/TerminologyContext";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -16,6 +11,12 @@ export default function Onboarding({ onDismiss, onDone }) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const terms = useTerms();
+  const STEPS = [
+    { label: `Add your first ${terms.student.toLowerCase()}` },
+    { label: `Log your first ${terms.lesson.toLowerCase()}` },
+    { label: "You're all set!" },
+  ];
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -146,7 +147,7 @@ export default function Onboarding({ onDismiss, onDone }) {
         {step === 1 && (
           <form onSubmit={handleAddStudent} className="space-y-4">
             <h2 className="text-base font-semibold text-gray-900">
-              Add your first student
+              Add your first {terms.student.toLowerCase()}
             </h2>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -219,7 +220,7 @@ export default function Onboarding({ onDismiss, onDone }) {
               disabled={submitting}
               className="min-h-11 w-full rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white hover:bg-[#15243f] disabled:opacity-50"
             >
-              {submitting ? "Saving..." : "Add student"}
+              {submitting ? "Saving..." : `Add ${terms.student.toLowerCase()}`}
             </button>
           </form>
         )}
@@ -227,7 +228,7 @@ export default function Onboarding({ onDismiss, onDone }) {
         {step === 2 && (
           <form onSubmit={handleLogLesson} className="space-y-4">
             <h2 className="text-base font-semibold text-gray-900">
-              Log your first lesson for {student?.name}
+              Log your first {terms.lesson.toLowerCase()} for {student?.name}
             </h2>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -268,7 +269,7 @@ export default function Onboarding({ onDismiss, onDone }) {
               disabled={submitting}
               className="min-h-11 w-full rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white hover:bg-[#15243f] disabled:opacity-50"
             >
-              {submitting ? "Saving..." : "Log lesson"}
+              {submitting ? "Saving..." : `Log ${terms.lesson.toLowerCase()}`}
             </button>
           </form>
         )}
@@ -280,8 +281,8 @@ export default function Onboarding({ onDismiss, onDone }) {
               You're all set!
             </h2>
             <p className="text-sm text-gray-600">
-              {student?.name} is added, and their first lesson is logged. You'll
-              get a payment notice automatically after every 4 lessons.
+              {student?.name} is added, and their first {terms.lesson.toLowerCase()} is logged. You'll
+              get a payment notice automatically after every 4 {terms.lessons.toLowerCase()}.
             </p>
             <button
               onClick={handleFinish}

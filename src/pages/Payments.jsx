@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
+import { useTerms } from "../contexts/TerminologyContext";
 import { formatSGD } from "../lib/paymentNotice";
 import {
   formatDate,
@@ -22,6 +23,7 @@ import MessagePreviewModal from "../components/MessagePreviewModal";
 export default function Payments() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const terms = useTerms();
   const [cycles, setCycles] = useState([]);
   const [lessonDatesByCycle, setLessonDatesByCycle] = useState({});
   const [tutorProfile, setTutorProfile] = useState({});
@@ -349,13 +351,13 @@ export default function Payments() {
             <p className="mb-4 text-5xl">💰</p>
             <p className="max-w-sm text-sm text-gray-600">
               No payments yet. Payments appear automatically after every 4
-              lessons.
+              {" "}{terms.lessons.toLowerCase()}.
             </p>
           </div>
         ) : noticesCount === 0 ? (
           <p className="text-sm text-gray-500">
-            No payments due. A notice appears here automatically once a student
-            accumulates 4 lessons.
+            No payments due. A notice appears here automatically once a {terms.student.toLowerCase()}
+            accumulates 4 {terms.lessons.toLowerCase()}.
           </p>
         ) : (
           <ul className="space-y-3">
@@ -376,7 +378,7 @@ export default function Payments() {
                   </span>
                 </div>
                 <p className="text-sm text-gray-600">
-                  ⚠️ {formatSGD(p.expectedAmount)} due — {p.cycleCount} lessons
+                  ⚠️ {formatSGD(p.expectedAmount)} due — {p.cycleCount} {terms.lessons.toLowerCase()}
                   completed
                 </p>
               </li>
@@ -398,9 +400,9 @@ export default function Payments() {
                   </span>
                 </div>
                 <p className="text-sm text-gray-600">
-                  {p.openCount}/{p.cycleCount} lessons done
+                  {p.openCount}/{p.cycleCount} {terms.lessons.toLowerCase()} done
                   {p.completingLessonDate &&
-                    ` · Payment due after lesson ${p.cycleCount} on ${formatDayMonth(p.completingLessonDate)}`}
+                    ` · Payment due after ${terms.lesson.toLowerCase()} ${p.cycleCount} on ${formatDayMonth(p.completingLessonDate)}`}
                 </p>
               </li>
             ))}
@@ -483,12 +485,12 @@ export default function Payments() {
                 </div>
                 <p className="text-sm text-gray-600">
                   {p.cycleCount != null
-                    ? `${p.openCount}/${p.cycleCount} lessons done`
-                    : `${p.monthLabel}: ${p.openCount} lesson${p.openCount === 1 ? "" : "s"} done`}
+                    ? `${p.openCount}/${p.cycleCount} ${terms.lessons.toLowerCase()} done`
+                    : `${p.monthLabel}: ${p.openCount} ${p.openCount === 1 ? terms.lesson.toLowerCase() : terms.lessons.toLowerCase()} done`}
                   {p.completingMonthLabel
                     ? ` · Payment due in ${p.completingMonthLabel}`
                     : p.nextLessonDate &&
-                      ` · Next lesson on ${formatDate(p.nextLessonDate)}`}
+                      ` · Next ${terms.lesson.toLowerCase()} on ${formatDate(p.nextLessonDate)}`}
                 </p>
               </li>
             ))}
@@ -537,7 +539,7 @@ export default function Payments() {
               <table className="w-full text-left text-sm">
                 <thead className="bg-gray-50 text-gray-500">
                   <tr>
-                    <th className="px-4 py-2 font-medium">Student</th>
+                    <th className="px-4 py-2 font-medium">{terms.student}</th>
                     <th className="px-4 py-2 font-medium">Period</th>
                     <th className="px-4 py-2 font-medium">Amount</th>
                     <th className="px-4 py-2 font-medium">Status</th>

@@ -10,6 +10,7 @@ import {
 import { formatLessonTime } from "../lib/date";
 import { formatDateFull, formatMonth } from "../utils/dateFormat";
 import AppShell from "../components/AppShell";
+import { useTerms } from "../contexts/TerminologyContext";
 import LessonDetailModal from "../components/LessonDetailModal";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -75,6 +76,7 @@ function buildMonthGrid(monthDate) {
 export default function Calendar() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const terms = useTerms();
   const [monthDate, setMonthDate] = useState(startOfMonth(new Date()));
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -190,14 +192,14 @@ export default function Calendar() {
       const monthLabel = lesson.lesson_date
         ? formatMonth(new Date(`${lesson.lesson_date}T00:00:00`))
         : "";
-      return `Lesson ${pos} · ${monthLabel}`;
+      return `${terms.lesson} ${pos} · ${monthLabel}`;
     }
     if (isPerLesson(lesson)) {
       const pos = perLessonPosition.get(lesson.id) ?? "?";
-      return `Lesson ${pos}`;
+      return `${terms.lesson} ${pos}`;
     }
     const cycleCount = lesson.students?.payment_cycle_count ?? 4;
-    return `Lesson ${lessonPosition.get(lesson.id) ?? "?"} of ${cycleCount}`;
+    return `${terms.lesson} ${lessonPosition.get(lesson.id) ?? "?"} of ${cycleCount}`;
   };
 
   const studentColorIndex = useMemo(() => {
@@ -292,7 +294,7 @@ export default function Calendar() {
   };
 
   const handleDeleteLesson = async (lesson) => {
-    if (!window.confirm("Delete this lesson? This cannot be undone.")) return;
+    if (!window.confirm(`Delete this ${terms.lesson.toLowerCase()}? This cannot be undone.`)) return;
     await deleteFromGoogleCalendar(lesson);
     await supabase
       .from("lessons")
@@ -381,7 +383,7 @@ export default function Calendar() {
             <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
               <p className="mb-4 text-5xl">📅</p>
               <p className="max-w-sm text-sm text-gray-600">
-                No lessons this month. Log a lesson to see it here.
+                No {terms.lessons.toLowerCase()} this month. Log a {terms.lesson.toLowerCase()} to see it here.
               </p>
             </div>
           ) : (
@@ -481,16 +483,16 @@ export default function Calendar() {
               onClick={handleLogLesson}
               className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white hover:bg-[#15243f]"
             >
-              + Log Lesson
+              + Log {terms.lesson}
             </button>
           </div>
 
           {!selectedKey ? (
             <p className="text-sm text-gray-500">
-              Click a date on the calendar to see lessons logged that day.
+              Click a date on the calendar to see {terms.lessons.toLowerCase()} logged that day.
             </p>
           ) : selectedLessons.length === 0 ? (
-            <p className="text-sm text-gray-500">No lessons on this day.</p>
+            <p className="text-sm text-gray-500">No {terms.lessons.toLowerCase()} on this day.</p>
           ) : (
             <ul className="space-y-3">
               {selectedLessons.map((l) => (

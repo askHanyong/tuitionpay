@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useTerms } from "../contexts/TerminologyContext";
 import { formatSGD } from "../lib/paymentNotice";
 import { buildMonthlyReport } from "../lib/monthlyReport";
 import { downloadMonthlyReportPdf } from "../lib/pdfReport";
@@ -182,6 +183,7 @@ export default function MonthlyRecapCard({
   tutorName,
   currentMonthPendingOverride,
 }) {
+  const terms = useTerms();
   const [monthDate, setMonthDate] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
@@ -221,7 +223,7 @@ export default function MonthlyRecapCard({
       ? "🔥 Amazing month! You're on fire!"
       : current.projectedEarnings >= 2000
         ? "💪 Solid month! Keep it going!"
-        : "📈 Building up — every lesson counts!";
+        : `📈 Building up — every ${terms.lesson.toLowerCase()} counts!`;
 
   const monthLabel = formatMonth(monthDate);
 
@@ -279,7 +281,7 @@ export default function MonthlyRecapCard({
             {current.totalLessons}
           </p>
           <p className="mt-1 text-xs font-medium text-gray-600">
-            📚 Lessons taught
+            📚 {terms.lessons} taught
           </p>
         </div>
         <div className="text-center">

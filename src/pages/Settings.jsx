@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
+import { useTerms } from "../contexts/TerminologyContext";
 import AppShell from "../components/AppShell";
 import {
   buildGoogleAuthUrl,
@@ -55,27 +56,28 @@ function formatAmount(value) {
   return Number(value).toFixed(2);
 }
 
-const NOTIFICATION_TYPES = [
-  {
-    key: "notify_lesson_reminders",
-    label: "Pre-lesson reminders",
-    description: "Notify me 30 minutes before each scheduled lesson.",
-  },
-  {
-    key: "notify_payment_due",
-    label: "Payment due",
-    description: "Notify me as soon as a student completes their 4th lesson.",
-  },
-  {
-    key: "notify_weekly_summary",
-    label: "Weekly summary",
-    description: "Notify me every Sunday at 8pm with a summary of the week.",
-  },
-];
-
 export default function Settings() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const terms = useTerms();
+
+  const NOTIFICATION_TYPES = [
+    {
+      key: "notify_lesson_reminders",
+      label: `Pre-${terms.lesson.toLowerCase()} reminders`,
+      description: `Notify me 30 minutes before each scheduled ${terms.lesson.toLowerCase()}.`,
+    },
+    {
+      key: "notify_payment_due",
+      label: "Payment due",
+      description: `Notify me as soon as a ${terms.student.toLowerCase()} completes their 4th ${terms.lesson.toLowerCase()}.`,
+    },
+    {
+      key: "notify_weekly_summary",
+      label: "Weekly summary",
+      description: "Notify me every Sunday at 8pm with a summary of the week.",
+    },
+  ];
   const [paynowNumber, setPaynowNumber] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -256,10 +258,10 @@ export default function Settings() {
 
       const csv = toCSV(
         [
-          "Student name",
+          `${terms.student} name`,
           "Subject",
-          "Lesson date",
-          "Lesson time",
+          `${terms.lesson} date`,
+          `${terms.lesson} time`,
           "Duration (hrs)",
           "Rate (SGD/hr)",
           "Amount (SGD)",
@@ -269,7 +271,7 @@ export default function Settings() {
         ],
         rows,
       );
-      downloadCSV(`chopeandpay_lessons_${todayFilenameSuffix()}.csv`, csv);
+      downloadCSV(`chopeandpay_${terms.lessons.toLowerCase()}_${todayFilenameSuffix()}.csv`, csv);
     } catch (err) {
       showToast(err.message, "error");
     } finally {
@@ -298,7 +300,7 @@ export default function Settings() {
 
       const csv = toCSV(
         [
-          "Student name",
+          `${terms.student} name`,
           "Period start",
           "Period end",
           "Amount due (SGD)",
@@ -359,8 +361,8 @@ export default function Settings() {
         </h2>
         <p className="text-sm text-gray-600">
           {googleConnected
-            ? "Connected. Lessons you log will automatically be added to your Google Calendar."
-            : "Connect your Google Calendar so every lesson you log is added automatically."}
+            ? `Connected. ${terms.lessons} you log will automatically be added to your Google Calendar.`
+            : `Connect your Google Calendar so every ${terms.lesson.toLowerCase()} you log is added automatically.`}
         </p>
         {googleConnected ? (
           <div className="flex items-center gap-3">
@@ -451,7 +453,7 @@ export default function Settings() {
           Export my data
         </h2>
         <p className="text-sm text-gray-600">
-          Download your lesson and payment history as CSV files.
+          Download your {terms.lesson.toLowerCase()} and payment history as CSV files.
         </p>
         <div className="flex flex-col gap-2 sm:flex-row">
           <button
@@ -460,7 +462,7 @@ export default function Settings() {
             disabled={exportingLessons}
             className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
           >
-            {exportingLessons ? "Preparing..." : "📥 Download lessons"}
+            {exportingLessons ? "Preparing..." : `📥 Download ${terms.lessons.toLowerCase()}`}
           </button>
           <button
             type="button"
@@ -480,11 +482,11 @@ export default function Settings() {
         <div>
           <h2 className="text-base font-semibold text-gray-900">Recently deleted</h2>
           <p className="mt-1 text-xs text-gray-500">
-            Students deleted in the last 30 days. Tap Restore to bring them back.
+            {terms.students} deleted in the last 30 days. Tap Restore to bring them back.
           </p>
         </div>
         {deletedStudents.length === 0 ? (
-          <p className="text-sm text-gray-400">No recently deleted students.</p>
+          <p className="text-sm text-gray-400">No recently deleted {terms.students.toLowerCase()}.</p>
         ) : (
           <ul className="divide-y divide-gray-100">
             {deletedStudents.map((s) => {

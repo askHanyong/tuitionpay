@@ -1,11 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-
-const STEPS = [
-  { key: "student", label: "Add your first student" },
-  { key: "lesson", label: "Log your first lesson" },
-  { key: "calendar", label: "Connect Google Calendar" },
-];
+import { useTerms } from "../contexts/TerminologyContext";
 
 export default function GettingStartedChecklist({
   tutorId,
@@ -15,6 +10,12 @@ export default function GettingStartedChecklist({
   dismissed,
   onDismissed,
 }) {
+  const terms = useTerms();
+  const STEPS = [
+    { key: "student", label: `Add your first ${terms.student.toLowerCase()}` },
+    { key: "lesson", label: `Log your first ${terms.lesson.toLowerCase()}` },
+    { key: "calendar", label: "Connect Google Calendar" },
+  ];
   const [hidden, setHidden] = useState(false);
 
   const stepDone = {
