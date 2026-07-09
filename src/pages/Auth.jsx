@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { supabase } from "../lib/supabase";
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
@@ -10,6 +11,7 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [userType, setUserType] = useState("");
   const [error, setError] = useState(null);
   const [info, setInfo] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -29,8 +31,20 @@ export default function Auth() {
 
     try {
       if (mode === "signup") {
-        const { error } = await signUp(email, password, fullName);
+        if (!userType) {
+          setError("Please select whether you're a tutor or a practitioner.");
+          setSubmitting(false);
+          return;
+        }
+        const { data, error } = await signUp(email, password, fullName);
         if (error) throw error;
+        // Write user_type to the tutors row the DB trigger just created
+        if (data?.user?.id) {
+          await supabase
+            .from("tutors")
+            .update({ user_type: userType })
+            .eq("id", data.user.id);
+        }
         setInfo("Check your email to confirm your account, then log in.");
         setMode("login");
       } else {
@@ -55,23 +69,52 @@ export default function Auth() {
         <p className="mb-6 text-sm text-gray-500">
           {mode === "login"
             ? "Log in to your account"
-            : "Create a tutor account"}
+            : "Create your account"}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === "signup" && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Full name
-              </label>
-              <input
-                type="text"
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
-              />
-            </div>
+            <>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Full name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                />
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-medium text-gray-700">
+                  I am a…
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { value: "tutor", emoji: "📚", label: "Tutor", sub: "Students · Lessons" },
+                    { value: "practitioner", emoji: "🩺", label: "Practitioner", sub: "Clients · Sessions" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setUserType(opt.value)}
+                      className={`flex flex-col items-center gap-1 rounded-xl border-2 px-3 py-4 text-center transition ${
+                        userType === opt.value
+                          ? "border-[#5ecfaa] bg-[#edf6f3]"
+                          : "border-gray-200 bg-white hover:border-gray-300"
+                      }`}
+                    >
+                      <span className="text-2xl">{opt.emoji}</span>
+                      <span className="text-sm font-semibold text-gray-900">{opt.label}</span>
+                      <span className="text-xs text-gray-500">{opt.sub}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
           )}
 
           <div>
