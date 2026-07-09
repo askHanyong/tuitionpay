@@ -737,7 +737,7 @@ export default function Students() {
 
         <div className="space-y-3">
           <label className="block text-sm font-medium text-gray-700">
-            Subjects
+            {terms.subjects}
           </label>
           {form.subjects.map((row, index) => (
             <div
@@ -746,7 +746,7 @@ export default function Students() {
             >
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-500">
-                  Subject
+                  {terms.subject}
                 </label>
                 <input
                   type="text"
@@ -830,7 +830,7 @@ export default function Students() {
             onClick={handleAddSubjectRow}
             className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
-            + Add another subject
+            + Add another {terms.subject.toLowerCase()}
           </button>
         </div>
 
@@ -1103,7 +1103,7 @@ export default function Students() {
                 <thead className="bg-gray-50 text-gray-500">
                   <tr>
                     <th className="px-4 py-2 font-medium">Name</th>
-                    <th className="px-4 py-2 font-medium">Subject</th>
+                    <th className="px-4 py-2 font-medium">{terms.subject}</th>
                     <th className="px-4 py-2 font-medium">Rate (SGD/hr)</th>
                     <th className="px-4 py-2 font-medium">Duration (hrs)</th>
                     <th className="px-4 py-2 font-medium">Progress</th>
@@ -1258,8 +1258,9 @@ function StudentAvatar({ name, tier, avatarColor }) {
 }
 
 function StudentLessonsPanel({ loading, lessons }) {
+  const terms = useTerms();
   if (loading) {
-    return <p className="text-sm text-gray-500">Loading lessons...</p>;
+    return <p className="text-sm text-gray-500">Loading {terms.lessons.toLowerCase()}...</p>;
   }
 
   const upcoming = lessons
@@ -1270,7 +1271,7 @@ function StudentLessonsPanel({ loading, lessons }) {
     .sort((a, b) => (a.lesson_date > b.lesson_date ? -1 : 1));
 
   if (lessons.length === 0) {
-    return <p className="text-sm text-gray-500">No lessons logged yet.</p>;
+    return <p className="text-sm text-gray-500">No {terms.lessons.toLowerCase()} logged yet.</p>;
   }
 
   return (
@@ -1280,7 +1281,7 @@ function StudentLessonsPanel({ loading, lessons }) {
           Upcoming ({upcoming.length})
         </h3>
         {upcoming.length === 0 ? (
-          <p className="text-sm text-gray-500">No upcoming lessons.</p>
+          <p className="text-sm text-gray-500">No upcoming {terms.lessons.toLowerCase()}.</p>
         ) : (
           <ul className="space-y-1">
             {upcoming.map((l) => (
@@ -1297,7 +1298,7 @@ function StudentLessonsPanel({ loading, lessons }) {
           Past ({past.length})
         </h3>
         {past.length === 0 ? (
-          <p className="text-sm text-gray-500">No past lessons.</p>
+          <p className="text-sm text-gray-500">No past {terms.lessons.toLowerCase()}.</p>
         ) : (
           <ul className="space-y-1">
             {past.map((l) => (

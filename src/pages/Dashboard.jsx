@@ -772,13 +772,13 @@ export default function Dashboard() {
             Let&apos;s get started!
           </h2>
           <p className="mb-8 max-w-xs text-sm text-gray-600">
-            Add your first student to begin tracking lessons and payments.
+            Add your first {terms.student.toLowerCase()} to begin tracking {terms.lessons.toLowerCase()} and payments.
           </p>
           <Link
             to="/students"
             className="flex min-h-11 items-center gap-1.5 rounded-md bg-[#1b2d4f] px-6 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow"
           >
-            + Add Student
+            + Add {terms.student}
           </Link>
         </div>
       </AppShell>

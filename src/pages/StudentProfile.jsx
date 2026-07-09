@@ -10,6 +10,7 @@ import {
   buildPaymentRequestMessage,
 } from "../lib/whatsapp";
 import { useAuth } from "../contexts/AuthContext";
+import { useTerms } from "../contexts/TerminologyContext";
 import { buildGoogleMapsUrl } from "../lib/maps";
 import AppShell from "../components/AppShell";
 import StatusBadge from "../components/StatusBadge";
@@ -22,6 +23,7 @@ export default function StudentProfile() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { user } = useAuth();
+  const terms = useTerms();
   const [student, setStudent] = useState(null);
   const [lessons, setLessons] = useState([]);
   const [cycles, setCycles] = useState([]);
@@ -51,7 +53,7 @@ export default function StudentProfile() {
       showToast(error.message, "error");
       return;
     }
-    showToast("Student archived.");
+    showToast(`${terms.student} archived.`);
     navigate("/students");
   };
 
@@ -59,7 +61,7 @@ export default function StudentProfile() {
     const link = `https://chopeandpay.com/pay/${student.payment_token}`;
     try {
       await navigator.clipboard.writeText(link);
-      showToast("Link copied! Share with your student.");
+      showToast(`Link copied! Share with your ${terms.student.toLowerCase()}.`);
     } catch {
       showToast("Couldn't copy the link.", "error");
     }
@@ -157,7 +159,7 @@ export default function StudentProfile() {
   const openLessons = completedLessons.filter((l) => !l.payment_cycle_id);
   const openCount = openLessons.length;
   const cycleCount = student?.payment_cycle_count ?? 4;
-  const currentCycleProgress = `Lesson ${Math.min(openCount, cycleCount)} of ${cycleCount}`;
+  const currentCycleProgress = `${terms.lesson} ${Math.min(openCount, cycleCount)} of ${cycleCount}`;
   const lessonsThisMonth = useMemo(() => {
     const now = new Date();
     return lessons.filter((l) => {
@@ -272,12 +274,12 @@ export default function StudentProfile() {
   if (!student) {
     return (
       <AppShell>
-        <p className="text-sm text-red-600">{error || "Student not found."}</p>
+        <p className="text-sm text-red-600">{error || `${terms.student} not found.`}</p>
         <Link
           to="/students"
           className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
         >
-          ← Back to students
+          ← Back to {terms.students.toLowerCase()}
         </Link>
       </AppShell>
     );
@@ -289,7 +291,7 @@ export default function StudentProfile() {
         to="/students"
         className="text-sm font-medium text-gray-500 hover:text-gray-900"
       >
-        ← Back to students
+        ← Back to {terms.students.toLowerCase()}
       </Link>
 
       <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
@@ -318,7 +320,7 @@ export default function StudentProfile() {
                 ? `$${student.hourly_rate}/hr`
                 : "Rate not set"}
               {student.lesson_duration_hours != null &&
-                ` · ${student.lesson_duration_hours}h lessons`}
+                ` · ${student.lesson_duration_hours}h ${terms.lessons.toLowerCase()}`}
             </p>
             {student.address && (
               <p className="mt-1 flex items-center gap-2 text-sm text-gray-600">
@@ -339,7 +341,7 @@ export default function StudentProfile() {
               onClick={() => setScheduling(true)}
               className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
             >
-              Schedule Lessons
+              Schedule {terms.lessons}
             </button>
             <button
               onClick={() =>
@@ -347,7 +349,7 @@ export default function StudentProfile() {
               }
               className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
             >
-              Edit Student
+              Edit {terms.student}
             </button>
             <button
               onClick={() => setReporting(true)}
@@ -367,7 +369,7 @@ export default function StudentProfile() {
                 onClick={handleArchive}
                 className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-500 transition hover:bg-gray-100"
               >
-                Archive student
+                Archive {terms.student.toLowerCase()}
               </button>
             )}
           </div>
@@ -379,7 +381,7 @@ export default function StudentProfile() {
               {lessonStats.totalCount}
             </p>
             <p className="mt-0.5 text-xs font-medium text-[#0f7a58]">
-              Total lessons
+              Total {terms.lessons.toLowerCase()}
             </p>
           </div>
           <div className="rounded-lg bg-[#edf6f3] p-3 text-center">
@@ -411,10 +413,10 @@ export default function StudentProfile() {
 
       <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
         <h2 className="mb-4 text-base font-semibold text-gray-900">
-          Lesson history
+          {terms.lesson} history
         </h2>
         {lessons.length === 0 ? (
-          <p className="text-sm text-gray-500">No lessons logged yet.</p>
+          <p className="text-sm text-gray-500">No {terms.lessons.toLowerCase()} logged yet.</p>
         ) : (
           <ul className="space-y-4 divide-y divide-gray-100">
             {lessons.map((l) => (
@@ -431,12 +433,12 @@ export default function StudentProfile() {
                     )}
                     <span className="rounded-full bg-[#edf6f3] px-2.5 py-0.5 text-xs font-medium text-[#0f7a58]">
                       {isMonthlyBilled
-                        ? `Lesson ${lessonPosition.get(l.id) ?? "?"} · ${formatMonth(
+                        ? `${terms.lesson} ${lessonPosition.get(l.id) ?? "?"} · ${formatMonth(
                             new Date(`${l.lesson_date}T00:00:00`),
                           )}`
                         : isPerLesson
-                          ? `Lesson ${lessonPosition.get(l.id) ?? "?"}`
-                          : `Lesson ${lessonPosition.get(l.id) ?? "?"} of ${
+                          ? `${terms.lesson} ${lessonPosition.get(l.id) ?? "?"}`
+                          : `${terms.lesson} ${lessonPosition.get(l.id) ?? "?"} of ${
                               student?.payment_cycle_count ?? 4
                             }`}
                     </span>
@@ -446,7 +448,7 @@ export default function StudentProfile() {
                           prev === l.id ? null : l.id,
                         )
                       }
-                      aria-label="Edit lesson notes"
+                      aria-label={`Edit ${terms.lesson.toLowerCase()} notes`}
                       className="text-sm text-gray-400 hover:text-gray-600"
                     >
                       ✏️
@@ -470,7 +472,7 @@ export default function StudentProfile() {
                           [l.id]: e.target.value,
                         }))
                       }
-                      placeholder="Add a quick note for this lesson..."
+                      placeholder={`Add a quick note for this ${terms.lesson.toLowerCase()}...`}
                       rows={2}
                       className="mt-2 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                     />

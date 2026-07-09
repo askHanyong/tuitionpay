@@ -1644,7 +1644,7 @@ export default function Lessons() {
           <div className="flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-white px-6 py-12 text-center shadow-sm">
             <p className="mb-4 text-5xl">📚</p>
             <p className="mb-6 max-w-sm text-sm text-gray-600">
-              No lessons logged yet. Start by logging your first lesson!
+              No {terms.lessons.toLowerCase()} logged yet. Start by logging your first {terms.lesson.toLowerCase()}!
             </p>
             <a
               href="#log-lesson-form-submit"
@@ -1657,7 +1657,7 @@ export default function Lessons() {
               }}
               className="flex min-h-11 items-center rounded-md bg-[#1b2d4f] px-5 text-sm font-medium text-white hover:bg-[#15243f]"
             >
-              Log Lesson
+              Log {terms.lesson}
             </a>
           </div>
         ) : filteredLessons.length === 0 ? (
