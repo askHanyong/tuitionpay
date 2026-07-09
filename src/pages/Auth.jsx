@@ -38,13 +38,19 @@ export default function Auth() {
         }
         const { data, error } = await signUp(email, password, fullName);
         if (error) throw error;
-        // Write user_type after a short delay so the DB trigger that creates
-        // the tutors row has time to complete before we update it.
-        if (data?.user?.id) {
+        const uid = data?.user?.id;
+        if (uid) {
+          // Wait for the DB trigger that creates the tutors row to complete.
           await new Promise((r) => setTimeout(r, 1500));
-          await supabase
+          const effectiveType = userType || "tutor";
+          const { error: upsertError } = await supabase
             .from("tutors")
-            .upsert({ id: data.user.id, user_type: userType }, { onConflict: "id" });
+            .upsert({ id: uid, user_type: effectiveType }, { onConflict: "id" });
+          if (upsertError) {
+            console.error("Failed to save user_type:", upsertError);
+          }
+        } else {
+          console.warn("No user ID returned after signup — user_type not saved");
         }
         setInfo("Check your email to confirm your account, then log in.");
         setMode("login");
@@ -102,12 +108,21 @@ export default function Auth() {
                       key={opt.value}
                       type="button"
                       onClick={() => setUserType(opt.value)}
-                      className={`flex flex-col items-center gap-1 rounded-xl border-2 px-3 py-4 text-center transition ${
+                      className="relative flex flex-col items-center gap-1 rounded-xl border-2 px-3 py-4 text-center transition"
+                      style={
                         userType === opt.value
-                          ? "border-[#5ecfaa] bg-[#edf6f3]"
-                          : "border-gray-200 bg-white hover:border-gray-300"
-                      }`}
+                          ? { borderColor: "#5ecfaa", backgroundColor: "#edf6f3" }
+                          : { borderColor: "#e5e7eb", backgroundColor: "#ffffff" }
+                      }
                     >
+                      {userType === opt.value && (
+                        <span
+                          className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full text-white text-xs"
+                          style={{ backgroundColor: "#5ecfaa" }}
+                        >
+                          ✓
+                        </span>
+                      )}
                       <span className="text-2xl">{opt.emoji}</span>
                       <span className="text-sm font-semibold text-gray-900">{opt.label}</span>
                       <span className="text-xs text-gray-500">{opt.sub}</span>
