@@ -61,6 +61,14 @@ const RATE_CARD_KEYS = [
   { client_type: "paediatric", consultation_type: "subsequent" },
   { client_type: "adult", consultation_type: "initial" },
   { client_type: "adult", consultation_type: "subsequent" },
+  { client_type: "other", consultation_type: "initial" },
+  { client_type: "other", consultation_type: "subsequent" },
+];
+
+const CLIENT_TYPE_ROWS = [
+  { client_type: "paediatric", label: "Paediatric" },
+  { client_type: "adult",      label: "Adult" },
+  { client_type: "other",      label: "Other" },
 ];
 
 const emptyRateCard = () =>
@@ -435,13 +443,10 @@ export default function Settings() {
           <div className="grid grid-cols-[auto_1fr_1fr] gap-x-4 gap-y-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
             <span />
             <span className="text-center">Initial</span>
-            <span className="text-center">Subsequent</span>
+            <span className="text-center">Follow-up</span>
           </div>
 
-          {[
-            { client_type: "paediatric", label: "Paediatric" },
-            { client_type: "adult", label: "Adult" },
-          ].map(({ client_type, label }) => (
+          {CLIENT_TYPE_ROWS.map(({ client_type, label }) => (
             <div key={client_type} className="grid grid-cols-[auto_1fr_1fr] items-start gap-x-4 gap-y-3">
               <span className="mt-2 w-20 text-sm font-medium text-gray-700">{label}</span>
 
