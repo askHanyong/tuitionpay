@@ -11,13 +11,17 @@ export function TerminologyProvider({ children }) {
 
   useEffect(() => {
     if (!user?.id) return;
+    // Apply auth metadata immediately as a fallback while the DB row loads.
+    const metaType = user.user_metadata?.user_type;
+    if (metaType) setTerms(getTerms(metaType));
+
     supabase
       .from("tutors")
       .select("user_type")
       .eq("id", user.id)
       .single()
       .then(({ data }) => {
-        setTerms(getTerms(data?.user_type));
+        if (data?.user_type) setTerms(getTerms(data.user_type));
       });
   }, [user?.id]);
 

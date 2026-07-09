@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
@@ -16,10 +16,14 @@ export default function Auth() {
   const [info, setInfo] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Prevent the session-triggered redirect from firing while signup is in flight.
+  // onAuthStateChange can set `session` before our async handler finishes.
+  const signingUpRef = useRef(false);
+
   const { session, signIn, signUp } = useAuth();
   const navigate = useNavigate();
 
-  if (session) {
+  if (session && !signingUpRef.current) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -33,34 +37,64 @@ export default function Auth() {
       if (mode === "signup") {
         if (!userType) {
           setError("Please select whether you're a tutor or a practitioner.");
-          setSubmitting(false);
           return;
         }
-        const { data, error } = await signUp(email, password, fullName);
-        if (error) throw error;
-        const uid = data?.user?.id;
-        if (uid) {
-          // Wait for the DB trigger that creates the tutors row to complete.
-          await new Promise((r) => setTimeout(r, 1500));
-          const effectiveType = userType || "tutor";
-          const { error: upsertError } = await supabase
-            .from("tutors")
-            .upsert({ id: uid, user_type: effectiveType }, { onConflict: "id" });
-          if (upsertError) {
-            console.error("Failed to save user_type:", upsertError);
+
+        signingUpRef.current = true;
+
+        const { data, error: signUpError } = await signUp(email, password, fullName, userType);
+
+        if (signUpError) {
+          // Map common Supabase auth error messages to friendlier copy.
+          const msg = signUpError.message ?? "";
+          if (msg.toLowerCase().includes("password")) {
+            throw new Error("Password must be at least 6 characters.");
           }
-        } else {
-          console.warn("No user ID returned after signup — user_type not saved");
+          if (msg.toLowerCase().includes("already registered") || msg.toLowerCase().includes("user already exists")) {
+            throw new Error("An account with this email already exists. Try logging in instead.");
+          }
+          throw signUpError;
         }
-        setInfo("Check your email to confirm your account, then log in.");
-        setMode("login");
+
+        const uid = data?.user?.id;
+
+        if (data?.session) {
+          // Email confirmation is disabled — user is signed in immediately.
+          // Upsert user_type now that we have an active session.
+          if (uid) {
+            await new Promise((r) => setTimeout(r, 800));
+            const { error: upsertError } = await supabase
+              .from("tutors")
+              .upsert({ id: uid, user_type: userType }, { onConflict: "id" });
+            if (upsertError) {
+              // Non-fatal: user_type is already in auth metadata as a fallback.
+              console.error("user_type upsert failed:", upsertError.message, upsertError);
+            }
+          }
+          signingUpRef.current = false;
+          navigate("/dashboard", { replace: true });
+        } else {
+          // Email confirmation is required — no session yet.
+          // user_type is already saved in auth metadata (passed to signUp above).
+          // The DB trigger upsert will happen when they confirm and first log in.
+          signingUpRef.current = false;
+          setInfo("Check your email to confirm your account, then log in.");
+          setMode("login");
+        }
       } else {
-        const { error } = await signIn(email, password);
-        if (error) throw error;
+        const { error: signInError } = await signIn(email, password);
+        if (signInError) {
+          const msg = signInError.message ?? "";
+          if (msg.toLowerCase().includes("invalid") || msg.toLowerCase().includes("credentials")) {
+            throw new Error("Incorrect email or password. Please try again.");
+          }
+          throw signInError;
+        }
         navigate("/dashboard", { replace: true });
       }
     } catch (err) {
-      setError(err.message);
+      signingUpRef.current = false;
+      setError(err.message ?? "Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
     }
