@@ -56,10 +56,26 @@ function formatAmount(value) {
   return Number(value).toFixed(2);
 }
 
+const RATE_CARD_KEYS = [
+  { client_type: "paediatric", consultation_type: "initial" },
+  { client_type: "paediatric", consultation_type: "subsequent" },
+  { client_type: "adult", consultation_type: "initial" },
+  { client_type: "adult", consultation_type: "subsequent" },
+];
+
+const emptyRateCard = () =>
+  Object.fromEntries(
+    RATE_CARD_KEYS.map(({ client_type, consultation_type }) => [
+      `${client_type}_${consultation_type}`,
+      { rate_weekday: "", rate_saturday: "" },
+    ]),
+  );
+
 export default function Settings() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const terms = useTerms();
+  const isPractitioner = user?.user_metadata?.user_type === "practitioner";
 
   const NOTIFICATION_TYPES = [
     {
@@ -96,6 +112,8 @@ export default function Settings() {
   const [feedbackDone, setFeedbackDone] = useState(false);
   const [deletedStudents, setDeletedStudents] = useState([]);
   const [restoringId, setRestoringId] = useState(null);
+  const [rateCard, setRateCard] = useState(emptyRateCard);
+  const [rateCardSaving, setRateCardSaving] = useState(false);
 
   const loadGoogleStatus = async () => {
     const { data } = await supabase
@@ -136,9 +154,29 @@ export default function Settings() {
         .gte("deleted_at", thirtyDaysAgo)
         .order("deleted_at", { ascending: false });
       setDeletedStudents(deleted ?? []);
+
+      if (isPractitioner) {
+        const { data: rates } = await supabase
+          .from("practitioner_rates")
+          .select("client_type, consultation_type, rate_weekday, rate_saturday")
+          .eq("tutor_id", user.id);
+        if (rates?.length) {
+          const next = emptyRateCard();
+          for (const r of rates) {
+            const key = `${r.client_type}_${r.consultation_type}`;
+            if (next[key]) {
+              next[key] = {
+                rate_weekday: r.rate_weekday ?? "",
+                rate_saturday: r.rate_saturday ?? "",
+              };
+            }
+          }
+          setRateCard(next);
+        }
+      }
     };
     load();
-  }, [user.id]);
+  }, [user.id, isPractitioner]);
 
   const handleRestoreStudent = async (student) => {
     setRestoringId(student.id);
@@ -317,6 +355,32 @@ export default function Settings() {
     }
   };
 
+  const handleSaveRateCard = async (e) => {
+    e.preventDefault();
+    setRateCardSaving(true);
+    try {
+      const rows = RATE_CARD_KEYS.map(({ client_type, consultation_type }) => {
+        const cell = rateCard[`${client_type}_${consultation_type}`];
+        return {
+          tutor_id: user.id,
+          client_type,
+          consultation_type,
+          rate_weekday: cell.rate_weekday === "" ? null : Number(cell.rate_weekday),
+          rate_saturday: cell.rate_saturday === "" ? null : Number(cell.rate_saturday),
+        };
+      });
+      const { error } = await supabase
+        .from("practitioner_rates")
+        .upsert(rows, { onConflict: "tutor_id,client_type,consultation_type" });
+      if (error) throw error;
+      showToast("Rate card saved.");
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      setRateCardSaving(false);
+    }
+  };
+
   return (
     <AppShell>
       <form
@@ -354,6 +418,93 @@ export default function Settings() {
           {saving ? "Saving..." : "Save"}
         </button>
       </form>
+
+      {isPractitioner && (
+        <form
+          onSubmit={handleSaveRateCard}
+          className="space-y-5 rounded-md border border-gray-200 bg-white p-5"
+        >
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Rate card</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Set your consultation rates (SGD) by client type and day. These will be used to auto-fill session fees.
+            </p>
+          </div>
+
+          {/* Column headers */}
+          <div className="grid grid-cols-[auto_1fr_1fr] gap-x-4 gap-y-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+            <span />
+            <span className="text-center">Initial</span>
+            <span className="text-center">Subsequent</span>
+          </div>
+
+          {[
+            { client_type: "paediatric", label: "Paediatric" },
+            { client_type: "adult", label: "Adult" },
+          ].map(({ client_type, label }) => (
+            <div key={client_type} className="grid grid-cols-[auto_1fr_1fr] items-start gap-x-4 gap-y-3">
+              <span className="mt-2 w-20 text-sm font-medium text-gray-700">{label}</span>
+
+              {["initial", "subsequent"].map((consultation_type) => {
+                const key = `${client_type}_${consultation_type}`;
+                const cell = rateCard[key];
+                return (
+                  <div key={consultation_type} className="space-y-2 rounded-md border border-gray-100 bg-gray-50 p-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-500">Weekday (SGD)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="—"
+                          value={cell.rate_weekday}
+                          onChange={(e) =>
+                            setRateCard((prev) => ({
+                              ...prev,
+                              [key]: { ...prev[key], rate_weekday: e.target.value },
+                            }))
+                          }
+                          className="min-h-10 w-full rounded-md border border-gray-300 py-2 pl-7 pr-3 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-gray-500">Saturday (SGD)</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="—"
+                          value={cell.rate_saturday}
+                          onChange={(e) =>
+                            setRateCard((prev) => ({
+                              ...prev,
+                              [key]: { ...prev[key], rate_saturday: e.target.value },
+                            }))
+                          }
+                          className="min-h-10 w-full rounded-md border border-gray-300 py-2 pl-7 pr-3 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+
+          <button
+            type="submit"
+            disabled={rateCardSaving}
+            className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow disabled:opacity-50"
+          >
+            {rateCardSaving ? "Saving..." : "Save rate card"}
+          </button>
+        </form>
+      )}
 
       <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
         <h2 className="text-base font-semibold text-gray-900">
