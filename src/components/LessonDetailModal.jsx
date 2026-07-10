@@ -105,6 +105,11 @@ export default function LessonDetailModal({
 
         {confirmingDelete ? (
           <div className="mt-5 space-y-3 rounded-md border border-red-200 bg-red-50 p-3">
+            {isPaid && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                ⚠️ This lesson is part of a payment that&apos;s already been marked as paid. Deleting it won&apos;t reverse the payment — you&apos;ll need to handle that manually if needed.
+              </div>
+            )}
             <p className="text-sm text-red-800">
               Are you sure you want to delete this lesson? This cannot be
               undone.
@@ -125,7 +130,7 @@ export default function LessonDetailModal({
                 disabled={deleting}
                 className="min-h-11 rounded-md bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
               >
-                {deleting ? "Deleting..." : "Yes, delete"}
+                {deleting ? "Deleting..." : isPaid ? "Delete anyway" : "Yes, delete"}
               </button>
             </div>
           </div>

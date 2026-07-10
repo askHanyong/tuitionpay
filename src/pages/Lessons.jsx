@@ -219,6 +219,7 @@ export default function Lessons() {
   const [summaryCopied, setSummaryCopied] = useState(false);
   const [meetLinkCopied, setMeetLinkCopied] = useState(null);
   const [practitionerRates, setPractitionerRates] = useState([]);
+  const [paymentCycles, setPaymentCycles] = useState([]);
 
   const [defaultDateFrom] = useState(() => daysAgo(30));
   const [defaultDateTo] = useState(() => today());
@@ -289,6 +290,7 @@ export default function Lessons() {
       }
       setStudents(studentsData ?? []);
       setLessons(lessonsData ?? []);
+      setPaymentCycles(cyclesData ?? []);
       const subjectsMap = {};
       for (const row of subjectsData ?? []) {
         if (!subjectsMap[row.student_id]) subjectsMap[row.student_id] = [];
@@ -2051,40 +2053,53 @@ export default function Lessons() {
         )}
       </section>
 
-      {deleteTarget && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4"
-          onClick={() => !deleting && setDeleteTarget(null)}
-        >
+      {deleteTarget && (() => {
+        const targetLesson = lessons.find((l) => l.id === deleteTarget);
+        const targetCycleId = targetLesson?.payment_cycle_id;
+        const targetCycle = targetCycleId
+          ? paymentCycles.find((c) => c.id === targetCycleId)
+          : null;
+        const deletingPaid = targetCycle?.status === "paid";
+        return (
           <div
-            className="w-full max-w-sm rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4"
+            onClick={() => !deleting && setDeleteTarget(null)}
           >
-            <p className="text-sm text-gray-700">
-              Are you sure you want to delete this lesson? This cannot be
-              undone.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteTarget(null)}
-                disabled={deleting}
-                className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                disabled={deleting}
-                className="min-h-11 rounded-md bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
-              >
-                {deleting ? "Deleting…" : "Delete"}
-              </button>
+            <div
+              className="w-full max-w-sm rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {deletingPaid && (
+                <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  ⚠️ This {terms.lesson.toLowerCase()} is part of a payment that&apos;s already been marked as paid. Deleting it won&apos;t reverse the payment — you&apos;ll need to handle that manually if needed.
+                </div>
+              )}
+              <p className="text-sm text-gray-700">
+                Are you sure you want to delete this {terms.lesson.toLowerCase()}? This cannot be
+                undone.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={deleting}
+                  className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDelete}
+                  disabled={deleting}
+                  className="min-h-11 rounded-md bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleting ? "Deleting…" : deletingPaid ? "Delete anyway" : "Delete"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </AppShell>
   );
 }

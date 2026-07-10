@@ -82,6 +82,8 @@ export default function Calendar() {
   const [loading, setLoading] = useState(true);
   const [selectedKey, setSelectedKey] = useState(null);
   const [detailLesson, setDetailLesson] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const reloadLessons = async () => {
     const { data } = await supabase
@@ -293,14 +295,21 @@ export default function Calendar() {
     }
   };
 
-  const handleDeleteLesson = async (lesson) => {
-    if (!window.confirm(`Delete this ${terms.lesson.toLowerCase()}? This cannot be undone.`)) return;
-    await deleteFromGoogleCalendar(lesson);
+  const handleDeleteLesson = (lesson) => {
+    setDeleteTarget(lesson);
+  };
+
+  const confirmDeleteLesson = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    await deleteFromGoogleCalendar(deleteTarget);
     await supabase
       .from("lessons")
       .delete()
-      .eq("id", lesson.id)
+      .eq("id", deleteTarget.id)
       .eq("tutor_id", user.id);
+    setDeleting(false);
+    setDeleteTarget(null);
     await reloadLessons();
   };
 
@@ -549,9 +558,7 @@ export default function Calendar() {
           key={detailLesson.id}
           lesson={detailLesson}
           lessonLabel={detailLesson ? lessonBadgeLabel(detailLesson) : null}
-          paymentCycle={
-            isPerLesson(detailLesson) ? detailLesson.payment_cycles : null
-          }
+          paymentCycle={detailLesson.payment_cycles ?? null}
           onClose={() => setDetailLesson(null)}
           onEdit={() => {
             setDetailLesson(null);
@@ -562,6 +569,49 @@ export default function Calendar() {
           onDelete={handleDeleteLessonFromModal}
         />
       )}
+
+      {deleteTarget && (() => {
+        const cycle = deleteTarget.payment_cycles;
+        const deletingPaid = cycle?.status === "paid";
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center sm:p-4"
+            onClick={() => !deleting && setDeleteTarget(null)}
+          >
+            <div
+              className="w-full max-w-sm rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {deletingPaid && (
+                <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  ⚠️ This {terms.lesson.toLowerCase()} is part of a payment that&apos;s already been marked as paid. Deleting it won&apos;t reverse the payment — you&apos;ll need to handle that manually if needed.
+                </div>
+              )}
+              <p className="text-sm text-gray-700">
+                Are you sure you want to delete this {terms.lesson.toLowerCase()}? This cannot be undone.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={deleting}
+                  className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDeleteLesson}
+                  disabled={deleting}
+                  className="min-h-11 rounded-md bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleting ? "Deleting…" : deletingPaid ? "Delete anyway" : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </AppShell>
   );
 }
