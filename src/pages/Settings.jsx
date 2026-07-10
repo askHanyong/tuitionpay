@@ -122,6 +122,12 @@ export default function Settings() {
   const [restoringId, setRestoringId] = useState(null);
   const [rateCard, setRateCard] = useState(emptyRateCard);
   const [rateCardSaving, setRateCardSaving] = useState(false);
+  const [companies, setCompanies] = useState([]);
+  const [companyInput, setCompanyInput] = useState("");
+  const [companySaving, setCompanySaving] = useState(false);
+  const [editingCompany, setEditingCompany] = useState(null);
+  const [editingCompanyName, setEditingCompanyName] = useState("");
+  const [deletingCompanyId, setDeletingCompanyId] = useState(null);
 
   const loadGoogleStatus = async () => {
     const { data } = await supabase
@@ -164,23 +170,12 @@ export default function Settings() {
       setDeletedStudents(deleted ?? []);
 
       if (isPractitioner) {
-        const { data: rates } = await supabase
-          .from("practitioner_rates")
-          .select("client_type, consultation_type, rate_weekday, rate_saturday")
-          .eq("tutor_id", user.id);
-        if (rates?.length) {
-          const next = emptyRateCard();
-          for (const r of rates) {
-            const key = `${r.client_type}_${r.consultation_type}`;
-            if (next[key]) {
-              next[key] = {
-                rate_weekday: r.rate_weekday ?? "",
-                rate_saturday: r.rate_saturday ?? "",
-              };
-            }
-          }
-          setRateCard(next);
-        }
+        const { data: companiesData } = await supabase
+          .from("practitioner_companies")
+          .select("id, name")
+          .eq("tutor_id", user.id)
+          .order("created_at", { ascending: true });
+        setCompanies(companiesData ?? []);
       }
     };
     load();
@@ -363,6 +358,64 @@ export default function Settings() {
     }
   };
 
+  const handleAddCompany = async (e) => {
+    e.preventDefault();
+    const name = companyInput.trim();
+    if (!name) return;
+    setCompanySaving(true);
+    const { data, error } = await supabase
+      .from("practitioner_companies")
+      .insert({ tutor_id: user.id, name })
+      .select("id, name")
+      .single();
+    setCompanySaving(false);
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    setCompanies((prev) => [...prev, data]);
+    setCompanyInput("");
+    showToast("Company added.");
+  };
+
+  const handleStartEditCompany = (company) => {
+    setEditingCompany(company.id);
+    setEditingCompanyName(company.name);
+  };
+
+  const handleSaveEditCompany = async (id) => {
+    const name = editingCompanyName.trim();
+    if (!name) return;
+    const { error } = await supabase
+      .from("practitioner_companies")
+      .update({ name })
+      .eq("id", id)
+      .eq("tutor_id", user.id);
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    setCompanies((prev) => prev.map((c) => (c.id === id ? { ...c, name } : c)));
+    setEditingCompany(null);
+    showToast("Company updated.");
+  };
+
+  const handleDeleteCompany = async (id) => {
+    setDeletingCompanyId(id);
+    const { error } = await supabase
+      .from("practitioner_companies")
+      .delete()
+      .eq("id", id)
+      .eq("tutor_id", user.id);
+    setDeletingCompanyId(null);
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    setCompanies((prev) => prev.filter((c) => c.id !== id));
+    showToast("Company deleted.");
+  };
+
   const handleSaveRateCard = async (e) => {
     e.preventDefault();
     setRateCardSaving(true);
@@ -426,6 +479,95 @@ export default function Settings() {
           {saving ? "Saving..." : "Save"}
         </button>
       </form>
+
+      {isPractitioner && (
+        <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Companies</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Each company has its own rate card. Add a company before setting up rates or adding clients.
+            </p>
+          </div>
+
+          {companies.length === 0 ? (
+            <p className="rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-500">
+              No companies yet. Add your first company below.
+            </p>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {companies.map((c) => (
+                <li key={c.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+                  {editingCompany === c.id ? (
+                    <>
+                      <input
+                        type="text"
+                        value={editingCompanyName}
+                        onChange={(e) => setEditingCompanyName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); handleSaveEditCompany(c.id); }
+                          if (e.key === "Escape") setEditingCompany(null);
+                        }}
+                        autoFocus
+                        className="min-h-9 flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSaveEditCompany(c.id)}
+                        className="flex-none rounded-md bg-[#1b2d4f] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#15243f]"
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingCompany(null)}
+                        className="flex-none rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm font-medium text-gray-900">{c.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleStartEditCompany(c)}
+                        className="flex-none rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCompany(c.id)}
+                        disabled={deletingCompanyId === c.id}
+                        className="flex-none rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {deletingCompanyId === c.id ? "Deleting…" : "Delete"}
+                      </button>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <form onSubmit={handleAddCompany} className="flex gap-2">
+            <input
+              type="text"
+              value={companyInput}
+              onChange={(e) => setCompanyInput(e.target.value)}
+              placeholder="Company name"
+              className="min-h-11 flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+            />
+            <button
+              type="submit"
+              disabled={companySaving || !companyInput.trim()}
+              className="min-h-11 flex-none rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow disabled:opacity-50"
+            >
+              {companySaving ? "Adding…" : "Add"}
+            </button>
+          </form>
+        </section>
+      )}
 
       {isPractitioner && (
         <form
