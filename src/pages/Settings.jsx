@@ -128,6 +128,7 @@ export default function Settings() {
   const [editingCompany, setEditingCompany] = useState(null);
   const [editingCompanyName, setEditingCompanyName] = useState("");
   const [deletingCompanyId, setDeletingCompanyId] = useState(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
 
   const loadGoogleStatus = async () => {
     const { data } = await supabase
@@ -175,7 +176,25 @@ export default function Settings() {
           .select("id, name")
           .eq("tutor_id", user.id)
           .order("created_at", { ascending: true });
-        setCompanies(companiesData ?? []);
+        const loadedCompanies = companiesData ?? [];
+        setCompanies(loadedCompanies);
+        if (loadedCompanies.length > 0) {
+          const firstId = loadedCompanies[0].id;
+          setSelectedCompanyId(firstId);
+          const { data: rates } = await supabase
+            .from("practitioner_rates")
+            .select("client_type, consultation_type, rate_weekday, rate_saturday")
+            .eq("tutor_id", user.id)
+            .eq("company_id", firstId);
+          if (rates?.length) {
+            const next = emptyRateCard();
+            for (const r of rates) {
+              const key = `${r.client_type}_${r.consultation_type}`;
+              if (next[key]) next[key] = { rate_weekday: r.rate_weekday ?? "", rate_saturday: r.rate_saturday ?? "" };
+            }
+            setRateCard(next);
+          }
+        }
       }
     };
     load();
@@ -416,14 +435,38 @@ export default function Settings() {
     showToast("Company deleted.");
   };
 
+  const handleSelectCompany = async (companyId) => {
+    setSelectedCompanyId(companyId);
+    setRateCard(emptyRateCard());
+    if (!companyId) return;
+    const { data: rates } = await supabase
+      .from("practitioner_rates")
+      .select("client_type, consultation_type, rate_weekday, rate_saturday")
+      .eq("tutor_id", user.id)
+      .eq("company_id", companyId);
+    if (rates?.length) {
+      const next = emptyRateCard();
+      for (const r of rates) {
+        const key = `${r.client_type}_${r.consultation_type}`;
+        if (next[key]) next[key] = { rate_weekday: r.rate_weekday ?? "", rate_saturday: r.rate_saturday ?? "" };
+      }
+      setRateCard(next);
+    }
+  };
+
   const handleSaveRateCard = async (e) => {
     e.preventDefault();
+    if (!selectedCompanyId) {
+      showToast("Please select a company first.", "error");
+      return;
+    }
     setRateCardSaving(true);
     try {
       const rows = RATE_CARD_KEYS.map(({ client_type, consultation_type }) => {
         const cell = rateCard[`${client_type}_${consultation_type}`];
         return {
           tutor_id: user.id,
+          company_id: selectedCompanyId,
           client_type,
           consultation_type,
           rate_weekday: cell.rate_weekday === "" ? null : Number(cell.rate_weekday),
@@ -432,7 +475,7 @@ export default function Settings() {
       });
       const { error } = await supabase
         .from("practitioner_rates")
-        .upsert(rows, { onConflict: "tutor_id,client_type,consultation_type" });
+        .upsert(rows, { onConflict: "tutor_id,company_id,client_type,consultation_type" });
       if (error) throw error;
       showToast("Rate card saved.");
     } catch (err) {
@@ -581,6 +624,26 @@ export default function Settings() {
             </p>
           </div>
 
+          {companies.length === 0 ? (
+            <p className="rounded-md bg-gray-50 px-4 py-3 text-sm text-gray-500">
+              Add a company in the <strong>Companies</strong> section above before setting up rates.
+            </p>
+          ) : (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Company</label>
+              <select
+                value={selectedCompanyId ?? ""}
+                onChange={(e) => handleSelectCompany(e.target.value)}
+                className="min-h-10 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa] sm:w-64"
+              >
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {companies.length > 0 && <>
           {/* Column headers */}
           <div className="grid grid-cols-[auto_1fr_1fr] gap-x-4 gap-y-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
             <span />
@@ -645,11 +708,12 @@ export default function Settings() {
 
           <button
             type="submit"
-            disabled={rateCardSaving}
+            disabled={rateCardSaving || !selectedCompanyId}
             className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow disabled:opacity-50"
           >
             {rateCardSaving ? "Saving..." : "Save rate card"}
           </button>
+          </>}
         </form>
       )}
 
