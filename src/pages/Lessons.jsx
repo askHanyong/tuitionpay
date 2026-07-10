@@ -219,6 +219,7 @@ export default function Lessons() {
   const [summaryCopied, setSummaryCopied] = useState(false);
   const [meetLinkCopied, setMeetLinkCopied] = useState(null);
   const [practitionerRates, setPractitionerRates] = useState([]);
+  const [practitionerCompanies, setPractitionerCompanies] = useState([]);
   const [paymentCycles, setPaymentCycles] = useState([]);
 
   const [defaultDateFrom] = useState(() => daysAgo(30));
@@ -282,11 +283,19 @@ export default function Lessons() {
       if (studentsError) setError(studentsError.message);
       if (lessonsError) setError(lessonsError.message);
       if (isPractitioner) {
-        const { data: ratesData } = await supabase
-          .from("practitioner_rates")
-          .select("client_type, consultation_type, rate_weekday, rate_saturday")
-          .eq("tutor_id", user.id);
+        const [{ data: ratesData }, { data: companiesData }] = await Promise.all([
+          supabase
+            .from("practitioner_rates")
+            .select("company_id, client_type, consultation_type, rate_weekday, rate_saturday")
+            .eq("tutor_id", user.id),
+          supabase
+            .from("practitioner_companies")
+            .select("id, name")
+            .eq("tutor_id", user.id)
+            .order("created_at", { ascending: true }),
+        ]);
         setPractitionerRates(ratesData ?? []);
+        setPractitionerCompanies(companiesData ?? []);
       }
       setStudents(studentsData ?? []);
       setLessons(lessonsData ?? []);
@@ -845,6 +854,7 @@ export default function Lessons() {
           : false;
         const pRateRow = practitionerRates.find(
           (r) =>
+            r.company_id === pStudent?.company_id &&
             r.client_type === pStudent?.client_type &&
             r.consultation_type === form.consultation_type,
         );
@@ -1114,12 +1124,16 @@ export default function Lessons() {
   const _pRateRow = isPractitioner
     ? practitionerRates.find(
         (r) =>
+          r.company_id === _pStudent?.company_id &&
           r.client_type === _pStudent?.client_type &&
           r.consultation_type === form.consultation_type,
       )
     : null;
   const lookedUpRate = _pRateRow
     ? (_pIsSaturday ? _pRateRow.rate_saturday : _pRateRow.rate_weekday)
+    : null;
+  const _pCompany = isPractitioner
+    ? practitionerCompanies.find((c) => c.id === _pStudent?.company_id)
     : null;
 
   const lessonFormFields = (
@@ -1213,9 +1227,15 @@ export default function Lessons() {
                   {_pIsSaturday ? "Saturday" : "Weekday"})
                 </span>
               </span>
+            ) : form.consultation_type && _pStudent?.company_id ? (
+              <span className="text-amber-700">
+                No rate set for {CLIENT_TYPE_LABEL[_pStudent?.client_type] || "this client type"} · {CONSULTATION_TYPE_LABEL[form.consultation_type] || "this type"}
+                {_pCompany ? ` at ${_pCompany.name}` : ""} — please complete the rate card in{" "}
+                <Link to="/settings" className="underline">Settings</Link>
+              </span>
             ) : form.consultation_type ? (
               <span className="text-gray-400">
-                Rate not set — configure in Settings → Rate card
+                Select consultation type to see rate
               </span>
             ) : (
               <span className="text-gray-400">
