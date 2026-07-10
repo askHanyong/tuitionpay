@@ -19,6 +19,11 @@ import { showAppNotification } from "../lib/notifications";
 import { computeStudentPaymentStatus } from "../lib/paymentStatus";
 import { AVATAR_PRESET_COLORS } from "./Students";
 import AppShell from "../components/AppShell";
+import {
+  CLIENT_TYPE_LABEL,
+  CONSULTATION_TYPE_OPTIONS,
+  CONSULTATION_TYPE_LABEL,
+} from "../lib/practitioner";
 
 function getInitials(name) {
   const clean = (name ?? "").replace(/\s*\(.*?\)\s*/g, "").trim();
@@ -75,6 +80,7 @@ const emptyForm = (students, prefillDate, defaultTime) => ({
   rate: students[0]?.hourly_rate ?? "",
   notes: "",
   lesson_mode: "f2f",
+  consultation_type: "",
 });
 
 // Most recently used lesson_time for a student, based on the latest lesson_date.
@@ -185,6 +191,7 @@ export default function Lessons() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const terms = useTerms();
+  const isPractitioner = user?.user_metadata?.user_type === "practitioner";
   const location = useLocation();
   const prefillDate = location.state?.lessonDate;
   const editLessonId = location.state?.editLessonId;
@@ -211,6 +218,7 @@ export default function Lessons() {
   const [summaryError, setSummaryError] = useState(null);
   const [summaryCopied, setSummaryCopied] = useState(false);
   const [meetLinkCopied, setMeetLinkCopied] = useState(null);
+  const [practitionerRates, setPractitionerRates] = useState([]);
 
   const [defaultDateFrom] = useState(() => daysAgo(30));
   const [defaultDateTo] = useState(() => today());
@@ -272,6 +280,13 @@ export default function Lessons() {
       ]);
       if (studentsError) setError(studentsError.message);
       if (lessonsError) setError(lessonsError.message);
+      if (isPractitioner) {
+        const { data: ratesData } = await supabase
+          .from("practitioner_rates")
+          .select("client_type, consultation_type, rate_weekday, rate_saturday")
+          .eq("tutor_id", user.id);
+        setPractitionerRates(ratesData ?? []);
+      }
       setStudents(studentsData ?? []);
       setLessons(lessonsData ?? []);
       const subjectsMap = {};
@@ -675,7 +690,8 @@ export default function Lessons() {
         firstSubject?.lesson_duration_hours ??
         student?.lesson_duration_hours ??
         "",
-      rate: firstSubject?.hourly_rate ?? student?.hourly_rate ?? "",
+      rate: isPractitioner ? "" : (firstSubject?.hourly_rate ?? student?.hourly_rate ?? ""),
+      consultation_type: "",
       lesson_time: mostRecentLessonTime(lessons, studentId),
     });
   };
@@ -748,9 +764,10 @@ export default function Lessons() {
       lesson_time: mostRecentLessonTime(lessons, student.id),
       duration_hours:
         firstSubject?.lesson_duration_hours ?? student.lesson_duration_hours ?? "",
-      rate: firstSubject?.hourly_rate ?? student.hourly_rate ?? "",
+      rate: isPractitioner ? "" : (firstSubject?.hourly_rate ?? student.hourly_rate ?? ""),
       notes: "",
       lesson_mode: "f2f",
+      consultation_type: "",
     });
     setSuccessCycle(null);
     setParentSummary("");
@@ -776,6 +793,7 @@ export default function Lessons() {
       rate: lesson.rate ?? "",
       notes: lesson.notes ?? "",
       lesson_mode: lesson.lesson_mode ?? "f2f",
+      consultation_type: lesson.consultation_type ?? "",
     });
     document
       .getElementById("log-lesson-form-submit")
@@ -816,6 +834,22 @@ export default function Lessons() {
 
     try {
       const durationHours = Number(form.duration_hours);
+      // Practitioners: look up rate from rate card rather than using form.rate
+      let effectiveRate = form.rate === "" ? null : Number(form.rate);
+      if (isPractitioner) {
+        const pStudent = students.find((s) => s.id === form.student_id);
+        const pIsSaturday = form.lesson_date
+          ? new Date(`${form.lesson_date}T00:00:00`).getDay() === 6
+          : false;
+        const pRateRow = practitionerRates.find(
+          (r) =>
+            r.client_type === pStudent?.client_type &&
+            r.consultation_type === form.consultation_type,
+        );
+        effectiveRate = pRateRow
+          ? (pIsSaturday ? pRateRow.rate_saturday : pRateRow.rate_weekday)
+          : null;
+      }
       const isFuture = form.lesson_date > today();
       const status = isFuture ? "scheduled" : "completed";
       // Only strictly past-dated lessons auto-complete on entry. Lessons
@@ -854,11 +888,12 @@ export default function Lessons() {
             lesson_date: form.lesson_date,
             lesson_time: form.lesson_time || null,
             duration_minutes: Math.round(durationHours * 60),
-            rate: form.rate === "" ? null : Number(form.rate),
+            rate: effectiveRate,
             notes: form.notes.trim() || null,
             parent_summary: parentSummary.trim() || null,
             lesson_mode: form.lesson_mode,
             meet_link: existingMeetLink,
+            consultation_type: form.consultation_type || null,
             status,
             is_completed,
           })
@@ -939,10 +974,11 @@ export default function Lessons() {
           lesson_date: form.lesson_date,
           lesson_time: form.lesson_time || null,
           duration_minutes: Math.round(durationHours * 60),
-          rate: form.rate === "" ? null : Number(form.rate),
+          rate: effectiveRate,
           notes: form.notes.trim() || null,
           parent_summary: parentSummary.trim() || null,
           lesson_mode: form.lesson_mode,
+          consultation_type: form.consultation_type || null,
           status,
           is_completed,
         })
@@ -1068,9 +1104,25 @@ export default function Lessons() {
     showToast(`${terms.lesson} deleted successfully`);
   };
 
+  // Practitioner rate lookup — derived from form state
+  const _pStudent = students.find((s) => s.id === form.student_id);
+  const _pIsSaturday = form.lesson_date
+    ? new Date(`${form.lesson_date}T00:00:00`).getDay() === 6
+    : false;
+  const _pRateRow = isPractitioner
+    ? practitionerRates.find(
+        (r) =>
+          r.client_type === _pStudent?.client_type &&
+          r.consultation_type === form.consultation_type,
+      )
+    : null;
+  const lookedUpRate = _pRateRow
+    ? (_pIsSaturday ? _pRateRow.rate_saturday : _pRateRow.rate_weekday)
+    : null;
+
   const lessonFormFields = (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      {(subjectsByStudent[form.student_id] ?? []).length > 1 && (
+      {!isPractitioner && (subjectsByStudent[form.student_id] ?? []).length > 1 && (
         <div className="sm:col-span-2">
           <label className="mb-1 block text-sm font-medium text-gray-700">
             Subject
@@ -1105,7 +1157,7 @@ export default function Lessons() {
 
       <div>
         <label className="mb-1 block text-sm font-medium text-gray-700">
-          Lesson time (optional)
+          {isPractitioner ? "Session time (optional)" : "Lesson time (optional)"}
         </label>
         <input
           type="time"
@@ -1130,23 +1182,65 @@ export default function Lessons() {
         />
       </div>
 
-      <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700">
-          Rate (SGD/hr)
-        </label>
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          value={form.rate}
-          onChange={(e) => setForm({ ...form, rate: e.target.value })}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
-        />
-      </div>
+      {isPractitioner ? (
+        <div className="sm:col-span-2 space-y-3">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Consultation type
+            </label>
+            <select
+              required
+              value={form.consultation_type}
+              onChange={(e) => setForm({ ...form, consultation_type: e.target.value })}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa] sm:max-w-xs"
+            >
+              <option value="">Select type...</option>
+              {CONSULTATION_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
+            {lookedUpRate != null ? (
+              <span>
+                Rate:{" "}
+                <span className="font-semibold">${lookedUpRate}/hr</span>{" "}
+                <span className="text-gray-400">
+                  ({CLIENT_TYPE_LABEL[_pStudent?.client_type] || "—"} ·{" "}
+                  {CONSULTATION_TYPE_LABEL[form.consultation_type] || "—"} ·{" "}
+                  {_pIsSaturday ? "Saturday" : "Weekday"})
+                </span>
+              </span>
+            ) : form.consultation_type ? (
+              <span className="text-gray-400">
+                Rate not set — configure in Settings → Rate card
+              </span>
+            ) : (
+              <span className="text-gray-400">
+                Select consultation type to see rate
+              </span>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Rate (SGD/hr)
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.rate}
+            onChange={(e) => setForm({ ...form, rate: e.target.value })}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+          />
+        </div>
+      )}
 
       <div className="sm:col-span-2">
         <label className="mb-1 block text-sm font-medium text-gray-700">
-          Lesson mode
+          {isPractitioner ? "Session mode" : "Lesson mode"}
         </label>
         <div className="flex overflow-hidden rounded-md border border-gray-300">
           {[
@@ -1171,7 +1265,7 @@ export default function Lessons() {
 
       <div className="sm:col-span-2">
         <label className="mb-1 block text-sm font-medium text-gray-700">
-          Lesson notes (optional)
+          {isPractitioner ? "Session notes (optional)" : "Lesson notes (optional)"}
         </label>
         <textarea
           value={form.notes}
@@ -1180,7 +1274,11 @@ export default function Lessons() {
             if (parentSummary) setParentSummary("");
             if (summaryError) setSummaryError(null);
           }}
-          placeholder="e.g. Covered algebra chapter 3, struggling with fractions..."
+          placeholder={
+            isPractitioner
+              ? "e.g. Progress notes, observations..."
+              : "e.g. Covered algebra chapter 3, struggling with fractions..."
+          }
           rows={3}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
         />
@@ -1196,6 +1294,8 @@ export default function Lessons() {
               <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[#5ecfaa] border-t-transparent" />
               Summarising…
             </>
+          ) : isPractitioner ? (
+            "✨ Summarise"
           ) : (
             "✨ Summarise for parent"
           )}
@@ -1209,7 +1309,7 @@ export default function Lessons() {
           <div className="mt-3 rounded-md border border-[#b8e8d9] bg-[#edf6f3] p-3">
             <div className="mb-1.5 flex items-center justify-between gap-2">
               <p className="text-xs font-medium text-[#0f7a58]">
-                Parent summary
+                {isPractitioner ? "Summary" : "Parent summary"}
               </p>
               <button
                 type="button"
@@ -1320,7 +1420,9 @@ export default function Lessons() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Lesson time (optional)</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                {isPractitioner ? "Session time (optional)" : "Lesson time (optional)"}
+              </label>
               <input
                 type="time"
                 value={form.lesson_time}
@@ -1340,19 +1442,56 @@ export default function Lessons() {
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Rate (SGD/hr)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.rate}
-                onChange={(e) => setForm({ ...form, rate: e.target.value })}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
-              />
-            </div>
+            {isPractitioner ? (
+              <div className="sm:col-span-2 space-y-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Consultation type</label>
+                  <select
+                    required
+                    value={form.consultation_type}
+                    onChange={(e) => setForm({ ...form, consultation_type: e.target.value })}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa] sm:max-w-xs"
+                  >
+                    <option value="">Select type...</option>
+                    {CONSULTATION_TYPE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
+                  {lookedUpRate != null ? (
+                    <span>
+                      Rate: <span className="font-semibold">${lookedUpRate}/hr</span>{" "}
+                      <span className="text-gray-400">
+                        ({CLIENT_TYPE_LABEL[_pStudent?.client_type] || "—"} ·{" "}
+                        {CONSULTATION_TYPE_LABEL[form.consultation_type] || "—"} ·{" "}
+                        {_pIsSaturday ? "Saturday" : "Weekday"})
+                      </span>
+                    </span>
+                  ) : form.consultation_type ? (
+                    <span className="text-gray-400">Rate not set — configure in Settings → Rate card</span>
+                  ) : (
+                    <span className="text-gray-400">Select consultation type to see rate</span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Rate (SGD/hr)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.rate}
+                  onChange={(e) => setForm({ ...form, rate: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                />
+              </div>
+            )}
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Lesson mode</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                {isPractitioner ? "Session mode" : "Lesson mode"}
+              </label>
               <div className="flex overflow-hidden rounded-md border border-gray-300">
                 {[
                   { value: "f2f", label: "Face-to-face" },
@@ -1374,11 +1513,17 @@ export default function Lessons() {
               </div>
             </div>
             <div className="sm:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Lesson notes (optional)</label>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                {isPractitioner ? "Session notes (optional)" : "Lesson notes (optional)"}
+              </label>
               <textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                placeholder="e.g. Covered algebra chapter 3, struggling with fractions..."
+                placeholder={
+                  isPractitioner
+                    ? "e.g. Progress notes, observations..."
+                    : "e.g. Covered algebra chapter 3, struggling with fractions..."
+                }
                 rows={3}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />

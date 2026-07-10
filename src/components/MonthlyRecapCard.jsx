@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useAuth } from "../contexts/AuthContext";
 import { useTerms } from "../contexts/TerminologyContext";
 import { formatSGD } from "../lib/paymentNotice";
 import { buildMonthlyReport } from "../lib/monthlyReport";
@@ -183,6 +184,8 @@ export default function MonthlyRecapCard({
   tutorName,
   currentMonthPendingOverride,
 }) {
+  const { user } = useAuth();
+  const isPractitioner = user?.user_metadata?.user_type === "practitioner";
   const terms = useTerms();
   const [monthDate, setMonthDate] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -281,7 +284,7 @@ export default function MonthlyRecapCard({
             {current.totalLessons}
           </p>
           <p className="mt-1 text-xs font-medium text-gray-600">
-            📚 {terms.lessons} taught
+            📚 {terms.lessons} {isPractitioner ? "conducted" : "taught"}
           </p>
         </div>
         <div className="text-center">

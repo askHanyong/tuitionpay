@@ -816,7 +816,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <AnnouncementBanner />
+          {!isPractitioner && <AnnouncementBanner />}
 
           <FeedbackPromptCard lessonCount={lessons.length} />
 
@@ -1020,13 +1020,13 @@ export default function Dashboard() {
           <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-base font-semibold text-gray-900">
-                Student payment progress
+                {terms.student} payment progress
               </h2>
               <Link
                 to="/students"
                 className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
               >
-                Manage students →
+                Manage {terms.students.toLowerCase()} →
               </Link>
             </div>
             {!loading && students.length > 0 && (
@@ -1090,6 +1090,7 @@ export default function Dashboard() {
                             ? `Last ${terms.lesson.toLowerCase()}: ${formatRelative(lastLessonDate, { includeTime: false })}`
                             : `No ${terms.lessons.toLowerCase()} yet`}
                         </p>
+
                       </div>
                       <div className="flex flex-col gap-1.5 sm:items-end">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -1149,7 +1150,11 @@ export default function Dashboard() {
                             </button>
                           )}
                         </div>
-                        <p className="text-xs text-gray-500">{status.label}</p>
+                        <p className="text-xs text-gray-500">
+                          {isPractitioner && status.label === "No lessons yet"
+                            ? `No ${terms.lessons.toLowerCase()} yet`
+                            : status.label}
+                        </p>
                         {status.nextPaymentInfo && (
                           <p
                             className={`text-xs ${status.nextPaymentInfo.tone === "red" ? "text-red-700" : "text-gray-500"}`}

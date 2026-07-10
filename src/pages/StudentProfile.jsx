@@ -12,6 +12,7 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import { useTerms } from "../contexts/TerminologyContext";
 import { buildGoogleMapsUrl } from "../lib/maps";
+import { CLIENT_TYPE_LABEL } from "../lib/practitioner";
 import AppShell from "../components/AppShell";
 import StatusBadge from "../components/StatusBadge";
 import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
@@ -23,6 +24,7 @@ export default function StudentProfile() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { user } = useAuth();
+  const isPractitioner = user?.user_metadata?.user_type === "practitioner";
   const terms = useTerms();
   const [student, setStudent] = useState(null);
   const [lessons, setLessons] = useState([]);
@@ -301,26 +303,46 @@ export default function StudentProfile() {
               <h1 className="text-xl font-semibold text-gray-900">
                 {student.name}
               </h1>
-              {student.subject && (
-                <span className="inline-block rounded-full bg-[#d6ede6] px-2.5 py-0.5 text-xs font-medium text-[#1b2d4f]">
-                  {student.subject}
+              {isPractitioner ? (
+                student.client_type && (
+                  <span className="inline-block rounded-full bg-[#d6ede6] px-2.5 py-0.5 text-xs font-medium text-[#1b2d4f]">
+                    {CLIENT_TYPE_LABEL[student.client_type] ?? student.client_type}
+                  </span>
+                )
+              ) : (
+                <>
+                  {student.subject && (
+                    <span className="inline-block rounded-full bg-[#d6ede6] px-2.5 py-0.5 text-xs font-medium text-[#1b2d4f]">
+                      {student.subject}
+                    </span>
+                  )}
+                  {student.level && (
+                    <span className="inline-block rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
+                      {student.level}
+                    </span>
+                  )}
+                </>
+              )}
+              {!isPractitioner && (
+                <span className="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                  {paymentModeLabel(student)}
                 </span>
               )}
-              {student.level && (
-                <span className="inline-block rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600">
-                  {student.level}
-                </span>
-              )}
-              <span className="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
-                {paymentModeLabel(student)}
-              </span>
             </div>
             <p className="mt-1 text-sm text-gray-600">
-              {student.hourly_rate != null
-                ? `$${student.hourly_rate}/hr`
-                : "Rate not set"}
-              {student.lesson_duration_hours != null &&
-                ` · ${student.lesson_duration_hours}h ${terms.lessons.toLowerCase()}`}
+              {isPractitioner ? (
+                student.lesson_duration_hours != null
+                  ? `${student.lesson_duration_hours}h per ${terms.lesson.toLowerCase()}`
+                  : null
+              ) : (
+                <>
+                  {student.hourly_rate != null
+                    ? `$${student.hourly_rate}/hr`
+                    : "Rate not set"}
+                  {student.lesson_duration_hours != null &&
+                    ` · ${student.lesson_duration_hours}h ${terms.lessons.toLowerCase()}`}
+                </>
+              )}
             </p>
             {student.address && (
               <p className="mt-1 flex items-center gap-2 text-sm text-gray-600">

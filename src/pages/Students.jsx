@@ -14,7 +14,7 @@ import {
   tierRank,
   TIER_BADGE_CLASSES,
 } from "../lib/paymentStatus";
-import { CLIENT_TYPE_OPTIONS } from "../lib/practitioner";
+import { CLIENT_TYPE_OPTIONS, CLIENT_TYPE_LABEL } from "../lib/practitioner";
 
 const emptySubjectRow = () => ({
   id: null,
@@ -1071,7 +1071,7 @@ export default function Students() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={`Search ${terms.students.toLowerCase()} by name or subject...`}
+              placeholder={isPractitioner ? `Search ${terms.students.toLowerCase()} by name...` : `Search ${terms.students.toLowerCase()} by name or subject...`}
               className="min-h-11 w-full rounded-md border border-gray-300 px-9 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
             />
             {searchTerm && (
@@ -1142,15 +1142,19 @@ export default function Students() {
                       >
                         {s.name}
                       </Link>
-                      <span className="text-sm text-gray-700">
-                        {s.hourly_rate != null ? `$${s.hourly_rate}/hr` : "—"}
-                      </span>
+                      {!isPractitioner && (
+                        <span className="text-sm text-gray-700">
+                          {s.hourly_rate != null ? `$${s.hourly_rate}/hr` : "—"}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <p className="mb-2 text-sm text-gray-500">
-                    {subjectsLabel(s.id, s.subject) || "—"}
+                    {isPractitioner
+                      ? (CLIENT_TYPE_LABEL[s.client_type] || "—")
+                      : (subjectsLabel(s.id, s.subject) || "—")}
                     {s.lesson_duration_hours != null &&
-                      ` · ${s.lesson_duration_hours}h ${terms.lessons.toLowerCase()}`}
+                      ` · ${s.lesson_duration_hours}h`}
                   </p>
                   <span
                     className={`mb-3 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${progressFor(s).classes}`}
@@ -1202,8 +1206,12 @@ export default function Students() {
                 <thead className="bg-gray-50 text-gray-500">
                   <tr>
                     <th className="px-4 py-2 font-medium">Name</th>
-                    <th className="px-4 py-2 font-medium">{terms.subject}</th>
-                    <th className="px-4 py-2 font-medium">Rate (SGD/hr)</th>
+                    <th className="px-4 py-2 font-medium">
+                      {isPractitioner ? "Client type" : terms.subject}
+                    </th>
+                    {!isPractitioner && (
+                      <th className="px-4 py-2 font-medium">Rate (SGD/hr)</th>
+                    )}
                     <th className="px-4 py-2 font-medium">Duration (hrs)</th>
                     <th className="px-4 py-2 font-medium">Progress</th>
                     <th className="px-4 py-2 font-medium"></th>
@@ -1233,11 +1241,15 @@ export default function Students() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-gray-700">
-                          {subjectsLabel(s.id, s.subject) || "—"}
+                          {isPractitioner
+                            ? (CLIENT_TYPE_LABEL[s.client_type] || "—")
+                            : (subjectsLabel(s.id, s.subject) || "—")}
                         </td>
-                        <td className="px-4 py-3 text-gray-700">
-                          {s.hourly_rate != null ? `$${s.hourly_rate}` : "—"}
-                        </td>
+                        {!isPractitioner && (
+                          <td className="px-4 py-3 text-gray-700">
+                            {s.hourly_rate != null ? `$${s.hourly_rate}` : "—"}
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-gray-700">
                           {s.lesson_duration_hours ?? "—"}
                         </td>
