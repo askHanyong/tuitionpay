@@ -335,8 +335,12 @@ export default function Students() {
     if (!status) {
       return { label: "Loading...", classes: "bg-gray-100 text-gray-600" };
     }
+    const label =
+      isPractitioner && status.label === "No lessons yet"
+        ? `No ${terms.lessons.toLowerCase()} yet`
+        : status.label;
     return {
-      label: status.label,
+      label,
       classes: TIER_BADGE_CLASSES[status.tier],
     };
   };
