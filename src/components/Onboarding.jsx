@@ -281,8 +281,7 @@ export default function Onboarding({ onDismiss, onDone }) {
               You're all set!
             </h2>
             <p className="text-sm text-gray-600">
-              {student?.name} is added, and their first {terms.lesson.toLowerCase()} is logged. You'll
-              get a payment notice automatically after every 4 {terms.lessons.toLowerCase()}.
+              {student?.name} is added, and their first {terms.lesson.toLowerCase()} is logged. Payments will appear automatically as {terms.lessons.toLowerCase()} are completed.
             </p>
             <button
               onClick={handleFinish}

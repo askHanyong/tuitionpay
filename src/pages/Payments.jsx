@@ -350,8 +350,7 @@ export default function Payments() {
           <div className="flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-white px-6 py-12 text-center shadow-sm">
             <p className="mb-4 text-5xl">💰</p>
             <p className="max-w-sm text-sm text-gray-600">
-              No payments yet. Payments appear automatically after every 4
-              {" "}{terms.lessons.toLowerCase()}.
+              No payments yet.
             </p>
           </div>
         ) : noticesCount === 0 ? (
