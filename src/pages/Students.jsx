@@ -41,6 +41,7 @@ const emptyForm = {
   avatar_color: "",
   subjects: [emptySubjectRow()],
   client_type: "",
+  company_id: "",
   lesson_duration_hours: "",
   address: "",
   payment_mode: "lessons",
@@ -199,6 +200,7 @@ export default function Students() {
   const [paymentStatusByStudent, setPaymentStatusByStudent] = useState({});
   const [view, setView] = useState("active");
   const [undoDelete, setUndoDelete] = useState(null); // { id, name, timer }
+  const [companies, setCompanies] = useState([]);
 
 
   const refreshLessonsFor = async (studentId) => {
@@ -347,6 +349,7 @@ export default function Students() {
         avatar_color: student.avatar_color ?? "",
         subjects: [emptySubjectRow()],
         client_type: student.client_type ?? "",
+        company_id: student.company_id ?? "",
         lesson_duration_hours:
           student.lesson_duration_hours != null
             ? String(student.lesson_duration_hours)
@@ -427,6 +430,14 @@ export default function Students() {
       setLoading(false);
       loadSortSupportData(data ?? []);
       loadSubjectsByStudent();
+      if (isPractitioner) {
+        const { data: companiesData } = await supabase
+          .from("practitioner_companies")
+          .select("id, name")
+          .eq("tutor_id", user.id)
+          .order("created_at", { ascending: true });
+        setCompanies(companiesData ?? []);
+      }
       const editStudentId = location.state?.editStudentId;
       if (editStudentId) {
         const target = (data ?? []).find((s) => s.id === editStudentId);
@@ -449,10 +460,16 @@ export default function Students() {
     setSubmitting(true);
 
     if (isPractitioner) {
+      if (!form.company_id) {
+        setError("Please select a company.");
+        setSubmitting(false);
+        return;
+      }
       const payload = {
         name: form.name.trim(),
         avatar_color: form.avatar_color || null,
         client_type: form.client_type || null,
+        company_id: form.company_id,
         lesson_duration_hours:
           form.lesson_duration_hours === ""
             ? null
@@ -817,6 +834,32 @@ export default function Students() {
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">
+                Company <span className="text-red-500">*</span>
+              </label>
+              {companies.length === 0 ? (
+                <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                  No companies set up yet.{" "}
+                  <Link to="/settings" className="font-medium underline hover:text-amber-900">
+                    Add a company in Settings
+                  </Link>{" "}
+                  before adding clients.
+                </p>
+              ) : (
+                <select
+                  required
+                  value={form.company_id}
+                  onChange={(e) => setForm({ ...form, company_id: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa] sm:max-w-xs"
+                >
+                  <option value="">Select company...</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
                 Duration (hrs)
               </label>
               <input
@@ -1011,7 +1054,7 @@ export default function Students() {
         <div className="flex gap-2">
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || (isPractitioner && companies.length === 0)}
             className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow disabled:opacity-50"
           >
             {submitting
