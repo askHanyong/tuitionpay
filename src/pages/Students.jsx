@@ -14,6 +14,7 @@ import {
   tierRank,
   TIER_BADGE_CLASSES,
 } from "../lib/paymentStatus";
+import { CLIENT_TYPE_OPTIONS } from "../lib/practitioner";
 
 const emptySubjectRow = () => ({
   id: null,
@@ -39,6 +40,8 @@ const emptyForm = {
   name: "",
   avatar_color: "",
   subjects: [emptySubjectRow()],
+  client_type: "",
+  lesson_duration_hours: "",
   address: "",
   payment_mode: "lessons",
   payment_cycle_count: "4",
@@ -176,6 +179,7 @@ export default function Students() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const terms = useTerms();
+  const isPractitioner = user?.user_metadata?.user_type === "practitioner";
   const location = useLocation();
   const navigate = useNavigate();
   const [students, setStudents] = useState([]);
@@ -337,6 +341,23 @@ export default function Students() {
 
   const handleEdit = async (student) => {
     setEditingId(student.id);
+    if (isPractitioner) {
+      setForm({
+        name: student.name ?? "",
+        avatar_color: student.avatar_color ?? "",
+        subjects: [emptySubjectRow()],
+        client_type: student.client_type ?? "",
+        lesson_duration_hours:
+          student.lesson_duration_hours != null
+            ? String(student.lesson_duration_hours)
+            : "",
+        address: student.address ?? "",
+        payment_mode: "per_lesson",
+        payment_cycle_count: "4",
+        payment_custom_day: "1",
+      });
+      return;
+    }
     const { data: subjectRows } = await supabase
       .from("student_subjects")
       .select("*")
@@ -364,6 +385,8 @@ export default function Students() {
                 lesson_duration_hours: student.lesson_duration_hours ?? "",
               },
             ],
+      client_type: "",
+      lesson_duration_hours: "",
       avatar_color: student.avatar_color ?? "",
       address: student.address ?? "",
       payment_mode: student.payment_mode ?? "lessons",
@@ -424,6 +447,46 @@ export default function Students() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
+
+    if (isPractitioner) {
+      const payload = {
+        name: form.name.trim(),
+        avatar_color: form.avatar_color || null,
+        client_type: form.client_type || null,
+        lesson_duration_hours:
+          form.lesson_duration_hours === ""
+            ? null
+            : Number(form.lesson_duration_hours),
+        address: form.address.trim() || null,
+        payment_mode: "per_lesson",
+        payment_cycle_count: 4,
+        payment_custom_day: null,
+      };
+      try {
+        if (editingId) {
+          const { error } = await supabase
+            .from("students")
+            .update(payload)
+            .eq("id", editingId)
+            .eq("tutor_id", user.id);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from("students")
+            .insert({ ...payload, tutor_id: user.id });
+          if (error) throw error;
+        }
+        resetForm();
+        await loadStudents();
+        showToast(editingId ? `${terms.student} updated.` : `${terms.student} added.`);
+      } catch (err) {
+        setError(err.message);
+        showToast(err.message, "error");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
 
     const subjectRows = form.subjects.filter((row) => row.subject.trim());
     const primary = subjectRows[0] ?? emptySubjectRow();
@@ -735,104 +798,138 @@ export default function Students() {
           </p>
         </div>
 
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-gray-700">
-            {terms.subjects}
-          </label>
-          {form.subjects.map((row, index) => (
-            <div
-              key={index}
-              className="grid grid-cols-1 gap-3 rounded-md border border-gray-200 p-3 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] sm:items-end"
-            >
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">
-                  {terms.subject}
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={row.subject}
-                  onChange={(e) =>
-                    handleSubjectRowChange(index, "subject", e.target.value)
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">
-                  Level
-                </label>
-                <select
-                  value={row.level}
-                  onChange={(e) =>
-                    handleSubjectRowChange(index, "level", e.target.value)
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
-                >
-                  <option value="">Select level...</option>
-                  {LEVEL_OPTIONS.map((level) => (
-                    <option key={level} value={level}>
-                      {level}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">
-                  Hourly rate (SGD)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={row.hourly_rate}
-                  onChange={(e) =>
-                    handleSubjectRowChange(
-                      index,
-                      "hourly_rate",
-                      e.target.value,
-                    )
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-500">
-                  Duration (hrs)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.25"
-                  value={row.lesson_duration_hours}
-                  onChange={(e) =>
-                    handleSubjectRowChange(
-                      index,
-                      "lesson_duration_hours",
-                      e.target.value,
-                    )
-                  }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => handleRemoveSubjectRow(index)}
-                disabled={form.subjects.length <= 1}
-                className="min-h-11 rounded-md border border-gray-300 px-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+        {isPractitioner ? (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Client type
+              </label>
+              <select
+                value={form.client_type}
+                onChange={(e) => setForm({ ...form, client_type: e.target.value })}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa] sm:max-w-xs"
               >
-                Remove
-              </button>
+                <option value="">Select client type...</option>
+                {CLIENT_TYPE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
-          ))}
-          <button
-            type="button"
-            onClick={handleAddSubjectRow}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-          >
-            + Add another {terms.subject.toLowerCase()}
-          </button>
-        </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Duration (hrs)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.25"
+                value={form.lesson_duration_hours}
+                onChange={(e) => setForm({ ...form, lesson_duration_hours: e.target.value })}
+                placeholder="e.g. 0.5"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa] sm:max-w-xs"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-gray-700">
+              {terms.subjects}
+            </label>
+            {form.subjects.map((row, index) => (
+              <div
+                key={index}
+                className="grid grid-cols-1 gap-3 rounded-md border border-gray-200 p-3 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] sm:items-end"
+              >
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                    {terms.subject}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={row.subject}
+                    onChange={(e) =>
+                      handleSubjectRowChange(index, "subject", e.target.value)
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                    Level
+                  </label>
+                  <select
+                    value={row.level}
+                    onChange={(e) =>
+                      handleSubjectRowChange(index, "level", e.target.value)
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                  >
+                    <option value="">Select level...</option>
+                    {LEVEL_OPTIONS.map((level) => (
+                      <option key={level} value={level}>
+                        {level}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                    Hourly rate (SGD)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={row.hourly_rate}
+                    onChange={(e) =>
+                      handleSubjectRowChange(
+                        index,
+                        "hourly_rate",
+                        e.target.value,
+                      )
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                    Duration (hrs)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.25"
+                    value={row.lesson_duration_hours}
+                    onChange={(e) =>
+                      handleSubjectRowChange(
+                        index,
+                        "lesson_duration_hours",
+                        e.target.value,
+                      )
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveSubjectRow(index)}
+                  disabled={form.subjects.length <= 1}
+                  className="min-h-11 rounded-md border border-gray-300 px-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Remove
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={handleAddSubjectRow}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            >
+              + Add another {terms.subject.toLowerCase()}
+            </button>
+          </div>
+        )}
 
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -847,65 +944,67 @@ export default function Students() {
           />
         </div>
 
-        <div className="rounded-md border border-gray-200 p-4">
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            Payment cycle
-          </label>
-          <div className="space-y-2">
-            {PAYMENT_MODE_OPTIONS.map((opt) => (
-              <div key={opt.value} className="flex items-center gap-2">
-                <label className="flex items-center gap-2 text-sm text-gray-700">
-                  <input
-                    type="radio"
-                    name="payment_mode"
-                    value={opt.value}
-                    checked={form.payment_mode === opt.value}
-                    onChange={() =>
-                      setForm({ ...form, payment_mode: opt.value })
-                    }
-                  />
-                  {opt.label}
-                </label>
-                {opt.value === "lessons" && form.payment_mode === "lessons" && (
-                  <input
-                    type="number"
-                    min="2"
-                    max="20"
-                    value={form.payment_cycle_count}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        payment_cycle_count: e.target.value,
-                      })
-                    }
-                    className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
-                  />
-                )}
-                {opt.value === "custom_date" &&
-                  form.payment_mode === "custom_date" && (
-                    <select
-                      value={form.payment_custom_day}
+        {!isPractitioner && (
+          <div className="rounded-md border border-gray-200 p-4">
+            <label className="mb-2 block text-sm font-medium text-gray-700">
+              Payment cycle
+            </label>
+            <div className="space-y-2">
+              {PAYMENT_MODE_OPTIONS.map((opt) => (
+                <div key={opt.value} className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="radio"
+                      name="payment_mode"
+                      value={opt.value}
+                      checked={form.payment_mode === opt.value}
+                      onChange={() =>
+                        setForm({ ...form, payment_mode: opt.value })
+                      }
+                    />
+                    {opt.label}
+                  </label>
+                  {opt.value === "lessons" && form.payment_mode === "lessons" && (
+                    <input
+                      type="number"
+                      min="2"
+                      max="20"
+                      value={form.payment_cycle_count}
                       onChange={(e) =>
                         setForm({
                           ...form,
-                          payment_custom_day: e.target.value,
+                          payment_cycle_count: e.target.value,
                         })
                       }
-                      className="rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
-                    >
-                      {Array.from({ length: 31 }, (_, i) => i + 1).map(
-                        (day) => (
-                          <option key={day} value={day}>
-                            {day}
-                          </option>
-                        ),
-                      )}
-                    </select>
+                      className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                    />
                   )}
-              </div>
-            ))}
+                  {opt.value === "custom_date" &&
+                    form.payment_mode === "custom_date" && (
+                      <select
+                        value={form.payment_custom_day}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            payment_custom_day: e.target.value,
+                          })
+                        }
+                        className="rounded-md border border-gray-300 px-2 py-1 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                      >
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map(
+                          (day) => (
+                            <option key={day} value={day}>
+                              {day}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    )}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
