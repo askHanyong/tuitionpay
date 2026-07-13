@@ -4,6 +4,7 @@ import { formatDate } from "../utils/dateFormat";
 import { buildGoogleMapsUrl } from "../lib/maps";
 import { formatSGD } from "../lib/paymentNotice";
 import { lessonAmount } from "../lib/paymentMode";
+import { useTerms } from "../contexts/TerminologyContext";
 
 export default function LessonDetailModal({
   lesson,
@@ -22,6 +23,7 @@ export default function LessonDetailModal({
     ? Number(paymentCycle.amount_due)
     : lessonAmount(lesson, lesson.students);
 
+  const terms = useTerms();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
@@ -72,7 +74,7 @@ export default function LessonDetailModal({
             {lesson.duration_minutes != null &&
               ` · ${(lesson.duration_minutes / 60).toFixed(2)}h`}
           </p>
-          <p className="text-gray-500">{lessonLabel ?? "Lesson ?"}</p>
+          <p className="text-gray-500">{lessonLabel ?? `${terms.lesson} ?`}</p>
         </div>
 
         {address && (
@@ -107,11 +109,11 @@ export default function LessonDetailModal({
           <div className="mt-5 space-y-3 rounded-md border border-red-200 bg-red-50 p-3">
             {isPaid && (
               <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                ⚠️ This lesson is part of a payment that&apos;s already been marked as paid. Deleting it won&apos;t reverse the payment — you&apos;ll need to handle that manually if needed.
+                ⚠️ This {terms.lesson.toLowerCase()} is part of a payment that&apos;s already been marked as paid. Deleting it won&apos;t reverse the payment — you&apos;ll need to handle that manually if needed.
               </div>
             )}
             <p className="text-sm text-red-800">
-              Are you sure you want to delete this lesson? This cannot be
+              Are you sure you want to delete this {terms.lesson.toLowerCase()}? This cannot be
               undone.
             </p>
             {deleteError && (
@@ -140,7 +142,7 @@ export default function LessonDetailModal({
               onClick={onEdit}
               className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
             >
-              Edit lesson
+              Edit {terms.lesson.toLowerCase()}
             </button>
             {!isDone && (
               <button
@@ -165,7 +167,7 @@ export default function LessonDetailModal({
               onClick={() => setConfirmingDelete(true)}
               className="min-h-11 rounded-md border border-red-300 px-4 text-sm font-medium text-red-600 transition hover:bg-red-50"
             >
-              Delete lesson
+              Delete {terms.lesson.toLowerCase()}
             </button>
           </div>
         )}
