@@ -168,7 +168,7 @@ export default function AppShell({ children }) {
             <span className="font-medium">ChopeAndPay</span>
           </span>
           <span className="text-xs text-[#5ecfaa]/70">
-            Chope your slots. Track your lessons. Get paid on time.
+            Chope your slots. Track every session. Get paid on time.
           </span>
         </Link>
         <nav className="flex flex-1 flex-col gap-1 px-3">
