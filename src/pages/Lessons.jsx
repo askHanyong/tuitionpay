@@ -845,23 +845,9 @@ export default function Lessons() {
 
     try {
       const durationHours = Number(form.duration_hours);
-      // Practitioners: look up rate from rate card rather than using form.rate
-      let effectiveRate = form.rate === "" ? null : Number(form.rate);
-      if (isPractitioner) {
-        const pStudent = students.find((s) => s.id === form.student_id);
-        const pIsSaturday = form.lesson_date
-          ? new Date(`${form.lesson_date}T00:00:00`).getDay() === 6
-          : false;
-        const pRateRow = practitionerRates.find(
-          (r) =>
-            r.company_id === pStudent?.company_id &&
-            r.client_type === pStudent?.client_type &&
-            r.consultation_type === form.consultation_type,
-        );
-        effectiveRate = pRateRow
-          ? (pIsSaturday ? pRateRow.rate_saturday : pRateRow.rate_weekday)
-          : null;
-      }
+      // form.rate is pre-filled from the rate card lookup and may have been
+      // manually edited by the practitioner for this specific session.
+      const effectiveRate = form.rate === "" ? null : Number(form.rate);
       const isFuture = form.lesson_date > today();
       const status = isFuture ? "scheduled" : "completed";
       // Only strictly past-dated lessons auto-complete on entry. Lessons
@@ -1135,6 +1121,17 @@ export default function Lessons() {
   const _pCompany = isPractitioner
     ? practitionerCompanies.find((c) => c.id === _pStudent?.company_id)
     : null;
+
+  // Sync looked-up rate into form.rate so the editable field is pre-filled.
+  // Only fires when the lookup result changes (student, consultation type, date).
+  // Does not run if the user has already manually edited the field to a different value.
+  useEffect(() => {
+    if (!isPractitioner) return;
+    if (lookedUpRate != null) {
+      setForm((prev) => ({ ...prev, rate: String(lookedUpRate) }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lookedUpRate]);
 
   const lessonFormFields = (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1480,20 +1477,24 @@ export default function Lessons() {
                     ))}
                   </select>
                 </div>
-                <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
-                  {lookedUpRate != null ? (
-                    <span>
-                      Rate: <span className="font-semibold">${lookedUpRate}/hr</span>{" "}
-                      <span className="text-gray-400">
-                        ({CLIENT_TYPE_LABEL[_pStudent?.client_type] || "—"} ·{" "}
-                        {CONSULTATION_TYPE_LABEL[form.consultation_type] || "—"} ·{" "}
-                        {_pIsSaturday ? "Saturday" : "Weekday"})
-                      </span>
-                    </span>
-                  ) : form.consultation_type ? (
-                    <span className="text-gray-400">Rate not set — configure in Settings → Rate card</span>
-                  ) : (
-                    <span className="text-gray-400">Select consultation type to see rate</span>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Rate (SGD/hr)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.rate}
+                    onChange={(e) => setForm({ ...form, rate: e.target.value })}
+                    placeholder={form.consultation_type ? "Enter rate" : "Select consultation type first"}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                  />
+                  {form.consultation_type && (
+                    <p className="mt-1 text-xs text-gray-400">
+                      {lookedUpRate != null
+                        ? `Default from rate card: $${lookedUpRate}/hr · ${CLIENT_TYPE_LABEL[_pStudent?.client_type] || "—"} · ${CONSULTATION_TYPE_LABEL[form.consultation_type] || "—"} · ${_pIsSaturday ? "Saturday" : "Weekday"}`
+                        : <><span className="text-amber-700">No rate set for {CLIENT_TYPE_LABEL[_pStudent?.client_type] || "this type"} · {CONSULTATION_TYPE_LABEL[form.consultation_type] || "this type"}{_pCompany ? ` at ${_pCompany.name}` : ""} — </span><Link to="/settings" className="underline text-amber-700">complete rate card in Settings</Link></>
+                      }
+                    </p>
                   )}
                 </div>
               </div>
@@ -1813,19 +1814,23 @@ export default function Lessons() {
             <p className="mb-6 max-w-sm text-sm text-gray-600">
               No {terms.lessons.toLowerCase()} logged yet. Start by logging your first {terms.lesson.toLowerCase()}!
             </p>
-            <a
-              href="#log-lesson-form-submit"
-              onClick={(e) => {
-                e.preventDefault();
-                document
-                  .querySelector('select, input[type="date"]')
-                  ?.closest("form")
-                  ?.scrollIntoView({ behavior: "smooth", block: "center" });
+            <button
+              type="button"
+              onClick={() => {
+                if (isPractitioner) {
+                  setStep(1);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                } else {
+                  document
+                    .querySelector('select, input[type="date"]')
+                    ?.closest("form")
+                    ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
               }}
               className="flex min-h-11 items-center rounded-md bg-[#1b2d4f] px-5 text-sm font-medium text-white hover:bg-[#15243f]"
             >
               Log {terms.lesson}
-            </a>
+            </button>
           </div>
         ) : filteredLessons.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-white px-6 py-12 text-center shadow-sm">
