@@ -214,7 +214,7 @@ export default function Dashboard() {
         .from("lessons")
         .select("*, students(name)")
         .eq("tutor_id", user.id)
-        .eq("is_completed", true)
+        .lt("lesson_date", todayKey())
         .order("created_at", { ascending: true }),
       supabase
         .from("payment_cycles")
@@ -241,7 +241,7 @@ export default function Dashboard() {
           "id, student_id, lesson_date, lesson_time, is_completed, duration_minutes, rate, students(name)",
         )
         .eq("tutor_id", user.id)
-        .eq("is_completed", false),
+        .gte("lesson_date", todayKey()),
     ]);
     const nonDeletedStudents = (studentsData ?? []).filter((s) => !s.deleted_at);
     const archivedStudentIds = new Set(

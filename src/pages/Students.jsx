@@ -270,16 +270,18 @@ export default function Students() {
       map.get(c.student_id).push(c);
     }
 
+    const todayStr = new Date().toISOString().slice(0, 10);
     const completedLessonsByStudent = new Map();
     const scheduledLessonsByStudent = new Map();
     const openCountByStudent = new Map();
     for (const l of lessonsData ?? []) {
-      const targetMap = l.is_completed
+      const effectivelyCompleted = l.is_completed || l.lesson_date < todayStr;
+      const targetMap = effectivelyCompleted
         ? completedLessonsByStudent
         : scheduledLessonsByStudent;
       if (!targetMap.has(l.student_id)) targetMap.set(l.student_id, []);
       targetMap.get(l.student_id).push(l);
-      if (l.is_completed && !l.payment_cycle_id) {
+      if (effectivelyCompleted && !l.payment_cycle_id) {
         openCountByStudent.set(
           l.student_id,
           (openCountByStudent.get(l.student_id) ?? 0) + 1,
