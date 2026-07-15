@@ -1213,31 +1213,24 @@ export default function Lessons() {
               ))}
             </select>
           </div>
-          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700">
-            {lookedUpRate != null ? (
-              <span>
-                Rate:{" "}
-                <span className="font-semibold">${lookedUpRate}/hr</span>{" "}
-                <span className="text-gray-400">
-                  ({CLIENT_TYPE_LABEL[_pStudent?.client_type] || "—"} ·{" "}
-                  {CONSULTATION_TYPE_LABEL[form.consultation_type] || "—"} ·{" "}
-                  {_pIsSaturday ? "Saturday" : "Weekday"})
-                </span>
-              </span>
-            ) : form.consultation_type && _pStudent?.company_id ? (
-              <span className="text-amber-700">
-                No rate set for {CLIENT_TYPE_LABEL[_pStudent?.client_type] || "this client type"} · {CONSULTATION_TYPE_LABEL[form.consultation_type] || "this type"}
-                {_pCompany ? ` at ${_pCompany.name}` : ""} — please complete the rate card in{" "}
-                <Link to="/settings" className="underline">Settings</Link>
-              </span>
-            ) : form.consultation_type ? (
-              <span className="text-gray-400">
-                Select consultation type to see rate
-              </span>
-            ) : (
-              <span className="text-gray-400">
-                Select consultation type to see rate
-              </span>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Rate (SGD/hr)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={form.rate}
+              onChange={(e) => setForm({ ...form, rate: e.target.value })}
+              placeholder={form.consultation_type ? "Enter rate" : "Select consultation type first"}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+            />
+            {form.consultation_type && (
+              <p className="mt-1 text-xs text-gray-400">
+                {lookedUpRate != null
+                  ? `Default from rate card: $${lookedUpRate}/hr · ${CLIENT_TYPE_LABEL[_pStudent?.client_type] || "—"} · ${CONSULTATION_TYPE_LABEL[form.consultation_type] || "—"} · ${_pIsSaturday ? "Saturday" : "Weekday"}`
+                  : <><span className="text-amber-700">No rate set for {CLIENT_TYPE_LABEL[_pStudent?.client_type] || "this type"} · {CONSULTATION_TYPE_LABEL[form.consultation_type] || "this type"}{_pCompany ? ` at ${_pCompany.name}` : ""} — </span><Link to="/settings" className="underline text-amber-700">complete rate card in Settings</Link></>
+                }
+              </p>
             )}
           </div>
         </div>
@@ -1461,15 +1454,15 @@ export default function Lessons() {
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
             </div>
-            {isPractitioner ? (
-              <div className="sm:col-span-2 space-y-3">
+            {isPractitioner && (
+              <>
                 <div>
                   <label className="mb-1 block text-sm font-medium text-gray-700">Consultation type</label>
                   <select
                     required
                     value={form.consultation_type}
                     onChange={(e) => setForm({ ...form, consultation_type: e.target.value })}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa] sm:max-w-xs"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                   >
                     <option value="">Select type...</option>
                     {CONSULTATION_TYPE_OPTIONS.map((opt) => (
@@ -1485,7 +1478,7 @@ export default function Lessons() {
                     step="0.01"
                     value={form.rate}
                     onChange={(e) => setForm({ ...form, rate: e.target.value })}
-                    placeholder={form.consultation_type ? "Enter rate" : "Select consultation type first"}
+                    placeholder="Enter rate"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                   />
                   {form.consultation_type && (
@@ -1497,8 +1490,9 @@ export default function Lessons() {
                     </p>
                   )}
                 </div>
-              </div>
-            ) : (
+              </>
+            )}
+            {!isPractitioner && (
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Rate (SGD/hr)</label>
                 <input
@@ -1817,7 +1811,6 @@ export default function Lessons() {
             <button
               type="button"
               onClick={() => {
-                console.log("BUILD CHECK: Sessions empty state button fix v3 — isPractitioner:", isPractitioner, "step:", step);
                 if (isPractitioner) {
                   setStep(1);
                   setTimeout(() => {
