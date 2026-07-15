@@ -818,6 +818,24 @@ export default function Lessons() {
     setInfo(null);
     setNewCycle(null);
 
+    // Explicit validation with visible error messages
+    if (!form.student_id) {
+      setError(`Please select a ${terms.student.toLowerCase()}.`);
+      return;
+    }
+    if (!form.lesson_date) {
+      setError("Please enter a date.");
+      return;
+    }
+    if (!form.duration_hours || Number(form.duration_hours) <= 0) {
+      setError("Please enter a duration greater than 0.");
+      return;
+    }
+    if (isPractitioner && !form.consultation_type) {
+      setError("Please select a consultation type.");
+      return;
+    }
+
     if (!editingId) {
       setCheckingConflict(true);
       const conflict = await checkGoogleConflict({
@@ -1381,6 +1399,7 @@ export default function Lessons() {
         /* ── Edit existing lesson ── */
         <form
           onSubmit={handleSubmit}
+          noValidate
           className="space-y-4 rounded-md border border-gray-200 bg-white p-5"
         >
           <h2 className="text-base font-semibold text-gray-900">Edit {terms.lesson.toLowerCase()}</h2>
@@ -1648,6 +1667,7 @@ export default function Lessons() {
         /* ── Step 2: Fill in lesson details ── */
         <form
           onSubmit={handleSubmit}
+          noValidate
           className="space-y-4 rounded-md border border-gray-200 bg-white p-5"
         >
           <div className="flex items-center gap-3">
