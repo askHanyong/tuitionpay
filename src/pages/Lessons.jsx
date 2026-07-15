@@ -1575,7 +1575,7 @@ export default function Lessons() {
         </form>
       ) : step === 1 ? (
         /* ── Step 1: Pick a student ── */
-        <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
+        <section id="log-lesson-picker" className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
           <h2 className="text-base font-semibold text-gray-900">Log a {terms.lesson.toLowerCase()} — who did you see?</h2>
 
           {successCycle && (
@@ -1819,7 +1819,11 @@ export default function Lessons() {
               onClick={() => {
                 if (isPractitioner) {
                   setStep(1);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
+                  setTimeout(() => {
+                    document
+                      .getElementById("log-lesson-picker")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }, 0);
                 } else {
                   document
                     .querySelector('select, input[type="date"]')
