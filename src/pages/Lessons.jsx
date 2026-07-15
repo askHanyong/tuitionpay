@@ -1817,6 +1817,7 @@ export default function Lessons() {
             <button
               type="button"
               onClick={() => {
+                console.log("BUILD CHECK: Sessions empty state button fix v3 — isPractitioner:", isPractitioner, "step:", step);
                 if (isPractitioner) {
                   setStep(1);
                   setTimeout(() => {
