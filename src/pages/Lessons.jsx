@@ -1644,6 +1644,9 @@ export default function Lessons() {
                   ? `${s.lesson_duration_hours}h`
                   : null;
                 const detail = [rateStr, durStr].filter(Boolean).join(" · ");
+                const companyName = isPractitioner
+                  ? (practitionerCompanies.find((c) => c.id === s.company_id)?.name ?? null)
+                  : null;
                 return (
                   <button
                     key={s.id}
@@ -1662,6 +1665,9 @@ export default function Lessons() {
                     )}
                     {detail && (
                       <span className="text-xs text-gray-400">{detail}</span>
+                    )}
+                    {companyName && (
+                      <span className="text-xs text-gray-400">{companyName}</span>
                     )}
                   </button>
                 );
@@ -1828,7 +1834,7 @@ export default function Lessons() {
 
             <p className="text-xs text-gray-500">
               Showing {displayedLessons.length} of {filteredLessons.length}{" "}
-              lesson{filteredLessons.length === 1 ? "" : "s"}
+              {filteredLessons.length === 1 ? terms.lesson.toLowerCase() : terms.lessons.toLowerCase()}
             </p>
           </div>
         )}
@@ -1980,7 +1986,7 @@ export default function Lessons() {
                 <thead className="bg-gray-50 text-gray-500">
                   <tr>
                     <th className="px-4 py-2 font-medium">Date</th>
-                    <th className="px-4 py-2 font-medium">Student</th>
+                    <th className="px-4 py-2 font-medium">{terms.student}</th>
                     <th className="px-4 py-2 font-medium">Status</th>
                     <th className="px-4 py-2 font-medium">Duration</th>
                     <th className="px-4 py-2 font-medium">Rate</th>

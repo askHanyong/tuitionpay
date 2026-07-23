@@ -10,6 +10,7 @@ export default function LessonDetailModal({
   lesson,
   lessonLabel,
   paymentCycle,
+  companyName,
   onClose,
   onEdit,
   onMarkDone,
@@ -54,7 +55,10 @@ export default function LessonDetailModal({
             <h2 className="text-lg font-bold text-gray-900">
               {lesson.students?.name}
             </h2>
-            {lesson.students?.subject && (
+            {companyName && (
+              <p className="text-sm text-gray-500">{companyName}</p>
+            )}
+            {!companyName && lesson.students?.subject && (
               <p className="text-sm text-gray-500">{lesson.students.subject}</p>
             )}
           </div>

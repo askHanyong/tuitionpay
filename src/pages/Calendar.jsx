@@ -84,12 +84,14 @@ export default function Calendar() {
   const [detailLesson, setDetailLesson] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [practitionerCompanies, setPractitionerCompanies] = useState([]);
+  const isPractitioner = user?.user_metadata?.user_type === "practitioner";
 
   const reloadLessons = async () => {
     const { data } = await supabase
       .from("lessons")
       .select(
-        "*, students(name, subject, hourly_rate, address, payment_mode, payment_cycle_count), payment_cycles(id, status, amount_due)",
+        "*, students(name, subject, hourly_rate, address, payment_mode, payment_cycle_count, company_id), payment_cycles(id, status, amount_due)",
       )
       .eq("tutor_id", user.id)
       .order("created_at", { ascending: true });
@@ -99,6 +101,13 @@ export default function Calendar() {
   useEffect(() => {
     const load = async () => {
       await reloadLessons();
+      if (isPractitioner) {
+        const { data } = await supabase
+          .from("practitioner_companies")
+          .select("id, name")
+          .eq("tutor_id", user.id);
+        setPractitionerCompanies(data ?? []);
+      }
       setLoading(false);
     };
     load();
@@ -559,6 +568,7 @@ export default function Calendar() {
           lesson={detailLesson}
           lessonLabel={detailLesson ? lessonBadgeLabel(detailLesson) : null}
           paymentCycle={detailLesson.payment_cycles ?? null}
+          companyName={isPractitioner ? (practitionerCompanies.find((c) => c.id === detailLesson.students?.company_id)?.name ?? null) : null}
           onClose={() => setDetailLesson(null)}
           onEdit={() => {
             setDetailLesson(null);
