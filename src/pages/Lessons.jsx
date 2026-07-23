@@ -768,6 +768,12 @@ export default function Lessons() {
 
   const handleSelectStudent = (student) => {
     const firstSubject = subjectsByStudent[student.id]?.[0];
+    const hasExistingSessions = isPractitioner
+      ? lessons.some((l) => l.student_id === student.id)
+      : false;
+    const defaultConsultationType = isPractitioner
+      ? (hasExistingSessions ? "subsequent" : "initial")
+      : "";
     setForm({
       student_id: student.id,
       subject_id: firstSubject?.id ?? "",
@@ -778,7 +784,7 @@ export default function Lessons() {
       rate: isPractitioner ? "" : (firstSubject?.hourly_rate ?? student.hourly_rate ?? ""),
       notes: "",
       lesson_mode: "f2f",
-      consultation_type: "",
+      consultation_type: defaultConsultationType,
     });
     setSuccessCycle(null);
     setParentSummary("");
