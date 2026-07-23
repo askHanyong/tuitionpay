@@ -1691,9 +1691,16 @@ export default function Lessons() {
                 tier={paymentTierByStudent.get(form.student_id) ?? "grey"}
                 avatarColor={students.find((s) => s.id === form.student_id)?.avatar_color}
               />
-              <h2 className="text-base font-semibold text-gray-900">
-                {students.find((s) => s.id === form.student_id)?.name ?? "Lesson"}
-              </h2>
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">
+                  {students.find((s) => s.id === form.student_id)?.name ?? "Lesson"}
+                </h2>
+                {isPractitioner && (
+                  <p className="text-xs text-gray-500">
+                    {_pCompany?.name ?? "—"}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
 

@@ -24,7 +24,9 @@ export default function Payments() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const terms = useTerms();
+  const isPractitioner = user?.user_metadata?.user_type === "practitioner";
   const [cycles, setCycles] = useState([]);
+  const [practitionerCompanies, setPractitionerCompanies] = useState([]);
   const [lessonDatesByCycle, setLessonDatesByCycle] = useState({});
   const [tutorProfile, setTutorProfile] = useState({});
   const [cycleProgress, setCycleProgress] = useState([]);
@@ -33,12 +35,12 @@ export default function Payments() {
   const [preview, setPreview] = useState(null);
 
   const load = async () => {
-    const [{ data, error }, { data: tutorData }, { data: studentsData }] =
+    const [{ data, error }, { data: tutorData }, { data: studentsData }, { data: companiesData }] =
       await Promise.all([
         supabase
           .from("payment_cycles")
           .select(
-            "*, students(name, subject, guardian_name, guardian_contact, payment_mode, payment_cycle_count, payment_custom_day)",
+            "*, students(name, subject, guardian_name, guardian_contact, payment_mode, payment_cycle_count, payment_custom_day, company_id)",
           )
           .eq("tutor_id", user.id)
           .order("created_at", { ascending: false }),
@@ -48,7 +50,11 @@ export default function Payments() {
           .eq("id", user.id)
           .single(),
         supabase.from("students").select("*").eq("tutor_id", user.id),
+        isPractitioner
+          ? supabase.from("practitioner_companies").select("id, name").eq("tutor_id", user.id)
+          : Promise.resolve({ data: [] }),
       ]);
+    if (companiesData) setPractitionerCompanies(companiesData);
     if (error) setError(error.message);
     const excludedStudentIds = new Set(
       (studentsData ?? [])
@@ -320,6 +326,7 @@ export default function Payments() {
 
   const pending = cycles.filter((c) => c.status === "pending");
   const settled = cycles.filter((c) => c.status !== "pending");
+  const companiesById = Object.fromEntries(practitionerCompanies.map((c) => [c.id, c.name]));
   const fullyDue = cycleProgress.filter((p) => p.isFullyDue);
   const dueSoon = cycleProgress.filter(
     (p) => !p.isFullyDue && p.cycleCount != null && p.isLessonsDueSoon,
@@ -438,6 +445,11 @@ export default function Payments() {
                     {formatSGD(c.amount_due)}
                   </span>
                 </div>
+                {isPractitioner && c.students?.company_id && (
+                  <p className="mb-1 text-xs text-gray-500">
+                    {companiesById[c.students.company_id] ?? "—"}
+                  </p>
+                )}
                 <p className="mb-3 text-sm text-gray-600">
                   {formatDate(c.period_start)} to {formatDate(c.period_end)}
                   {c.students?.guardian_contact &&
@@ -514,9 +526,16 @@ export default function Payments() {
                   className="rounded-md border border-gray-200 bg-white p-4"
                 >
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="font-medium text-gray-900">
-                      {c.students?.name}
-                    </span>
+                    <div>
+                      <span className="font-medium text-gray-900">
+                        {c.students?.name}
+                      </span>
+                      {isPractitioner && c.students?.company_id && (
+                        <p className="text-xs text-gray-500">
+                          {companiesById[c.students.company_id] ?? "—"}
+                        </p>
+                      )}
+                    </div>
                     <StatusBadge status={c.status} />
                   </div>
                   <p className="text-sm text-gray-600">
@@ -550,6 +569,11 @@ export default function Payments() {
                     <tr key={c.id} className="transition hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-900">
                         {c.students?.name}
+                        {isPractitioner && c.students?.company_id && (
+                          <p className="text-xs text-gray-500">
+                            {companiesById[c.students.company_id] ?? "—"}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         {formatDate(c.period_start)} –{" "}

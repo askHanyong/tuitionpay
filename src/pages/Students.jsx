@@ -1185,12 +1185,19 @@ export default function Students() {
                       }
                     />
                     <div className="flex flex-1 items-center justify-between">
-                      <Link
-                        to={`/students/${s.id}`}
-                        className="font-medium text-gray-900 hover:text-[#1b2d4f]"
-                      >
-                        {s.name}
-                      </Link>
+                      <div>
+                        <Link
+                          to={`/students/${s.id}`}
+                          className="font-medium text-gray-900 hover:text-[#1b2d4f]"
+                        >
+                          {s.name}
+                        </Link>
+                        {isPractitioner && (
+                          <p className="text-xs text-gray-500">
+                            {companies.find((c) => c.id === s.company_id)?.name ?? "—"}
+                          </p>
+                        )}
+                      </div>
                       {!isPractitioner && (
                         <span className="text-sm text-gray-700">
                           {s.hourly_rate != null ? `$${s.hourly_rate}/hr` : "—"}
@@ -1281,12 +1288,19 @@ export default function Students() {
                                   : (paymentStatusByStudent[s.id]?.tier ?? "grey")
                               }
                             />
-                            <Link
-                              to={`/students/${s.id}`}
-                              className="hover:text-[#1b2d4f]"
-                            >
-                              {s.name}
-                            </Link>
+                            <div>
+                              <Link
+                                to={`/students/${s.id}`}
+                                className="hover:text-[#1b2d4f]"
+                              >
+                                {s.name}
+                              </Link>
+                              {isPractitioner && (
+                                <p className="text-xs text-gray-500">
+                                  {companies.find((c) => c.id === s.company_id)?.name ?? "—"}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-gray-700">
