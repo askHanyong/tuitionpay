@@ -938,8 +938,8 @@ export default function Settings() {
         </div>
         <p className="text-xs text-gray-500">
           <span aria-hidden="true">🔒</span> Your data is private — only you can
-          see your students and earnings. The developer does not access
-          individual tutor data. Read our Privacy Policy for full details.
+          see your students/clients and earnings. The developer does not access
+          individual tutor/practitioner data. Read our Privacy Policy for full details.
         </p>
       </section>
     </AppShell>

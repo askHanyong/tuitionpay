@@ -41,9 +41,9 @@ export default function Privacy() {
             signup via Supabase Auth.
           </p>
           <p>
-            <strong>Student data:</strong> student names, subjects, levels,
+            <strong>Student/Client data:</strong> student/client names, subjects, levels,
             hourly rates, lesson dates, lesson notes, and home addresses entered
-            by the tutor.
+            by the tutor/practitioner.
           </p>
           <p>
             <strong>Usage data:</strong> lesson history, payment cycles, and app
@@ -51,7 +51,7 @@ export default function Privacy() {
           </p>
           <p>
             <strong>Anonymous benchmarking data:</strong> anonymised hourly
-            rates used to calculate subject/level averages across all tutors.
+            rates used to calculate subject/level averages across all tutors/practitioners.
           </p>
         </Section>
 
@@ -59,7 +59,7 @@ export default function Privacy() {
           <ul className="list-inside list-disc space-y-1">
             <li>To provide the ChopeAndPay service</li>
             <li>
-              To show anonymised rate benchmarks to tutors (no individual data
+              To show anonymised rate benchmarks to tutors/practitioners (no individual data
               is ever shown)
             </li>
             <li>
@@ -73,8 +73,8 @@ export default function Privacy() {
             We do NOT use your data for advertising.
           </p>
           <p className="font-medium text-gray-900">
-            The app developer does not access individual tutor data. Your
-            students, rates and earnings are visible only to you.
+            The app developer does not access individual tutor/practitioner data. Your
+            students/clients, rates and earnings are visible only to you.
           </p>
         </Section>
 
@@ -85,14 +85,14 @@ export default function Privacy() {
           </p>
           <ul className="list-inside list-disc space-y-1">
             <li>
-              I do not access, view, browse or use any individual tutor's data,
-              including student names, lesson details, hourly rates or earnings
+              I do not access, view, browse or use any individual tutor's/practitioner's data,
+              including student/client names, lesson details, hourly rates or earnings
               figures.
             </li>
             <li>
-              I do not run queries against individual tutor records for any
+              I do not run queries against individual tutor/practitioner records for any
               purpose other than technical debugging when explicitly requested
-              by the affected tutor.
+              by the affected tutor/practitioner.
             </li>
             <li>
               The only data I may review is anonymous aggregate statistics such
@@ -101,13 +101,13 @@ export default function Privacy() {
             </li>
             <li>
               Rate benchmark features are calculated using anonymised database
-              averages only. No individual tutor's rate is ever identified,
+              averages only. No individual tutor's/practitioner's rate is ever identified,
               viewed or shared.
             </li>
           </ul>
           <p>
             This is a personal project built in good faith for the Singapore
-            tutor community. Your trust means everything to me.
+            tutor/practitioner community. Your trust means everything to me.
           </p>
           <p className="font-medium text-gray-900">— Hanyong Lim, Developer</p>
         </Section>
@@ -121,15 +121,15 @@ export default function Privacy() {
 
         <Section title="Data access">
           <p>
-            Each tutor can only access their own data. Row Level Security is
+            Each tutor/practitioner can only access their own data. Row Level Security is
             enforced at the database level.
           </p>
         </Section>
 
-        <Section title="Student data">
+        <Section title="Student/Client data">
           <p>
-            Tutors are responsible for obtaining appropriate consent from
-            students or parents before entering student personal data (names,
+            Tutors/Practitioners are responsible for obtaining appropriate consent from
+            students/clients or parents before entering student/client personal data (names,
             addresses, contact details) into the app.
           </p>
         </Section>

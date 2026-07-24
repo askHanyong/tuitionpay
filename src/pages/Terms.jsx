@@ -37,7 +37,7 @@ export default function Terms() {
         <Section title="Eligibility">
           <p>
             You must be 18 or older to use ChopeAndPay. The app is intended for
-            private tutors and education freelancers.
+            private tutors/practitioners and education freelancers.
           </p>
         </Section>
 
@@ -48,7 +48,7 @@ export default function Terms() {
               credentials
             </li>
             <li>You must provide accurate information when signing up</li>
-            <li>One account per tutor</li>
+            <li>One account per tutor/practitioner</li>
           </ul>
         </Section>
 
@@ -56,23 +56,23 @@ export default function Terms() {
           <p>You may use ChopeAndPay to:</p>
           <ul className="list-inside list-disc space-y-1">
             <li>Track your own tutoring lessons and payments</li>
-            <li>Manage your own student information</li>
+            <li>Manage your own student/client information</li>
             <li>Generate reports for your own use</li>
           </ul>
           <p>You may NOT use ChopeAndPay to:</p>
           <ul className="list-inside list-disc space-y-1">
             <li>Enter false or misleading information</li>
-            <li>Attempt to access other tutors' data</li>
+            <li>Attempt to access other tutors'/practitioners' data</li>
             <li>Use the app for any unlawful purpose</li>
             <li>Resell or commercialise the app or its data</li>
           </ul>
         </Section>
 
-        <Section title="Student data responsibility">
+        <Section title="Student/Client data responsibility">
           <p>
-            Tutors are solely responsible for ensuring they have appropriate
-            consent to store student personal data in the app. ChopeAndPay is a
-            tool — the tutor is the data controller for their students'
+            Tutors/Practitioners are solely responsible for ensuring they have appropriate
+            consent to store student/client personal data in the app. ChopeAndPay is a
+            tool — the tutor/practitioner is the data controller for their students'/clients'
             information under PDPA.
           </p>
         </Section>
