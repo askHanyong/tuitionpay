@@ -79,6 +79,18 @@ const emptyRateCard = () =>
     ]),
   );
 
+const TOTAL_RATES_PER_COMPANY = RATE_CARD_KEYS.length * 2; // 6 rows × 2 (weekday + saturday) = 12
+
+function buildCompletenessMap(allRates) {
+  const map = {};
+  for (const r of allRates) {
+    if (!map[r.company_id]) map[r.company_id] = 0;
+    if (r.rate_weekday != null) map[r.company_id]++;
+    if (r.rate_saturday != null) map[r.company_id]++;
+  }
+  return map;
+}
+
 export default function Settings() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -123,6 +135,7 @@ export default function Settings() {
   const [rateCard, setRateCard] = useState(emptyRateCard);
   const [rateCardSaving, setRateCardSaving] = useState(false);
   const [companies, setCompanies] = useState([]);
+  const [ratesCompleteness, setRatesCompleteness] = useState({});
   const [companyInput, setCompanyInput] = useState("");
   const [companySaving, setCompanySaving] = useState(false);
   const [editingCompany, setEditingCompany] = useState(null);
@@ -171,24 +184,27 @@ export default function Settings() {
       setDeletedStudents(deleted ?? []);
 
       if (isPractitioner) {
-        const { data: companiesData } = await supabase
-          .from("practitioner_companies")
-          .select("id, name")
-          .eq("tutor_id", user.id)
-          .order("created_at", { ascending: true });
+        const [{ data: companiesData }, { data: allRatesData }] = await Promise.all([
+          supabase
+            .from("practitioner_companies")
+            .select("id, name")
+            .eq("tutor_id", user.id)
+            .order("created_at", { ascending: true }),
+          supabase
+            .from("practitioner_rates")
+            .select("company_id, client_type, consultation_type, rate_weekday, rate_saturday")
+            .eq("tutor_id", user.id),
+        ]);
         const loadedCompanies = companiesData ?? [];
         setCompanies(loadedCompanies);
+        setRatesCompleteness(buildCompletenessMap(allRatesData ?? []));
         if (loadedCompanies.length > 0) {
           const firstId = loadedCompanies[0].id;
           setSelectedCompanyId(firstId);
-          const { data: rates } = await supabase
-            .from("practitioner_rates")
-            .select("client_type, consultation_type, rate_weekday, rate_saturday")
-            .eq("tutor_id", user.id)
-            .eq("company_id", firstId);
-          if (rates?.length) {
+          const firstCompanyRates = (allRatesData ?? []).filter((r) => r.company_id === firstId);
+          if (firstCompanyRates.length) {
             const next = emptyRateCard();
-            for (const r of rates) {
+            for (const r of firstCompanyRates) {
               const key = `${r.client_type}_${r.consultation_type}`;
               if (next[key]) next[key] = { rate_weekday: r.rate_weekday ?? "", rate_saturday: r.rate_saturday ?? "" };
             }
@@ -477,6 +493,11 @@ export default function Settings() {
         .from("practitioner_rates")
         .upsert(rows, { onConflict: "tutor_id,company_id,client_type,consultation_type" });
       if (error) throw error;
+      // Recompute completeness from the upserted rows
+      setRatesCompleteness((prev) => {
+        const filled = rows.reduce((n, r) => n + (r.rate_weekday != null ? 1 : 0) + (r.rate_saturday != null ? 1 : 0), 0);
+        return { ...prev, [selectedCompanyId]: filled };
+      });
       showToast("Rate card saved.");
     } catch (err) {
       showToast(err.message, "error");
@@ -571,6 +592,21 @@ export default function Settings() {
                   ) : (
                     <>
                       <span className="flex-1 text-sm font-medium text-gray-900">{c.name}</span>
+                      {(() => {
+                        const filled = ratesCompleteness[c.id] ?? 0;
+                        const isComplete = filled >= TOTAL_RATES_PER_COMPANY;
+                        const isEmpty = filled === 0;
+                        const badgeClass = isComplete
+                          ? "bg-green-100 text-green-700"
+                          : isEmpty
+                            ? "bg-red-100 text-red-700"
+                            : "bg-amber-100 text-amber-700";
+                        return (
+                          <span className={`flex-none rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass}`}>
+                            {filled}/{TOTAL_RATES_PER_COMPANY} rates
+                          </span>
+                        );
+                      })()}
                       <button
                         type="button"
                         onClick={() => handleStartEditCompany(c)}
