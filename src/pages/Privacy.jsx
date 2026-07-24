@@ -42,16 +42,16 @@ export default function Privacy() {
           </p>
           <p>
             <strong>Student/Client data:</strong> student/client names, subjects, levels,
-            hourly rates, lesson dates, lesson notes, and home addresses entered
+            hourly rates, lesson/session dates, lesson/session notes, and home addresses entered
             by the tutor/practitioner.
           </p>
           <p>
-            <strong>Usage data:</strong> lesson history, payment cycles, and app
+            <strong>Usage data:</strong> lesson/session history, payment cycles, and app
             activity.
           </p>
           <p>
             <strong>Anonymous benchmarking data:</strong> anonymised hourly
-            rates used to calculate subject/level averages across all tutors/practitioners.
+            rates used to calculate subject/level or session averages across all tutors/practitioners.
           </p>
         </Section>
 
@@ -86,7 +86,7 @@ export default function Privacy() {
           <ul className="list-inside list-disc space-y-1">
             <li>
               I do not access, view, browse or use any individual tutor's/practitioner's data,
-              including student/client names, lesson details, hourly rates or earnings
+              including student/client names, lesson/session details, hourly rates or earnings
               figures.
             </li>
             <li>
@@ -96,7 +96,7 @@ export default function Privacy() {
             </li>
             <li>
               The only data I may review is anonymous aggregate statistics such
-              as total number of registered users or total lessons logged across
+              as total number of registered users or total lessons/sessions logged across
               the platform — never individual records.
             </li>
             <li>

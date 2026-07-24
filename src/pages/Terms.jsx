@@ -55,7 +55,7 @@ export default function Terms() {
         <Section title="Acceptable use">
           <p>You may use ChopeAndPay to:</p>
           <ul className="list-inside list-disc space-y-1">
-            <li>Track your own tutoring lessons and payments</li>
+            <li>Track your own lessons/sessions and payments</li>
             <li>Manage your own student/client information</li>
             <li>Generate reports for your own use</li>
           </ul>
