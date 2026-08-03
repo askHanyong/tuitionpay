@@ -134,6 +134,43 @@ export default function Payments() {
         // the moment a lesson completes, so it never needs this estimate.
         if (mode === "monthly" || mode === "custom_date") {
           const thisMonthKey = todayStr.slice(0, 7);
+
+          // Prior-month completed lessons with no cycle yet are overdue:
+          // their end-of-month due date has passed but the DB trigger
+          // hasn't fired to create a payment_cycles row for them.
+          const priorOpenLessons = studentLessons.filter(
+            (l) =>
+              l.is_completed &&
+              !l.payment_cycle_id &&
+              l.lesson_date.slice(0, 7) < thisMonthKey,
+          );
+          if (priorOpenLessons.length > 0) {
+            const priorAmount = priorOpenLessons.reduce(
+              (sum, l) => sum + lessonAmount(l, student),
+              0,
+            );
+            const earliestMonthKey = priorOpenLessons
+              .map((l) => l.lesson_date.slice(0, 7))
+              .sort()[0];
+            const lessonWord =
+              priorOpenLessons.length === 1
+                ? terms.lesson.toLowerCase()
+                : terms.lessons.toLowerCase();
+            result.push({
+              studentId: student.id,
+              studentName: student.name,
+              openCount: priorOpenLessons.length,
+              cycleCount: null,
+              monthLabel: formatMonth(`${earliestMonthKey}-01`),
+              expectedAmount: priorAmount,
+              nextLessonDate: nextLesson?.lesson_date ?? null,
+              isFullyDue: false,
+              isMonthlyDueSoon: false,
+              isMonthlyOverdue: true,
+              overdueLabel: `🔴 ${formatSGD(priorAmount)} overdue — ${priorOpenLessons.length} ${lessonWord} unpaid from ${formatMonth(`${earliestMonthKey}-01`)}`,
+            });
+          }
+
           const openLessons = studentLessons.filter(
             (l) =>
               l.is_completed &&
@@ -334,14 +371,16 @@ export default function Payments() {
   const monthlyDueSoon = cycleProgress.filter(
     (p) => !p.isFullyDue && p.cycleCount == null && p.isMonthlyDueSoon,
   );
+  const monthlyOverdue = cycleProgress.filter((p) => p.isMonthlyOverdue);
   const inProgress = cycleProgress.filter(
     (p) =>
       !p.isFullyDue &&
       !p.isMonthlyDueSoon &&
+      !p.isMonthlyOverdue &&
       (p.cycleCount == null || !p.isLessonsDueSoon),
   );
   const noticesCount =
-    pending.length + fullyDue.length + dueSoon.length + monthlyDueSoon.length;
+    pending.length + fullyDue.length + dueSoon.length + monthlyDueSoon.length + monthlyOverdue.length;
 
   return (
     <AppShell>
@@ -429,6 +468,25 @@ export default function Payments() {
                   </span>
                 </div>
                 <p className="text-sm text-gray-600">{p.dueSoonLabel}</p>
+              </li>
+            ))}
+            {monthlyOverdue.map((p) => (
+              <li
+                key={`monthovd-${p.studentId}`}
+                className="rounded-md border border-red-200 bg-red-50 p-4 transition hover:shadow-md"
+              >
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="flex items-center gap-2 font-medium text-gray-900">
+                    {p.studentName}
+                    <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                      🔴 Overdue
+                    </span>
+                  </span>
+                  <span className="font-semibold text-gray-900">
+                    {formatSGD(p.expectedAmount)}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600">{p.overdueLabel}</p>
               </li>
             ))}
             {pending.map((c) => (
