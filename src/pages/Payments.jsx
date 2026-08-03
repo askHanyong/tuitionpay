@@ -154,7 +154,7 @@ export default function Payments() {
         );
         const mode = student.payment_mode ?? "lessons";
         const nextLesson = studentLessons
-          .filter((l) => !l.is_completed && l.lesson_date > todayStr)
+          .filter((l) => !l.is_completed && l.lesson_date >= todayStr)
           .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1))[0];
 
         // Monthly/custom-date billing has no fixed cycle size -- it's just
@@ -296,7 +296,7 @@ export default function Payments() {
         // about which month payment is due in, not the next lesson's date.
         const scheduledNeeded = Math.max(cycleCount - openCount, 0);
         const upcoming = studentLessons
-          .filter((l) => !l.is_completed && l.lesson_date > todayStr)
+          .filter((l) => !l.is_completed && l.lesson_date >= todayStr)
           .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1));
         const completingLesson =
           upcoming.length >= scheduledNeeded && scheduledNeeded > 0
