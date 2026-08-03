@@ -115,6 +115,37 @@ export default function Payments() {
 
       const now = new Date();
       const todayStr = now.toISOString().slice(0, 10);
+
+      // Backfill missing payment_cycles rows for monthly/custom_date students
+      // whose prior-month lessons haven't triggered DB cycle creation yet.
+      // On the recursive reload the lessons will have payment_cycle_id set,
+      // so studentsNeedingBackfill will be empty and this won't loop.
+      const thisMonthKeyForBackfill = todayStr.slice(0, 7);
+      const studentsNeedingBackfill = students.filter((s) => {
+        if (pendingStudentIds.has(s.id)) return false;
+        const mode = s.payment_mode ?? "lessons";
+        if (mode !== "monthly" && mode !== "custom_date") return false;
+        return (allLessons ?? []).some(
+          (l) =>
+            l.student_id === s.id &&
+            l.is_completed &&
+            !l.payment_cycle_id &&
+            l.lesson_date.slice(0, 7) < thisMonthKeyForBackfill,
+        );
+      });
+      if (studentsNeedingBackfill.length > 0) {
+        await Promise.all(
+          studentsNeedingBackfill.map((s) =>
+            supabase.rpc("recompute_payment_cycles", {
+              p_student_id: s.id,
+              p_tutor_id: user.id,
+            }),
+          ),
+        );
+        await load();
+        return;
+      }
+
       const result = [];
       for (const student of students) {
         if (pendingStudentIds.has(student.id)) continue;

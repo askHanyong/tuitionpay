@@ -200,7 +200,7 @@ export default function Dashboard() {
     const [
       { data: studentsData },
       { data: lessonsData },
-      { data: cyclesData },
+      { data: initialCyclesData },
       { data: todayData },
       { data: tomorrowData },
       { data: scheduledData },
@@ -254,6 +254,45 @@ export default function Dashboard() {
     );
     const excludeDeleted = (rows) =>
       (rows ?? []).filter((r) => !deletedStudentIds.has(r.student_id));
+
+    // Backfill missing payment_cycles rows for monthly/custom_date students
+    // whose prior-month lessons haven't triggered DB cycle creation yet
+    // (the trigger only fires on lesson activity, not on the passage of time).
+    const todayMonthKey = todayKey().slice(0, 7);
+    const pendingCycleStudentIds = new Set(
+      (initialCyclesData ?? [])
+        .filter((c) => c.status === "pending")
+        .map((c) => c.student_id),
+    );
+    const studentsNeedingBackfill = nonDeletedStudents.filter((s) => {
+      if (s.archived || pendingCycleStudentIds.has(s.id)) return false;
+      const mode = s.payment_mode ?? "lessons";
+      if (mode !== "monthly" && mode !== "custom_date") return false;
+      return (lessonsData ?? []).some(
+        (l) =>
+          l.student_id === s.id &&
+          l.is_completed &&
+          !l.payment_cycle_id &&
+          l.lesson_date.slice(0, 7) < todayMonthKey,
+      );
+    });
+    let cyclesData = initialCyclesData;
+    if (studentsNeedingBackfill.length > 0) {
+      await Promise.all(
+        studentsNeedingBackfill.map((s) =>
+          supabase.rpc("recompute_payment_cycles", {
+            p_student_id: s.id,
+            p_tutor_id: user.id,
+          }),
+        ),
+      );
+      const { data: refreshedCycles } = await supabase
+        .from("payment_cycles")
+        .select("*, students(name)")
+        .eq("tutor_id", user.id)
+        .order("period_end", { ascending: false });
+      cyclesData = refreshedCycles;
+    }
 
     setStudents(nonDeletedStudents.filter((s) => !s.archived));
     setLessons(excludeDeleted(excludeArchived(lessonsData)));
