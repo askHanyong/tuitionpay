@@ -20,6 +20,7 @@ const emptySubjectRow = () => ({
   id: null,
   subject: "",
   level: "",
+  rate_type: "hourly",
   hourly_rate: "",
   lesson_duration_hours: "",
 });
@@ -377,6 +378,7 @@ export default function Students() {
       id: row.id,
       subject: row.subject ?? "",
       level: row.level ?? "",
+      rate_type: row.rate_type ?? "hourly",
       hourly_rate: row.hourly_rate ?? "",
       lesson_duration_hours: row.lesson_duration_hours ?? "",
     }));
@@ -390,6 +392,7 @@ export default function Students() {
                 id: null,
                 subject: student.subject ?? "",
                 level: student.level ?? "",
+                rate_type: "hourly",
                 hourly_rate: student.hourly_rate ?? "",
                 lesson_duration_hours: student.lesson_duration_hours ?? "",
               },
@@ -575,6 +578,7 @@ export default function Students() {
           tutor_id: user.id,
           subject: row.subject.trim(),
           level: row.level || null,
+          rate_type: row.rate_type || "hourly",
           hourly_rate: row.hourly_rate === "" ? null : Number(row.hourly_rate),
           lesson_duration_hours:
             row.lesson_duration_hours === ""
@@ -924,7 +928,24 @@ export default function Students() {
                 </div>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-500">
-                    Hourly rate (SGD)
+                    Billing type
+                  </label>
+                  <select
+                    value={row.rate_type ?? "hourly"}
+                    onChange={(e) =>
+                      handleSubjectRowChange(index, "rate_type", e.target.value)
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                  >
+                    <option value="hourly">Hourly (rate × duration)</option>
+                    <option value="per_session">Per session (flat fee)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                    {row.rate_type === "per_session"
+                      ? "Rate per session (SGD)"
+                      : "Hourly rate (SGD)"}
                   </label>
                   <input
                     type="number"

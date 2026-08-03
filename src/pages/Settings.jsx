@@ -314,8 +314,10 @@ export default function Settings() {
         const durationHours = lesson.duration_minutes
           ? lesson.duration_minutes / 60
           : null;
-        const amount =
-          durationHours != null && lesson.rate != null
+        const isPerSession = lesson.rate_type === "per_session";
+        const amount = isPerSession
+          ? (lesson.rate ?? null)
+          : durationHours != null && lesson.rate != null
             ? durationHours * lesson.rate
             : null;
         return [
@@ -324,6 +326,7 @@ export default function Settings() {
           formatDate(lesson.lesson_date),
           lesson.lesson_time ? formatLessonTime(lesson.lesson_time) : "",
           durationHours != null ? durationHours.toFixed(2) : "",
+          isPerSession ? "per session" : "hourly",
           formatAmount(lesson.rate),
           formatAmount(amount),
           lesson.status ?? "",
@@ -339,7 +342,8 @@ export default function Settings() {
           `${terms.lesson} date`,
           `${terms.lesson} time`,
           "Duration (hrs)",
-          "Rate (SGD/hr)",
+          "Billing type",
+          "Rate (SGD)",
           "Amount (SGD)",
           "Status",
           "Notes",

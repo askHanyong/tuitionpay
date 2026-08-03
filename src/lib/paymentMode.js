@@ -12,11 +12,12 @@ export function ordinal(day) {
   return ORDINALS[day] ?? `${day}th`;
 }
 
-// The billable amount for a single lesson: its actual logged duration
-// (not the student's nominal lesson_duration_hours) times its rate, falling
-// back to the student's hourly_rate when the lesson has no rate override.
+// The billable amount for a single lesson. For per_session subjects the rate
+// is a flat fee regardless of duration; for hourly subjects it's the actual
+// logged duration times the rate (falling back to student's hourly_rate).
 export function lessonAmount(lesson, student) {
   const rate = lesson?.rate ?? student?.hourly_rate ?? 0;
+  if (lesson?.rate_type === "per_session") return rate;
   const minutes = lesson?.duration_minutes ?? 0;
   return (minutes / 60) * rate;
 }

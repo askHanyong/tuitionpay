@@ -77,6 +77,7 @@ const emptyForm = (students, prefillDate, defaultTime) => ({
   lesson_date: prefillDate ?? today(),
   lesson_time: defaultTime ?? "",
   duration_hours: students[0]?.lesson_duration_hours ?? "",
+  rate_type: "hourly",
   rate: students[0]?.hourly_rate ?? "",
   notes: "",
   lesson_mode: "f2f",
@@ -701,6 +702,7 @@ export default function Lessons() {
         firstSubject?.lesson_duration_hours ??
         student?.lesson_duration_hours ??
         "",
+      rate_type: isPractitioner ? "hourly" : (firstSubject?.rate_type ?? "hourly"),
       rate: isPractitioner ? "" : (firstSubject?.hourly_rate ?? student?.hourly_rate ?? ""),
       consultation_type: "",
       lesson_time: mostRecentLessonTime(lessons, studentId),
@@ -715,6 +717,7 @@ export default function Lessons() {
       ...f,
       subject_id: subjectId,
       duration_hours: subject?.lesson_duration_hours ?? f.duration_hours,
+      rate_type: subject?.rate_type ?? "hourly",
       rate: subject?.hourly_rate ?? f.rate,
     }));
   };
@@ -781,6 +784,7 @@ export default function Lessons() {
       lesson_time: mostRecentLessonTime(lessons, student.id),
       duration_hours:
         firstSubject?.lesson_duration_hours ?? student.lesson_duration_hours ?? "",
+      rate_type: isPractitioner ? "hourly" : (firstSubject?.rate_type ?? "hourly"),
       rate: isPractitioner ? "" : (firstSubject?.hourly_rate ?? student.hourly_rate ?? ""),
       notes: "",
       lesson_mode: "f2f",
@@ -807,6 +811,7 @@ export default function Lessons() {
       lesson_date: lesson.lesson_date,
       lesson_time: lesson.lesson_time ?? "09:00",
       duration_hours: lesson.duration_minutes / 60,
+      rate_type: lesson.rate_type ?? "hourly",
       rate: lesson.rate ?? "",
       notes: lesson.notes ?? "",
       lesson_mode: lesson.lesson_mode ?? "f2f",
@@ -910,6 +915,7 @@ export default function Lessons() {
             lesson_date: form.lesson_date,
             lesson_time: form.lesson_time || null,
             duration_minutes: Math.round(durationHours * 60),
+            rate_type: form.rate_type || "hourly",
             rate: effectiveRate,
             notes: form.notes.trim() || null,
             parent_summary: parentSummary.trim() || null,
@@ -996,6 +1002,7 @@ export default function Lessons() {
           lesson_date: form.lesson_date,
           lesson_time: form.lesson_time || null,
           duration_minutes: Math.round(durationHours * 60),
+          rate_type: form.rate_type || "hourly",
           rate: effectiveRate,
           notes: form.notes.trim() || null,
           parent_summary: parentSummary.trim() || null,
@@ -1261,7 +1268,7 @@ export default function Lessons() {
       ) : (
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">
-            Rate (SGD/hr)
+            {form.rate_type === "per_session" ? "Rate per session (SGD)" : "Rate (SGD/hr)"}
           </label>
           <input
             type="number"
@@ -1519,7 +1526,9 @@ export default function Lessons() {
             )}
             {!isPractitioner && (
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Rate (SGD/hr)</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  {form.rate_type === "per_session" ? "Rate per session (SGD)" : "Rate (SGD/hr)"}
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -1639,7 +1648,12 @@ export default function Lessons() {
               {students.map((s) => {
                 const tier = paymentTierByStudent.get(s.id) ?? "grey";
                 const subs = subjectsLabel(s);
-                const rateStr = s.hourly_rate ? `$${s.hourly_rate}/hr` : null;
+                const primarySubject = (subjectsByStudent[s.id] ?? [])[0];
+                const rateStr = s.hourly_rate
+                  ? primarySubject?.rate_type === "per_session"
+                    ? `$${s.hourly_rate}/session`
+                    : `$${s.hourly_rate}/hr`
+                  : null;
                 const durStr = s.lesson_duration_hours
                   ? `${s.lesson_duration_hours}h`
                   : null;
