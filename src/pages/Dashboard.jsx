@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { formatSGD } from "../lib/paymentNotice";
@@ -13,6 +13,7 @@ import {
 import { getWeekSummaryKey, showAppNotification } from "../lib/notifications";
 import { buildGoogleMapsUrl } from "../lib/maps";
 import { lessonAmount } from "../lib/paymentMode";
+import { deleteCalendarEvent, getValidAccessToken } from "../lib/googleCalendar";
 import { useToast } from "../contexts/ToastContext";
 import { useTerms } from "../contexts/TerminologyContext";
 import StatusBadge from "../components/StatusBadge";
@@ -21,6 +22,7 @@ import Onboarding from "../components/Onboarding";
 import GettingStartedChecklist from "../components/GettingStartedChecklist";
 import MonthlyRecapCard from "../components/MonthlyRecapCard";
 import NotificationPrompt from "../components/NotificationPrompt";
+import LessonDetailModal from "../components/LessonDetailModal";
 
 const todayKey = () => toDateKey(new Date());
 const tomorrowKey = () => toDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
@@ -167,6 +169,7 @@ function FeedbackPromptCard({ lessonCount }) {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const terms = useTerms();
   const isPractitioner = user?.user_metadata?.user_type === "practitioner";
@@ -177,6 +180,8 @@ export default function Dashboard() {
   const [nextWeekLessons, setNextWeekLessons] = useState([]);
   const [scheduledLessons, setScheduledLessons] = useState([]);
   const [hasScheduledLesson, setHasScheduledLesson] = useState(false);
+  const [overdueLessons, setOverdueLessons] = useState([]);
+  const [detailOverdueLesson, setDetailOverdueLesson] = useState(null);
   const [checklistDismissed, setChecklistDismissed] = useState(true);
   const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -204,6 +209,7 @@ export default function Dashboard() {
       { data: todayData },
       { data: tomorrowData },
       { data: scheduledData },
+      { data: overdueData },
     ] = await Promise.all([
       supabase
         .from("students")
@@ -242,6 +248,20 @@ export default function Dashboard() {
         )
         .eq("tutor_id", user.id)
         .gte("lesson_date", todayKey()),
+      // Lessons whose scheduled date has already passed and that the tutor
+      // has not yet marked Done -- surfaced in the "needs a status update"
+      // banner below. Includes today's date since a lesson earlier today
+      // may already be past its scheduled time; filtered precisely below.
+      supabase
+        .from("lessons")
+        .select(
+          "id, student_id, lesson_date, lesson_time, subject, duration_minutes, notes, is_completed, google_event_id, students(name, subject, address, payment_mode)",
+        )
+        .eq("tutor_id", user.id)
+        .eq("is_completed", false)
+        .lte("lesson_date", todayKey())
+        .order("lesson_date", { ascending: true })
+        .order("lesson_time", { ascending: true }),
     ]);
     const nonDeletedStudents = (studentsData ?? []).filter((s) => !s.deleted_at);
     const archivedStudentIds = new Set(
@@ -262,6 +282,14 @@ export default function Dashboard() {
     setNextWeekLessons(excludeDeleted(excludeArchived(tomorrowData)));
     setScheduledLessons(excludeDeleted(excludeArchived(scheduledData)));
     setHasScheduledLesson(excludeDeleted(excludeArchived(scheduledData)).length > 0);
+    const nowTimeKey = new Date().toTimeString().slice(0, 5);
+    const isInThePast = (l) =>
+      l.lesson_date < todayKey() ||
+      (l.lesson_date === todayKey() &&
+        (!l.lesson_time || l.lesson_time.slice(0, 5) <= nowTimeKey));
+    setOverdueLessons(
+      excludeDeleted(excludeArchived(overdueData)).filter(isInThePast),
+    );
     setLoading(false);
   };
 
@@ -756,6 +784,60 @@ export default function Dashboard() {
     showToast("Marked as paid.");
   };
 
+  // Best-effort: deleting the Google Calendar event must never block
+  // deleting the lesson from Supabase, even if the tutor's token is stale
+  // or Google's API errors out.
+  const deleteOverdueLessonFromGoogleCalendar = async (lesson) => {
+    if (!lesson?.google_event_id) return;
+    try {
+      const { data: tutor } = await supabase
+        .from("tutors")
+        .select("google_calendar_tokens")
+        .eq("id", user.id)
+        .single();
+      const tokens = tutor?.google_calendar_tokens;
+      if (!tokens?.access_token) return;
+      const accessToken = await getValidAccessToken(user.id, tokens);
+      await deleteCalendarEvent(accessToken, lesson.google_event_id);
+    } catch {
+      // ignore -- proceed with Supabase delete regardless
+    }
+  };
+
+  const handleMarkOverdueLessonDone = async (lesson) => {
+    setDetailOverdueLesson(null);
+    const { error } = await supabase
+      .from("lessons")
+      .update({ is_completed: true })
+      .eq("id", lesson.id)
+      .eq("tutor_id", user.id);
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    showToast(`${terms.lesson} marked complete ✓`, "celebrate");
+    await loadAll();
+  };
+
+  const handleEditOverdueLesson = (lesson) => {
+    setDetailOverdueLesson(null);
+    navigate("/lessons", { state: { editLessonId: lesson.id } });
+  };
+
+  const handleDeleteOverdueLesson = async (lessonId) => {
+    await deleteOverdueLessonFromGoogleCalendar(
+      overdueLessons.find((l) => l.id === lessonId),
+    );
+    const { error } = await supabase
+      .from("lessons")
+      .delete()
+      .eq("id", lessonId)
+      .eq("tutor_id", user.id);
+    if (error) throw new Error(error.message);
+    setDetailOverdueLesson(null);
+    await loadAll();
+  };
+
   if (!loading && students.length === 0) {
     return (
       <AppShell>
@@ -1012,6 +1094,37 @@ export default function Dashboard() {
                     </li>
                   );
                 })}
+              </ul>
+            </div>
+          )}
+
+          {/* Lessons past their scheduled time that haven't been marked Done */}
+          {!isPractitioner && !loading && overdueLessons.length > 0 && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-5 shadow-sm">
+              <h2 className="mb-3 text-base font-semibold text-amber-800">
+                📝 {overdueLessons.length} {terms.lesson.toLowerCase()}
+                {overdueLessons.length === 1 ? "" : "s"} need
+                {overdueLessons.length === 1 ? "s" : ""} a status update
+              </h2>
+              <ul className="divide-y divide-amber-200/70">
+                {overdueLessons.map((l) => (
+                  <li key={l.id}>
+                    <button
+                      onClick={() => setDetailOverdueLesson(l)}
+                      className="flex w-full flex-col gap-0.5 py-3 text-left sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <span className="text-sm font-medium text-gray-900">
+                        {l.students?.name}
+                      </span>
+                      <span className="text-xs text-amber-800">
+                        {l.subject ?? l.students?.subject ?? "—"} ·{" "}
+                        {formatDate(l.lesson_date)}
+                        {l.lesson_time &&
+                          ` · ${formatLessonTime(l.lesson_time)}`}
+                      </span>
+                    </button>
+                  </li>
+                ))}
               </ul>
             </div>
           )}
@@ -1295,6 +1408,21 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {detailOverdueLesson && (
+        <LessonDetailModal
+          key={detailOverdueLesson.id}
+          lesson={detailOverdueLesson}
+          lessonLabel={lessonBadgeLabel(detailOverdueLesson)}
+          paymentCycle={null}
+          companyName={null}
+          onClose={() => setDetailOverdueLesson(null)}
+          onEdit={() => handleEditOverdueLesson(detailOverdueLesson)}
+          onMarkDone={() => handleMarkOverdueLessonDone(detailOverdueLesson)}
+          onMarkPaid={() => {}}
+          onDelete={handleDeleteOverdueLesson}
+        />
+      )}
     </AppShell>
   );
 }
