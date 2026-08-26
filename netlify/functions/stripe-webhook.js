@@ -39,24 +39,34 @@ async function patchTutors(supabaseUrl, serviceRoleKey, filter, patch) {
   const url = `${supabaseUrl}/rest/v1/tutors?${col}=eq.${encodeURIComponent(val)}`;
   const payload = JSON.stringify(patch);
 
+  const redactedKey = serviceRoleKey
+    ? `${serviceRoleKey.slice(0, 12)}…${serviceRoleKey.slice(-4)}`
+    : "(missing)";
+
   console.log("patchTutors: filter =", JSON.stringify(filter));
   console.log("patchTutors: url =", url);
   console.log("patchTutors: payload =", payload);
+  console.log("patchTutors: apikey header =", redactedKey);
+  console.log("patchTutors: Authorization header = Bearer", redactedKey);
+  console.log("patchTutors: serviceRoleKey present =", Boolean(serviceRoleKey));
+  console.log("patchTutors: serviceRoleKey length =", serviceRoleKey?.length ?? 0);
 
+  // Use return=representation so PostgREST returns the matched rows.
+  // An empty array means the filter matched 0 rows — the update was a no-op.
   const res = await fetch(url, {
     method: "PATCH",
     headers: {
       "apikey": serviceRoleKey,
       "Authorization": `Bearer ${serviceRoleKey}`,
       "Content-Type": "application/json",
-      "Prefer": "return=minimal",
+      "Prefer": "return=representation",
     },
     body: payload,
   });
 
   const resBody = await res.text();
   console.log("patchTutors: response status =", res.status);
-  console.log("patchTutors: response body =", resBody || "(empty)");
+  console.log("patchTutors: response body =", resBody || "(empty — 0 rows matched)");
 
   if (!res.ok) {
     throw new Error(`PostgREST PATCH failed ${res.status}: ${resBody}`);
