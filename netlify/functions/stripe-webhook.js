@@ -37,6 +37,12 @@ function planFromPriceId(priceId) {
 async function patchTutors(supabaseUrl, serviceRoleKey, filter, patch) {
   const [col, val] = Object.entries(filter)[0];
   const url = `${supabaseUrl}/rest/v1/tutors?${col}=eq.${encodeURIComponent(val)}`;
+  const payload = JSON.stringify(patch);
+
+  console.log("patchTutors: filter =", JSON.stringify(filter));
+  console.log("patchTutors: url =", url);
+  console.log("patchTutors: payload =", payload);
+
   const res = await fetch(url, {
     method: "PATCH",
     headers: {
@@ -45,11 +51,15 @@ async function patchTutors(supabaseUrl, serviceRoleKey, filter, patch) {
       "Content-Type": "application/json",
       "Prefer": "return=minimal",
     },
-    body: JSON.stringify(patch),
+    body: payload,
   });
+
+  const resBody = await res.text();
+  console.log("patchTutors: response status =", res.status);
+  console.log("patchTutors: response body =", resBody || "(empty)");
+
   if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`PostgREST PATCH failed ${res.status}: ${body}`);
+    throw new Error(`PostgREST PATCH failed ${res.status}: ${resBody}`);
   }
 }
 
