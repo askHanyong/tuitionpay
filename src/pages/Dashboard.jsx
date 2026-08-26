@@ -184,6 +184,9 @@ export default function Dashboard() {
   const [detailOverdueLesson, setDetailOverdueLesson] = useState(null);
   const [checklistDismissed, setChecklistDismissed] = useState(true);
   const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+  const [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(null); // "monthly" | "annual" | null
   const [loading, setLoading] = useState(true);
   const [notifyPrefs, setNotifyPrefs] = useState({
     notify_lesson_reminders: true,
@@ -337,7 +340,7 @@ export default function Dashboard() {
       const { data: tutorData } = await supabase
         .from("tutors")
         .select(
-          "notify_lesson_reminders, notify_payment_due, notify_weekly_summary, onboarding_dismissed, google_calendar_tokens",
+          "notify_lesson_reminders, notify_payment_due, notify_weekly_summary, onboarding_dismissed, google_calendar_tokens, subscription_status, current_period_end",
         )
         .eq("id", user.id)
         .single();
@@ -347,11 +350,25 @@ export default function Dashboard() {
         setGoogleCalendarConnected(
           Boolean(tutorData.google_calendar_tokens?.access_token),
         );
+        setSubscriptionStatus(tutorData.subscription_status ?? null);
+        setSubscriptionPeriodEnd(tutorData.current_period_end ?? null);
       }
       await loadAll();
     };
     load();
   }, [user.id]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get("checkout");
+    if (checkout === "success") {
+      showToast("Subscription activated! Thank you 🎉", "celebrate");
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (checkout === "canceled") {
+      showToast("Checkout cancelled — you can subscribe anytime.", "info");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     if (!notifyPrefs.notify_lesson_reminders) return;
@@ -877,6 +894,33 @@ export default function Dashboard() {
     await loadAll();
   };
 
+  const handleSubscribe = async (plan) => {
+    setCheckoutLoading(plan);
+    try {
+      const { data: { user: freshUser } } = await supabase.auth.getUser();
+      if (!freshUser) {
+        showToast("Please sign in again to subscribe.", "error");
+        return;
+      }
+      const res = await fetch("/.netlify/functions/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan, tutorId: freshUser.id }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.url) {
+        showToast(json.error ?? "Could not start checkout. Please try again.", "error");
+        return;
+      }
+      window.location.href = json.url;
+    } catch (err) {
+      console.error("handleSubscribe:", err);
+      showToast("Could not start checkout. Please try again.", "error");
+    } finally {
+      setCheckoutLoading(null);
+    }
+  };
+
   if (!loading && students.length === 0) {
     return (
       <AppShell>
@@ -938,6 +982,44 @@ export default function Dashboard() {
           </div>
 
           {!isPractitioner && <AnnouncementBanner />}
+
+          {/* Subscription upsell — shown only when there is no active/trialing subscription */}
+          {!loading && !["active", "trialing", "grandfathered"].includes(subscriptionStatus) && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+              <p className="text-sm font-semibold text-amber-900">
+                Subscribe to ChopeAndPay
+              </p>
+              <p className="mt-1 text-sm text-amber-800">
+                Keep tracking lessons, payments, and students with a simple subscription.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  onClick={() => handleSubscribe("monthly")}
+                  disabled={checkoutLoading !== null}
+                  className="flex min-h-10 items-center rounded-md bg-amber-600 px-5 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-60"
+                >
+                  {checkoutLoading === "monthly" ? "Redirecting…" : "SGD 9.99 / month"}
+                </button>
+                <button
+                  onClick={() => handleSubscribe("annual")}
+                  disabled={checkoutLoading !== null}
+                  className="flex min-h-10 items-center rounded-md border border-amber-600 px-5 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-60"
+                >
+                  {checkoutLoading === "annual" ? "Redirecting…" : "SGD 99.00 / year · save 17%"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Subscription status — shown when active so tutor knows their plan */}
+          {!loading && subscriptionStatus === "past_due" && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm">
+              <p className="text-sm font-semibold text-red-800">Payment past due</p>
+              <p className="mt-1 text-sm text-red-700">
+                Please update your payment method to keep your subscription active.
+              </p>
+            </div>
+          )}
 
           <FeedbackPromptCard lessonCount={lessons.length} />
 
