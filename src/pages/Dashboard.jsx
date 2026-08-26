@@ -946,6 +946,31 @@ export default function Dashboard() {
             + Add {terms.student}
           </Link>
         </div>
+
+        {!isPractitioner && !["active", "trialing", "grandfathered"].includes(subscriptionStatus) && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+            <p className="text-sm font-semibold text-amber-900">Subscribe to ChopeAndPay</p>
+            <p className="mt-1 text-sm text-amber-800">
+              Keep tracking lessons, payments, and students with a simple subscription.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                onClick={() => handleSubscribe("monthly")}
+                disabled={checkoutLoading !== null}
+                className="flex min-h-10 items-center rounded-md bg-amber-600 px-5 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-60"
+              >
+                {checkoutLoading === "monthly" ? "Redirecting…" : "SGD 9.99 / month"}
+              </button>
+              <button
+                onClick={() => handleSubscribe("annual")}
+                disabled={checkoutLoading !== null}
+                className="flex min-h-10 items-center rounded-md border border-amber-600 px-5 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-60"
+              >
+                {checkoutLoading === "annual" ? "Redirecting…" : "SGD 99.00 / year · save 17%"}
+              </button>
+            </div>
+          </div>
+        )}
       </AppShell>
     );
   }
@@ -984,7 +1009,7 @@ export default function Dashboard() {
           {!isPractitioner && <AnnouncementBanner />}
 
           {/* Subscription upsell — shown only when there is no active/trialing subscription */}
-          {!loading && !["active", "trialing", "grandfathered"].includes(subscriptionStatus) && (
+          {!loading && !isPractitioner && !["active", "trialing", "grandfathered"].includes(subscriptionStatus) && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
               <p className="text-sm font-semibold text-amber-900">
                 Subscribe to ChopeAndPay
