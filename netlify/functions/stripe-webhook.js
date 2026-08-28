@@ -141,10 +141,15 @@ export const handler = async (event) => {
       const sub = data.object;
       const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
 
+      console.log("stripe-webhook: sub.current_period_end raw =", sub.current_period_end);
+      const periodEnd = sub.current_period_end
+        ? new Date(sub.current_period_end * 1000).toISOString()
+        : null;
+
       await patchTutors(supabaseUrl, serviceRoleKey, { stripe_subscription_id: sub.id }, {
         subscription_status: sub.status,
         subscription_plan:   plan,
-        current_period_end:  new Date(sub.current_period_end * 1000).toISOString(),
+        current_period_end:  periodEnd,
       });
 
     } else if (type === "customer.subscription.deleted") {
