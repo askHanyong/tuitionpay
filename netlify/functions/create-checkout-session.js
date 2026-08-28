@@ -41,6 +41,7 @@ export const handler = async (event) => {
     "line_items[0][price]": priceId,
     "line_items[0][quantity]": "1",
     "client_reference_id": tutorId,
+    "subscription_data[metadata][tutor_id]": tutorId,
     "success_url": `${siteUrl}/?checkout=success`,
     "cancel_url":  `${siteUrl}/?checkout=canceled`,
   });
