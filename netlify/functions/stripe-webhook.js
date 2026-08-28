@@ -141,9 +141,19 @@ export const handler = async (event) => {
       const sub = data.object;
       const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
 
-      console.log("stripe-webhook: sub.current_period_end raw =", sub.current_period_end);
-      const periodEnd = sub.current_period_end
-        ? new Date(sub.current_period_end * 1000).toISOString()
+      // Log top-level keys and key nested values to diagnose current_period_end location.
+      console.log("stripe-webhook: sub top-level keys =", Object.keys(sub).join(", "));
+      console.log("stripe-webhook: sub.current_period_end =", sub.current_period_end);
+      console.log("stripe-webhook: sub.items.data[0].current_period_end =", sub.items?.data?.[0]?.current_period_end);
+      console.log("stripe-webhook: sub.items.data[0] keys =", sub.items?.data?.[0] ? Object.keys(sub.items.data[0]).join(", ") : "(no item)");
+
+      // Stripe API >=2024-09-30.acacia moved current_period_end to the item level.
+      // Fall back to the top-level field for older API versions.
+      const rawPeriodEnd =
+        sub.items?.data?.[0]?.current_period_end ?? sub.current_period_end ?? null;
+      console.log("stripe-webhook: resolved rawPeriodEnd =", rawPeriodEnd);
+      const periodEnd = rawPeriodEnd
+        ? new Date(rawPeriodEnd * 1000).toISOString()
         : null;
 
       // tutor_id is stamped into subscription_data.metadata at checkout creation —
