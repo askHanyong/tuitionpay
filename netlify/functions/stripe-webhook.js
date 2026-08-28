@@ -146,10 +146,14 @@ export const handler = async (event) => {
         ? new Date(sub.current_period_end * 1000).toISOString()
         : null;
 
-      await patchTutors(supabaseUrl, serviceRoleKey, { stripe_subscription_id: sub.id }, {
-        subscription_status: sub.status,
-        subscription_plan:   plan,
-        current_period_end:  periodEnd,
+      // Filter by stripe_customer_id (set by checkout.session.completed via sub.customer).
+      // Also write stripe_subscription_id here so this handler is self-sufficient —
+      // no ordering dependency on checkout.session.completed having run first.
+      await patchTutors(supabaseUrl, serviceRoleKey, { stripe_customer_id: sub.customer }, {
+        stripe_subscription_id: sub.id,
+        subscription_status:    sub.status,
+        subscription_plan:      plan,
+        current_period_end:     periodEnd,
       });
 
     } else if (type === "customer.subscription.deleted") {
