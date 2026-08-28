@@ -137,7 +137,7 @@ export const handler = async (event) => {
         stripe_subscription_id: stripeSubId,
       });
 
-    } else if (type === "customer.subscription.updated") {
+    } else if (type === "customer.subscription.created" || type === "customer.subscription.updated") {
       const sub = data.object;
       const plan = planFromPriceId(sub.items?.data?.[0]?.price?.id);
 
