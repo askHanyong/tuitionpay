@@ -141,6 +141,14 @@ export default function Settings() {
   const [editingCompany, setEditingCompany] = useState(null);
   const [editingCompanyName, setEditingCompanyName] = useState("");
   const [deletingCompanyId, setDeletingCompanyId] = useState(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+  const [subscriptionPlan, setSubscriptionPlan] = useState(null);
+  const [subscriptionId, setSubscriptionId] = useState(null);
+  const [periodEnd, setPeriodEnd] = useState(null);
+  const [billingAction, setBillingAction] = useState(null); // "cancel" | "switch" | null
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingMessage, setBillingMessage] = useState(null);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
 
   const loadGoogleStatus = async () => {
@@ -157,13 +165,17 @@ export default function Settings() {
       const { data, error } = await supabase
         .from("tutors")
         .select(
-          "paynow_number, google_calendar_tokens, notify_lesson_reminders, notify_payment_due, notify_weekly_summary",
+          "paynow_number, google_calendar_tokens, notify_lesson_reminders, notify_payment_due, notify_weekly_summary, subscription_status, subscription_plan, stripe_subscription_id, current_period_end",
         )
         .eq("id", user.id)
         .single();
       if (error) setError(error.message);
       setPaynowNumber(data?.paynow_number ?? "");
       setGoogleTutor(data ?? null);
+      setSubscriptionStatus(data?.subscription_status ?? null);
+      setSubscriptionPlan(data?.subscription_plan ?? null);
+      setSubscriptionId(data?.stripe_subscription_id ?? null);
+      setPeriodEnd(data?.current_period_end ?? null);
       if (data) {
         setNotifyPrefs({
           notify_lesson_reminders: data.notify_lesson_reminders,
@@ -507,6 +519,57 @@ export default function Settings() {
       showToast(err.message, "error");
     } finally {
       setRateCardSaving(false);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!subscriptionId) return;
+    setBillingLoading(true);
+    setBillingMessage(null);
+    try {
+      const res = await fetch("/.netlify/functions/cancel-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscriptionId }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setBillingMessage({ type: "error", text: json.error ?? "Could not cancel subscription." });
+        return;
+      }
+      const endTs = json.currentPeriodEnd;
+      const endDate = endTs ? new Date(endTs * 1000).toLocaleDateString("en-SG", { day: "numeric", month: "long", year: "numeric" }) : "the end of your billing period";
+      setBillingMessage({ type: "success", text: `Subscription cancelled. You'll keep access until ${endDate}.` });
+      setConfirmCancel(false);
+    } catch {
+      setBillingMessage({ type: "error", text: "Could not cancel subscription. Please try again." });
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  const handleSwitchPlan = async () => {
+    if (!subscriptionId || !subscriptionPlan) return;
+    const newPlan = subscriptionPlan === "monthly" ? "annual" : "monthly";
+    setBillingLoading(true);
+    setBillingMessage(null);
+    try {
+      const res = await fetch("/.netlify/functions/switch-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscriptionId, newPlan }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setBillingMessage({ type: "error", text: json.error ?? "Could not switch plan." });
+        return;
+      }
+      setBillingMessage({ type: "success", text: `Switched to ${newPlan} plan. Your billing will update at the next cycle.` });
+      setSubscriptionPlan(newPlan);
+    } catch {
+      setBillingMessage({ type: "error", text: "Could not switch plan. Please try again." });
+    } finally {
+      setBillingLoading(false);
     }
   };
 
@@ -923,6 +986,104 @@ export default function Settings() {
           </ul>
         )}
       </section>
+
+      {!isPractitioner && (
+        <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
+          <h2 className="text-base font-semibold text-gray-900">Subscription</h2>
+
+          {subscriptionStatus === "active" || subscriptionStatus === "trialing" ? (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#d6ede6] px-2.5 py-0.5 text-xs font-medium text-[#1b2d4f]">
+                  ✓ {subscriptionStatus === "trialing" ? "Trial" : "Active"}
+                </span>
+                <span className="text-sm text-gray-700 capitalize">
+                  {subscriptionPlan ?? "—"} plan
+                </span>
+                {periodEnd && (
+                  <span className="text-sm text-gray-500">
+                    · Renews {new Date(periodEnd).toLocaleDateString("en-SG", { day: "numeric", month: "long", year: "numeric" })}
+                  </span>
+                )}
+              </div>
+
+              {billingMessage && (
+                <p className={`text-sm ${billingMessage.type === "error" ? "text-red-600" : "text-[#0f7a58]"}`}>
+                  {billingMessage.text}
+                </p>
+              )}
+
+              {confirmCancel ? (
+                <div className="rounded-md border border-red-200 bg-red-50 p-4 space-y-3">
+                  <p className="text-sm text-red-800 font-medium">
+                    Are you sure you want to cancel?{" "}
+                    {periodEnd
+                      ? `You'll keep access until ${new Date(periodEnd).toLocaleDateString("en-SG", { day: "numeric", month: "long", year: "numeric" })}.`
+                      : "You'll keep access until the end of your billing period."}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelSubscription}
+                      disabled={billingLoading}
+                      className="min-h-10 rounded-md bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
+                    >
+                      {billingLoading ? "Cancelling..." : "Yes, cancel"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmCancel(false)}
+                      disabled={billingLoading}
+                      className="min-h-10 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                    >
+                      Keep subscription
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSwitchPlan}
+                    disabled={billingLoading || !subscriptionPlan}
+                    className="min-h-10 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-60"
+                  >
+                    {billingLoading && billingAction !== "cancel" ? "Switching..." : `Switch to ${subscriptionPlan === "monthly" ? "annual" : "monthly"} plan`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setBillingMessage(null); setConfirmCancel(true); }}
+                    disabled={billingLoading}
+                    className="min-h-10 rounded-md border border-red-200 px-4 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                  >
+                    Cancel subscription
+                  </button>
+                </div>
+              )}
+            </>
+          ) : subscriptionStatus === "grandfathered" ? (
+            <p className="text-sm text-gray-600">
+              You have free access as an early user. No subscription required.
+            </p>
+          ) : subscriptionStatus === "past_due" ? (
+            <p className="text-sm text-red-700">
+              Your payment is past due — please update your payment method in Stripe to keep access.
+            </p>
+          ) : subscriptionStatus === "canceled" ? (
+            <p className="text-sm text-gray-600">
+              Your subscription has been cancelled. Subscribe again to continue using ChopeAndPay.
+            </p>
+          ) : (
+            <p className="text-sm text-gray-600">
+              No active subscription. Go to the{" "}
+              <Link to="/" className="font-medium text-[#0f7a58] underline">
+                dashboard
+              </Link>{" "}
+              to subscribe.
+            </p>
+          )}
+        </section>
+      )}
 
       <section className="space-y-3 rounded-md border border-gray-200 bg-white p-5">
         <h2 className="text-base font-semibold text-gray-900">Legal</h2>

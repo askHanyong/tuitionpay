@@ -202,6 +202,11 @@ export default function Students() {
   const [view, setView] = useState("active");
   const [undoDelete, setUndoDelete] = useState(null); // { id, name, timer }
   const [companies, setCompanies] = useState([]);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+
+  const FREE_TIER_LIMIT = 3;
+  const isFreeTier = !["active", "trialing", "grandfathered"].includes(subscriptionStatus);
+  const activeCount = students.filter((s) => !s.archived && !s.deleted_at).length;
 
 
   const refreshLessonsFor = async (studentId) => {
@@ -429,13 +434,21 @@ export default function Students() {
 
   useEffect(() => {
     const load = async () => {
-      const { data, error } = await supabase
-        .from("students")
-        .select("*")
-        .eq("tutor_id", user.id)
-        .order("created_at", { ascending: false });
+      const [{ data, error }, { data: tutorData }] = await Promise.all([
+        supabase
+          .from("students")
+          .select("*")
+          .eq("tutor_id", user.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("tutors")
+          .select("subscription_status")
+          .eq("id", user.id)
+          .single(),
+      ]);
       if (error) setError(error.message);
       setStudents(data ?? []);
+      setSubscriptionStatus(tutorData?.subscription_status ?? null);
       setLoading(false);
       loadSortSupportData(data ?? []);
       loadSubjectsByStudent();
@@ -467,6 +480,13 @@ export default function Students() {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
+
+    // Free-tier gate: block new students beyond the limit (edits always allowed).
+    if (!editingId && !isPractitioner && isFreeTier && activeCount >= FREE_TIER_LIMIT) {
+      setError(`You've reached the ${FREE_TIER_LIMIT}-student free limit. Subscribe to add more students.`);
+      setSubmitting(false);
+      return;
+    }
 
     if (isPractitioner) {
       if (!form.company_id) {
@@ -1076,12 +1096,37 @@ export default function Students() {
           </div>
         )}
 
+        {/* Free-tier messaging — tutor-only, shown when not editing */}
+        {!editingId && !isPractitioner && isFreeTier && (
+          activeCount >= FREE_TIER_LIMIT ? (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              You&apos;ve used all {FREE_TIER_LIMIT} free student slots.{" "}
+              <Link to="/settings" className="font-medium underline">
+                Subscribe
+              </Link>{" "}
+              to add more.
+            </div>
+          ) : activeCount === FREE_TIER_LIMIT - 1 ? (
+            <p className="text-sm text-amber-700">
+              Heads up: this will be your last free student slot.{" "}
+              <Link to="/settings" className="font-medium underline">
+                Subscribe
+              </Link>{" "}
+              to add unlimited students.
+            </p>
+          ) : activeCount === 0 ? (
+            <p className="text-sm text-gray-500">
+              Free to use for up to {FREE_TIER_LIMIT} students.
+            </p>
+          ) : null
+        )}
+
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         <div className="flex gap-2">
           <button
             type="submit"
-            disabled={submitting || (isPractitioner && companies.length === 0)}
+            disabled={submitting || (isPractitioner && companies.length === 0) || (!editingId && !isPractitioner && isFreeTier && activeCount >= FREE_TIER_LIMIT)}
             className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow disabled:opacity-50"
           >
             {submitting
