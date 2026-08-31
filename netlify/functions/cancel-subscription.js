@@ -24,8 +24,10 @@ export const handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: "subscriptionId is required" }) };
   }
 
+  // Stripe API >=2024-09-30.acacia: DELETE cancels immediately and no longer
+  // accepts cancel_at_period_end. Use POST (subscription update) instead.
   const res = await fetch(`https://api.stripe.com/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, {
-    method: "DELETE",
+    method: "POST",
     headers: {
       "Authorization": `Bearer ${stripeSecretKey}`,
       "Content-Type": "application/x-www-form-urlencoded",
