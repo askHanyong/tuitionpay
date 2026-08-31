@@ -108,7 +108,7 @@ export default function Payments() {
       const { data: allLessons } = await supabase
         .from("lessons")
         .select(
-          "student_id, lesson_date, payment_cycle_id, is_completed, duration_minutes, rate",
+          "student_id, lesson_date, payment_cycle_id, is_completed, duration_minutes, rate, rate_type",
         )
         .eq("tutor_id", user.id)
         .in("student_id", allStudentIds);

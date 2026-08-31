@@ -247,7 +247,7 @@ export default function Dashboard() {
       supabase
         .from("lessons")
         .select(
-          "id, student_id, lesson_date, lesson_time, is_completed, duration_minutes, rate, students(name)",
+          "id, student_id, lesson_date, lesson_time, is_completed, duration_minutes, rate, rate_type, students(name)",
         )
         .eq("tutor_id", user.id)
         .gte("lesson_date", todayKey()),
