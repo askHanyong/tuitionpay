@@ -18,18 +18,22 @@ export function buildLessonIcs({
   subject,
   lessonNumber,
   rate,
+  rateType = "hourly",
 }) {
   const start = new Date(
     `${lesson.lesson_date}T${lesson.lesson_time ?? "09:00:00"}`,
   );
   const end = new Date(start.getTime() + lesson.duration_minutes * 60000);
   const durationHours = lesson.duration_minutes / 60;
+  const isPerSession = rateType === "per_session";
+  const perLessonAmount = isPerSession ? rate : rate * durationHours;
   const expectedPayment =
-    rate != null ? (rate * durationHours * 4).toFixed(2) : null;
+    rate != null ? (perLessonAmount * 4).toFixed(2) : null;
 
   const title = `${studentName} - ${subject || "Lesson"} (Lesson ${lessonNumber} of 4)`;
   const descriptionParts = [`Lesson ${lessonNumber} of 4`];
-  if (rate != null) descriptionParts.push(`Rate: $${rate}/hr`);
+  if (rate != null)
+    descriptionParts.push(`Rate: $${rate}${isPerSession ? "/session" : "/hr"}`);
   if (expectedPayment != null)
     descriptionParts.push(`Expected payment: $${expectedPayment} at lesson 4`);
   const description = descriptionParts.join(" · ");
