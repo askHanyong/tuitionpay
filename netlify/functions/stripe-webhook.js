@@ -169,6 +169,7 @@ export const handler = async (event) => {
           subscription_status:    sub.status,
           subscription_plan:      plan,
           current_period_end:     periodEnd,
+          cancel_at_period_end:   sub.cancel_at_period_end ?? false,
         });
       }
 
@@ -176,7 +177,8 @@ export const handler = async (event) => {
       const sub = data.object;
 
       await patchTutors(supabaseUrl, serviceRoleKey, { stripe_subscription_id: sub.id }, {
-        subscription_status: "canceled",
+        subscription_status:  "canceled",
+        cancel_at_period_end: false,
       });
 
     } else {
