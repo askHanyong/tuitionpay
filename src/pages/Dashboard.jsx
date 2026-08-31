@@ -187,6 +187,9 @@ export default function Dashboard() {
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(null); // "monthly" | "annual" | null
+  const [grandfatheredBannerDismissed, setGrandfatheredBannerDismissed] = useState(() => {
+    try { return localStorage.getItem("chope_grandfathered_banner_dismissed") === "1"; } catch { return false; }
+  });
   const [loading, setLoading] = useState(true);
   const [notifyPrefs, setNotifyPrefs] = useState({
     notify_lesson_reminders: true,
@@ -894,6 +897,27 @@ export default function Dashboard() {
     await loadAll();
   };
 
+  const dismissGrandfatheredBanner = () => {
+    try { localStorage.setItem("chope_grandfathered_banner_dismissed", "1"); } catch {}
+    setGrandfatheredBannerDismissed(true);
+  };
+
+  const GrandfatheredBanner = !isPractitioner && subscriptionStatus === "grandfathered" && !grandfatheredBannerDismissed && (
+    <div className="relative rounded-xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+      <button
+        type="button"
+        onClick={dismissGrandfatheredBanner}
+        aria-label="Dismiss"
+        className="absolute right-3 top-3 text-emerald-500 hover:text-emerald-700 text-lg leading-none"
+      >
+        ×
+      </button>
+      <p className="pr-6 text-sm text-emerald-900">
+        🎉 <span className="font-semibold">Thank you for being an early ChopeAndPay user!</span> As a thank-you, your account stays free — you won&rsquo;t be charged, ever. New subscription options are for new sign-ups only.
+      </p>
+    </div>
+  );
+
   const handleSubscribe = async (plan) => {
     setCheckoutLoading(plan);
     try {
@@ -971,6 +995,8 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+
+        {GrandfatheredBanner}
       </AppShell>
     );
   }
@@ -1035,6 +1061,8 @@ export default function Dashboard() {
               </div>
             </div>
           )}
+
+          {!loading && GrandfatheredBanner}
 
           {/* Subscription status — shown when active so tutor knows their plan */}
           {!loading && subscriptionStatus === "past_due" && (
