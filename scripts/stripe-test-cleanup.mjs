@@ -44,7 +44,10 @@ if (!STRIPE_KEY.startsWith("sk_test_")) {
 
 async function stripeGet(path) {
   const results = [];
-  let url = `https://api.stripe.com/v1/${path}?limit=100`;
+  // Path may already contain query params (e.g. "subscriptions?status=all"),
+  // so use & for limit rather than always appending ?.
+  const sep = path.includes("?") ? "&" : "?";
+  let url = `https://api.stripe.com/v1/${path}${sep}limit=100`;
   while (url) {
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${STRIPE_KEY}` },
@@ -55,7 +58,10 @@ async function stripeGet(path) {
     }
     const body = await res.json();
     results.push(...body.data);
-    url = body.has_more ? `https://api.stripe.com/v1/${path}?limit=100&starting_after=${body.data.at(-1).id}` : null;
+    // Pagination cursor is always appended with & since limit is already in the URL.
+    url = body.has_more
+      ? `https://api.stripe.com/v1/${path}${sep}limit=100&starting_after=${body.data.at(-1).id}`
+      : null;
   }
   return results;
 }
@@ -128,7 +134,17 @@ console.log(
 // 2. Load all Stripe test-mode customers
 console.log("2. Fetching all Stripe test-mode customers…");
 const allCustomers = await stripeGet("customers");
-console.log(`   ${allCustomers.length} customers in Stripe test mode.\n`);
+console.log(`   ${allCustomers.length} customers in Stripe test mode.`);
+if (allCustomers.length === 0 && liveCustomerIds.size > 0) {
+  console.log(
+    `   ⚠️  Warning: Supabase references ${liveCustomerIds.size} customer ID(s) but Stripe test mode has none.\n` +
+    `      Those IDs may belong to LIVE mode (created before test-mode billing was set up).\n` +
+    `      Verify in your Stripe Dashboard → toggle to Test mode → Customers.\n` +
+    `      If they only exist in live mode, the tutor rows' stripe_customer_id values\n` +
+    `      will need clearing before you can use live-mode billing cleanly.`,
+  );
+}
+console.log();
 
 // 3. Load all Stripe test-mode subscriptions
 console.log("3. Fetching all Stripe test-mode subscriptions…");
