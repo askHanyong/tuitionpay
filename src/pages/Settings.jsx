@@ -153,6 +153,8 @@ export default function Settings() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingMessage, setBillingMessage] = useState(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
 
   const loadGoogleStatus = async () => {
@@ -169,7 +171,7 @@ export default function Settings() {
       const { data, error } = await supabase
         .from("tutors")
         .select(
-          "paynow_number, google_calendar_tokens, notify_lesson_reminders, notify_payment_due, notify_weekly_summary, subscription_status, subscription_plan, stripe_subscription_id, current_period_end",
+          "paynow_number, google_calendar_tokens, notify_lesson_reminders, notify_payment_due, notify_weekly_summary, subscription_status, subscription_plan, stripe_subscription_id, current_period_end, cancel_at_period_end",
         )
         .eq("id", user.id)
         .single();
@@ -180,6 +182,7 @@ export default function Settings() {
       setSubscriptionPlan(data?.subscription_plan ?? null);
       setSubscriptionId(data?.stripe_subscription_id ?? null);
       setPeriodEnd(data?.current_period_end ?? null);
+      setCancelAtPeriodEnd(data?.cancel_at_period_end ?? false);
       if (data) {
         setNotifyPrefs({
           notify_lesson_reminders: data.notify_lesson_reminders,
@@ -638,6 +641,7 @@ export default function Settings() {
     const newPlan = subscriptionPlan === "monthly" ? "annual" : "monthly";
     setBillingLoading(true);
     setBillingMessage(null);
+    setConfirmSwitch(false);
     try {
       const res = await fetch("/.netlify/functions/switch-plan", {
         method: "POST",
@@ -649,10 +653,34 @@ export default function Settings() {
         setBillingMessage({ type: "error", text: json.error ?? "Could not switch plan." });
         return;
       }
-      setBillingMessage({ type: "success", text: `Switched to ${newPlan} plan. Your billing will update at the next cycle.` });
+      setBillingMessage({ type: "success", text: `Switched to ${newPlan} plan. Your billing has been updated.` });
       setSubscriptionPlan(newPlan);
     } catch {
       setBillingMessage({ type: "error", text: "Could not switch plan. Please try again." });
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  const handleResumeSubscription = async () => {
+    if (!subscriptionId) return;
+    setBillingLoading(true);
+    setBillingMessage(null);
+    try {
+      const res = await fetch("/.netlify/functions/resume-subscription", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscriptionId }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setBillingMessage({ type: "error", text: json.error ?? "Could not resume subscription." });
+        return;
+      }
+      setCancelAtPeriodEnd(false);
+      setBillingMessage({ type: "success", text: "Subscription resumed. You'll continue to be billed normally." });
+    } catch {
+      setBillingMessage({ type: "error", text: "Could not resume subscription. Please try again." });
     } finally {
       setBillingLoading(false);
     }
@@ -1149,7 +1177,43 @@ export default function Settings() {
         <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
           <h2 className="text-base font-semibold text-gray-900">Subscription</h2>
 
-          {subscriptionStatus === "active" || subscriptionStatus === "trialing" ? (
+          {(subscriptionStatus === "active" || subscriptionStatus === "trialing") && cancelAtPeriodEnd ? (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                  Cancels {periodEnd ? new Date(periodEnd).toLocaleDateString("en-SG", { day: "numeric", month: "long", year: "numeric" }) : "at period end"}
+                </span>
+                <span className="text-sm text-gray-700 capitalize">
+                  {subscriptionPlan ?? "—"} plan
+                </span>
+              </div>
+
+              <p className="text-sm text-gray-600">
+                Your plan will cancel on{" "}
+                <strong>
+                  {periodEnd
+                    ? new Date(periodEnd).toLocaleDateString("en-SG", { day: "numeric", month: "long", year: "numeric" })
+                    : "the end of your billing period"}
+                </strong>
+                . You'll keep full access until then.
+              </p>
+
+              {billingMessage && (
+                <p className={`text-sm ${billingMessage.type === "error" ? "text-red-600" : "text-[#0f7a58]"}`}>
+                  {billingMessage.text}
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleResumeSubscription}
+                disabled={billingLoading}
+                className="min-h-10 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#243d6b] disabled:opacity-60"
+              >
+                {billingLoading ? "Resuming..." : "Resume subscription"}
+              </button>
+            </>
+          ) : subscriptionStatus === "active" || subscriptionStatus === "trialing" ? (
             <>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-[#d6ede6] px-2.5 py-0.5 text-xs font-medium text-[#1b2d4f]">
@@ -1171,7 +1235,34 @@ export default function Settings() {
                 </p>
               )}
 
-              {confirmCancel ? (
+              {confirmSwitch ? (
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-4 space-y-3">
+                  <p className="text-sm text-gray-800 font-medium">
+                    Switch to {subscriptionPlan === "monthly" ? "annual" : "monthly"} plan?{" "}
+                    {subscriptionPlan === "monthly"
+                      ? "You'll be charged a prorated amount today and save with annual billing."
+                      : "Your billing will switch to monthly at the next cycle."}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSwitchPlan}
+                      disabled={billingLoading}
+                      className="min-h-10 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#243d6b] disabled:opacity-60"
+                    >
+                      {billingLoading ? "Switching..." : `Confirm switch to ${subscriptionPlan === "monthly" ? "annual" : "monthly"}`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmSwitch(false)}
+                      disabled={billingLoading}
+                      className="min-h-10 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60"
+                    >
+                      Keep current plan
+                    </button>
+                  </div>
+                </div>
+              ) : confirmCancel ? (
                 <div className="rounded-md border border-red-200 bg-red-50 p-4 space-y-3">
                   <p className="text-sm text-red-800 font-medium">
                     Are you sure you want to cancel?{" "}
@@ -1202,11 +1293,11 @@ export default function Settings() {
                 <div className="flex flex-wrap gap-3">
                   <button
                     type="button"
-                    onClick={handleSwitchPlan}
+                    onClick={() => { setBillingMessage(null); setConfirmSwitch(true); }}
                     disabled={billingLoading || !subscriptionPlan}
                     className="min-h-10 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-60"
                   >
-                    {billingLoading && billingAction !== "cancel" ? "Switching..." : `Switch to ${subscriptionPlan === "monthly" ? "annual" : "monthly"} plan`}
+                    {`Switch to ${subscriptionPlan === "monthly" ? "annual" : "monthly"} plan`}
                   </button>
                   <button
                     type="button"
