@@ -482,7 +482,7 @@ export default function Students() {
     setSubmitting(true);
 
     // Free-tier gate: block new students beyond the limit (edits always allowed).
-    if (!editingId && !isPractitioner && isFreeTier && activeCount >= FREE_TIER_LIMIT) {
+    if (!editingId && !isPractitioner && !loading && isFreeTier && activeCount >= FREE_TIER_LIMIT) {
       setError(`You've reached the ${FREE_TIER_LIMIT}-student free limit. Subscribe to add more students.`);
       setSubmitting(false);
       return;
@@ -1102,7 +1102,7 @@ export default function Students() {
         )}
 
         {/* Free-tier messaging — tutor-only, shown when not editing */}
-        {!editingId && !isPractitioner && isFreeTier && (
+        {!loading && !editingId && !isPractitioner && isFreeTier && (
           activeCount >= FREE_TIER_LIMIT ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               You&apos;ve used all {FREE_TIER_LIMIT} free student slots.{" "}
@@ -1131,7 +1131,7 @@ export default function Students() {
         <div className="flex gap-2">
           <button
             type="submit"
-            disabled={submitting || (isPractitioner && companies.length === 0) || (!editingId && !isPractitioner && isFreeTier && activeCount >= FREE_TIER_LIMIT)}
+            disabled={submitting || (isPractitioner && companies.length === 0) || (!loading && !editingId && !isPractitioner && isFreeTier && activeCount >= FREE_TIER_LIMIT)}
             className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] hover:shadow disabled:opacity-50"
           >
             {submitting
