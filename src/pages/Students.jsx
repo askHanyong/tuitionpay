@@ -248,7 +248,7 @@ export default function Students() {
       supabase
         .from("lessons")
         .select(
-          "id, student_id, lesson_date, lesson_time, payment_cycle_id, is_completed, duration_minutes, rate",
+          "id, student_id, lesson_date, lesson_time, payment_cycle_id, is_completed, duration_minutes, rate, rate_type",
         )
         .eq("tutor_id", user.id)
         .order("lesson_date", { ascending: false }),
@@ -1341,7 +1341,7 @@ export default function Students() {
                       {isPractitioner ? "Client type" : terms.subject}
                     </th>
                     {!isPractitioner && (
-                      <th className="px-4 py-2 font-medium">Rate (SGD/hr)</th>
+                      <th className="px-4 py-2 font-medium">Rate (SGD)</th>
                     )}
                     <th className="px-4 py-2 font-medium">Duration (hrs)</th>
                     <th className="px-4 py-2 font-medium">Progress</th>
@@ -1385,7 +1385,11 @@ export default function Students() {
                         </td>
                         {!isPractitioner && (
                           <td className="px-4 py-3 text-gray-700">
-                            {s.hourly_rate != null ? `$${s.hourly_rate}` : "—"}
+                            {s.hourly_rate != null
+                              ? primarySubjectFor(s.id)?.rate_type === "per_session"
+                                ? `$${s.hourly_rate}/session`
+                                : `$${s.hourly_rate}/hr`
+                              : "—"}
                           </td>
                         )}
                         <td className="px-4 py-3 text-gray-700">
