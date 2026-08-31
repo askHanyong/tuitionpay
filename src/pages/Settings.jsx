@@ -12,6 +12,7 @@ import {
 } from "../lib/googleCalendar";
 import { formatDate } from "../utils/dateFormat";
 import { formatLessonTime } from "../lib/date";
+import { lessonAmount } from "../lib/paymentMode";
 
 const CSV_COLUMN_SEPARATOR = ",";
 
@@ -132,6 +133,9 @@ export default function Settings() {
   const [feedbackDone, setFeedbackDone] = useState(false);
   const [deletedStudents, setDeletedStudents] = useState([]);
   const [restoringId, setRestoringId] = useState(null);
+  const [billingMismatches, setBillingMismatches] = useState([]);
+  const [showBillingMismatchDetails, setShowBillingMismatchDetails] = useState(false);
+  const [syncingBilling, setSyncingBilling] = useState(false);
   const [rateCard, setRateCard] = useState(emptyRateCard);
   const [rateCardSaving, setRateCardSaving] = useState(false);
   const [companies, setCompanies] = useState([]);
@@ -195,6 +199,30 @@ export default function Settings() {
         .order("deleted_at", { ascending: false });
       setDeletedStudents(deleted ?? []);
 
+      // One-time self-service check: a lesson's own rate_type can drift out
+      // of sync with its subject's current billing type (e.g. a bug in an
+      // older version of this app, or the tutor changing a subject's
+      // billing type after lessons under it were already scheduled). Flag
+      // any mismatch so the tutor can review and correct it themselves --
+      // skipping anything already part of a paid cycle, since that's
+      // settled history and shouldn't change retroactively.
+      if (!isPractitioner) {
+        const { data: subjectLessons } = await supabase
+          .from("lessons")
+          .select(
+            "id, student_id, lesson_date, rate, rate_type, duration_minutes, students(name), student_subjects(subject, rate_type), payment_cycles(status)",
+          )
+          .eq("tutor_id", user.id)
+          .not("student_subject_id", "is", null);
+        const mismatches = (subjectLessons ?? []).filter(
+          (l) =>
+            l.student_subjects &&
+            l.rate_type !== l.student_subjects.rate_type &&
+            l.payment_cycles?.status !== "paid",
+        );
+        setBillingMismatches(mismatches);
+      }
+
       if (isPractitioner) {
         const [{ data: companiesData }, { data: allRatesData }] = await Promise.all([
           supabase
@@ -227,6 +255,63 @@ export default function Settings() {
     };
     load();
   }, [user.id, isPractitioner]);
+
+  const handleSyncBillingTypes = async () => {
+    setSyncingBilling(true);
+    try {
+      const toPerSession = billingMismatches
+        .filter((l) => l.student_subjects.rate_type === "per_session")
+        .map((l) => l.id);
+      const toHourly = billingMismatches
+        .filter((l) => l.student_subjects.rate_type === "hourly")
+        .map((l) => l.id);
+
+      if (toPerSession.length) {
+        const { error } = await supabase
+          .from("lessons")
+          .update({ rate_type: "per_session" })
+          .in("id", toPerSession)
+          .eq("tutor_id", user.id);
+        if (error) throw error;
+      }
+      if (toHourly.length) {
+        const { error } = await supabase
+          .from("lessons")
+          .update({ rate_type: "hourly" })
+          .in("id", toHourly)
+          .eq("tutor_id", user.id);
+        if (error) throw error;
+      }
+
+      // Re-run the billing calculation for every affected student so any
+      // pending amount reflects the corrected billing type immediately,
+      // rather than waiting for the next lesson change to trigger it.
+      const affectedStudentIds = [
+        ...new Set(billingMismatches.map((l) => l.student_id)),
+      ];
+      for (const studentId of affectedStudentIds) {
+        const { error } = await supabase.rpc("recompute_payment_cycles", {
+          p_student_id: studentId,
+          p_tutor_id: user.id,
+        });
+        if (error) throw error;
+      }
+
+      showToast(
+        `Synced billing type for ${billingMismatches.length} ${
+          billingMismatches.length === 1
+            ? terms.lesson.toLowerCase()
+            : terms.lessons.toLowerCase()
+        }.`,
+      );
+      setBillingMismatches([]);
+      setShowBillingMismatchDetails(false);
+    } catch (err) {
+      showToast(err.message || "Couldn't sync billing types.", "error");
+    } finally {
+      setSyncingBilling(false);
+    }
+  };
 
   const handleRestoreStudent = async (student) => {
     setRestoringId(student.id);
@@ -986,6 +1071,79 @@ export default function Settings() {
           </ul>
         )}
       </section>
+
+      {!isPractitioner && billingMismatches.length > 0 && (
+        <section className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-5">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">
+              ⚠️ Billing type check
+            </h2>
+            <p className="mt-1 text-sm text-gray-700">
+              We found {billingMismatches.length}{" "}
+              {billingMismatches.length === 1
+                ? terms.lesson.toLowerCase()
+                : terms.lessons.toLowerCase()}{" "}
+              where the stored billing type doesn&apos;t match the subject&apos;s
+              current setting. This can happen if a subject&apos;s billing type
+              was changed (hourly ↔ per-session) after {billingMismatches.length === 1 ? "it was" : "they were"} already
+              scheduled. Syncing corrects the amount owed for these{" "}
+              {terms.lessons.toLowerCase()} only — anything already marked paid
+              is never changed.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowBillingMismatchDetails((v) => !v)}
+            className="text-sm font-medium text-[#1b2d4f] underline"
+          >
+            {showBillingMismatchDetails ? "Hide details" : "Show details"}
+          </button>
+          {showBillingMismatchDetails && (
+            <ul className="max-h-64 divide-y divide-gray-100 overflow-y-auto rounded-md border border-gray-200 bg-white">
+              {billingMismatches.map((l) => {
+                const correctType = l.student_subjects.rate_type;
+                const oldAmount = lessonAmount(l, null);
+                const newAmount = lessonAmount(
+                  { ...l, rate_type: correctType },
+                  null,
+                );
+                return (
+                  <li
+                    key={l.id}
+                    className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                  >
+                    <div>
+                      <span className="font-medium text-gray-900">
+                        {l.students?.name ?? "—"}
+                      </span>
+                      <span className="ml-2 text-xs text-gray-500">
+                        {formatDate(l.lesson_date)} · {l.student_subjects.subject}
+                      </span>
+                    </div>
+                    <span className="flex-none text-xs text-gray-600">
+                      ${Number(oldAmount).toFixed(2)} → ${Number(newAmount).toFixed(2)}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <button
+            type="button"
+            onClick={handleSyncBillingTypes}
+            disabled={syncingBilling}
+            className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-semibold text-white transition hover:bg-[#14213d] disabled:opacity-50"
+          >
+            {syncingBilling
+              ? "Syncing..."
+              : `Sync ${billingMismatches.length} ${
+                  billingMismatches.length === 1
+                    ? terms.lesson.toLowerCase()
+                    : terms.lessons.toLowerCase()
+                }`}
+          </button>
+        </section>
+      )}
 
       {!isPractitioner && (
         <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
