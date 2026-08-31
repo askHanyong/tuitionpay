@@ -131,6 +131,7 @@ export default function ScheduleLessonsModal({
     lesson_time: time || null,
     duration_minutes: Math.round(Number(durationHours) * 60),
     rate: rate ?? null,
+    rate_type: selectedSubject?.rate_type ?? "hourly",
     lesson_mode: "f2f",
     status: date > todayKey() ? "scheduled" : "completed",
     is_completed: false,
