@@ -313,13 +313,13 @@ export default function Students() {
   const loadSubjectsByStudent = async () => {
     const { data } = await supabase
       .from("student_subjects")
-      .select("student_id, subject")
+      .select("student_id, subject, rate_type")
       .eq("tutor_id", user.id)
       .order("created_at", { ascending: true });
     const map = {};
     for (const row of data ?? []) {
       if (!map[row.student_id]) map[row.student_id] = [];
-      map[row.student_id].push(row.subject);
+      map[row.student_id].push(row);
     }
     setSubjectsByStudent(map);
   };
@@ -706,11 +706,16 @@ export default function Students() {
 
   const subjectsLabel = (studentId, fallback) =>
     (subjectsByStudent[studentId]?.length
-      ? subjectsByStudent[studentId]
+      ? subjectsByStudent[studentId].map((row) => row.subject)
       : fallback
         ? [fallback]
         : []
     ).join(" · ");
+
+  // First-added subject for a student, used as the "primary" rate/duration
+  // shown on their card — mirrors the primary-subject convention used when
+  // saving a student (see subjectRows[0] in handleSubmit).
+  const primarySubjectFor = (studentId) => subjectsByStudent[studentId]?.[0];
 
   const archivedCount = students.filter((s) => s.archived).length;
   const viewStudents = students.filter((s) =>
@@ -1266,7 +1271,11 @@ export default function Students() {
                       </div>
                       {!isPractitioner && (
                         <span className="text-sm text-gray-700">
-                          {s.hourly_rate != null ? `$${s.hourly_rate}/hr` : "—"}
+                          {s.hourly_rate != null
+                            ? primarySubjectFor(s.id)?.rate_type === "per_session"
+                              ? `$${s.hourly_rate}/session`
+                              : `$${s.hourly_rate}/hr`
+                            : "—"}
                         </span>
                       )}
                     </div>

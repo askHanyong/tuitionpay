@@ -481,6 +481,7 @@ export default function Lessons() {
       subject: lesson.subject ?? lesson.students?.subject,
       lessonNumber: lessonPosition.get(lesson.id) ?? 1,
       rate: lesson.rate ?? lesson.students?.hourly_rate ?? null,
+      rateType: lesson.rate_type ?? "hourly",
     });
     downloadIcs(
       `${lesson.students?.name ?? "lesson"}-${lesson.lesson_date}.ics`,
@@ -1934,7 +1935,8 @@ export default function Lessons() {
                   </div>
                   <p className="text-sm text-gray-600">
                     {(l.duration_minutes / 60).toFixed(2)}h
-                    {l.rate != null && ` · $${l.rate}/hr`}
+                    {l.rate != null &&
+                      ` · $${l.rate}${l.rate_type === "per_session" ? "/session" : "/hr"}`}
                     {" · "}
                     {!completed ? (
                       <span className="text-gray-400">—</span>

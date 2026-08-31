@@ -38,6 +38,7 @@ export default function StudentProfile() {
   const [scheduling, setScheduling] = useState(false);
   const [preview, setPreview] = useState(null);
   const [reporting, setReporting] = useState(false);
+  const [primarySubject, setPrimarySubject] = useState(null);
 
   const handleArchive = async () => {
     if (
@@ -75,6 +76,7 @@ export default function StudentProfile() {
       { data: lessonsData },
       { data: cyclesData },
       { data: tutorData },
+      { data: subjectRows },
     ] = await Promise.all([
       supabase
         .from("students")
@@ -101,12 +103,23 @@ export default function StudentProfile() {
         .select("full_name, paynow_number")
         .eq("id", user.id)
         .single(),
+      supabase
+        .from("student_subjects")
+        .select("rate_type")
+        .eq("student_id", id)
+        .eq("tutor_id", user.id)
+        .order("created_at", { ascending: true })
+        .limit(1),
     ]);
     if (studentError) setError(studentError.message);
     setStudent(studentData ?? null);
     setLessons(lessonsData ?? []);
     setCycles(cyclesData ?? []);
     setTutorProfile(tutorData ?? {});
+    // Primary (first-added) subject's billing type — the same convention
+    // used when saving a student — so the flat rate shown here matches
+    // what the "per session (flat fee)" setting actually means.
+    setPrimarySubject(subjectRows?.[0] ?? null);
     setNoteDrafts(
       Object.fromEntries((lessonsData ?? []).map((l) => [l.id, l.notes ?? ""])),
     );
@@ -337,7 +350,9 @@ export default function StudentProfile() {
               ) : (
                 <>
                   {student.hourly_rate != null
-                    ? `$${student.hourly_rate}/hr`
+                    ? primarySubject?.rate_type === "per_session"
+                      ? `$${student.hourly_rate}/session`
+                      : `$${student.hourly_rate}/hr`
                     : "Rate not set"}
                   {student.lesson_duration_hours != null &&
                     ` · ${student.lesson_duration_hours}h ${terms.lessons.toLowerCase()}`}
@@ -478,7 +493,8 @@ export default function StudentProfile() {
                   </div>
                   <span className="text-xs text-gray-500">
                     {(l.duration_minutes / 60).toFixed(2)}h
-                    {l.rate != null && ` · $${l.rate}/hr`}
+                    {l.rate != null &&
+                      ` · $${l.rate}${l.rate_type === "per_session" ? "/session" : "/hr"}`}
                   </span>
                 </div>
                 {l.notes && editingNoteId !== l.id && (

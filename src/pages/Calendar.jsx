@@ -273,6 +273,7 @@ export default function Calendar() {
       subject: lesson.subject ?? lesson.students?.subject,
       lessonNumber: lessonPosition.get(lesson.id) ?? 1,
       rate: lesson.rate ?? lesson.students?.hourly_rate ?? null,
+      rateType: lesson.rate_type ?? "hourly",
     });
     downloadIcs(
       `${lesson.students?.name ?? "lesson"}-${lesson.lesson_date}.ics`,
