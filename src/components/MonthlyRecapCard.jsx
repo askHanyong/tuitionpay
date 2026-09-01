@@ -167,8 +167,21 @@ function computeForMonth(
         0,
       );
 
+  // `monthLessons` comes from the `lessons` prop, which only covers
+  // strictly-before-today (the caller fetches it that way so today's
+  // lessons can be tracked separately for the "mark as done" UI). That
+  // means a lesson completed earlier today wouldn't be counted here until
+  // tomorrow. `scheduledThisMonth` covers today onward and is guaranteed
+  // disjoint from `monthLessons` (same boundary, complementary
+  // comparisons), so counting its already-completed entries is safe and
+  // closes that gap without affecting `projectedEarnings` above, which
+  // already correctly draws today's contribution from this same set.
+  const lessonsTaughtThisMonth =
+    monthLessons.length +
+    scheduledThisMonth.filter((l) => l.is_completed).length;
+
   return {
-    totalLessons: monthLessons.length,
+    totalLessons: lessonsTaughtThisMonth,
     collected,
     pending,
     projectedEarnings,
