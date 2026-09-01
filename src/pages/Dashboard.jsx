@@ -571,6 +571,21 @@ export default function Dashboard() {
     );
   };
   const studentsById = new Map(students.map((s) => [s.id, s]));
+  // `lessons` only covers strictly-before-today (see its fetch query --
+  // .lt("lesson_date", todayKey())), because today's lessons are tracked
+  // separately in `scheduledLessons`/`todayLessons` for the "mark as done"
+  // UI. That split works fine for the widgets that consume those arrays
+  // directly, but every "this month" aggregate below was reading `lessons`
+  // alone and so silently dropped a lesson the moment it was completed
+  // *today* -- it wouldn't count until tomorrow. `scheduledLessons` covers
+  // today onward and is guaranteed disjoint from `lessons` (same boundary,
+  // complementary comparisons), so folding in just its completed entries is
+  // safe: no lesson can appear in both, and not-yet-completed future
+  // lessons are correctly still excluded.
+  const knownCompletedOrPast = [
+    ...lessons,
+    ...scheduledLessons.filter((l) => l.is_completed),
+  ];
   const collectedThisMonth = paymentCycles
     .filter((c) => c.status === "paid" && isThisMonth(c.period_end))
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
@@ -583,7 +598,7 @@ export default function Dashboard() {
     .filter((c) => c.status === "pending" && isThisMonth(c.period_end))
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   const midCycleStudentIdsThisMonth = new Set(
-    lessons
+    knownCompletedOrPast
       .filter((l) => !l.payment_cycle_id && isThisMonth(l.lesson_date))
       .map((l) => l.student_id),
   );
@@ -610,7 +625,7 @@ export default function Dashboard() {
           (1000 * 60 * 60 * 24),
       );
       if (daysToEnd > 3) return sum;
-      const unbilledThisMonthLessons = lessons.filter(
+      const unbilledThisMonthLessons = knownCompletedOrPast.filter(
         (l) =>
           l.student_id === studentId &&
           !l.payment_cycle_id &&
@@ -637,7 +652,7 @@ export default function Dashboard() {
     if (completingLesson && !isThisMonth(completingLesson.lesson_date)) {
       return sum;
     }
-    const unbilledLessons = lessons
+    const unbilledLessons = knownCompletedOrPast
       .filter(
         (l) =>
           l.student_id === studentId && !l.payment_cycle_id && l.is_completed,
@@ -658,7 +673,7 @@ export default function Dashboard() {
   }, 0);
   const pendingThisMonth =
     pendingFromCyclesThisMonth + pendingFromMidCycleLessonsThisMonth;
-  const lessonsCompletedThisMonth = lessons.filter(
+  const lessonsCompletedThisMonth = knownCompletedOrPast.filter(
     (l) => l.is_completed && isThisMonth(l.lesson_date),
   ).length;
   const paymentStatusByStudent = new Map();
