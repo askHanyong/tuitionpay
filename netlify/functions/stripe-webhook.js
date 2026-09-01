@@ -26,8 +26,8 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
 }
 
 function planFromPriceId(priceId) {
-  const MONTHLY_PRICE_ID = "price_1U8bLPA4Dt2Idw6NjuisxMSB";
-  const ANNUAL_PRICE_ID  = "price_1U8bMxA4Dt2Idw6Nd3bGqmgZ";
+  const MONTHLY_PRICE_ID = "price_1UAs8cA4Dt2Idw6NZ2jvhEHN";
+  const ANNUAL_PRICE_ID  = "price_1UAsA2A4Dt2Idw6Neq1QvxM1";
   if (priceId === MONTHLY_PRICE_ID) return "monthly";
   if (priceId === ANNUAL_PRICE_ID)  return "annual";
   return null;

@@ -3,8 +3,8 @@
 // Returns { url } — the frontend redirects the browser to that URL.
 
 const PRICE_IDS = {
-  monthly: "price_1U8bLPA4Dt2Idw6NjuisxMSB",
-  annual:  "price_1U8bMxA4Dt2Idw6Nd3bGqmgZ",
+  monthly: "price_1UAs8cA4Dt2Idw6NZ2jvhEHN",
+  annual:  "price_1UAsA2A4Dt2Idw6Neq1QvxM1",
 };
 
 export const handler = async (event) => {
