@@ -34,8 +34,8 @@ export const handler = async (event) => {
 
   if (!res.ok) {
     const err = await res.json();
-    console.error("resume-subscription: Stripe error:", err);
-    return { statusCode: 502, body: JSON.stringify({ error: err?.error?.message ?? "Stripe error" }) };
+    console.error("resume-subscription: Stripe error:", JSON.stringify(err));
+    return { statusCode: 502, body: JSON.stringify({ error: "We couldn't resume your subscription right now. Please try again, or contact support if this continues." }) };
   }
 
   return {

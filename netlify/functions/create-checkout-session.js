@@ -57,10 +57,10 @@ export const handler = async (event) => {
 
   if (!response.ok) {
     const err = await response.json();
-    console.error("create-checkout-session: Stripe error:", err);
+    console.error("create-checkout-session: Stripe error:", JSON.stringify(err));
     return {
       statusCode: 502,
-      body: JSON.stringify({ error: err?.error?.message ?? "Stripe error" }),
+      body: JSON.stringify({ error: "We couldn't start checkout right now. Please try again, or contact support if this continues." }),
     };
   }
 

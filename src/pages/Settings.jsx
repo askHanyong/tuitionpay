@@ -175,7 +175,7 @@ export default function Settings() {
         )
         .eq("id", user.id)
         .single();
-      if (error) setError(error.message);
+      if (error) { console.error("Settings load error:", error.message); setError("We couldn't load your settings right now. Try refreshing, or contact support if this continues."); }
       setPaynowNumber(data?.paynow_number ?? "");
       setGoogleTutor(data ?? null);
       setSubscriptionStatus(data?.subscription_status ?? null);
@@ -1225,6 +1225,7 @@ export default function Settings() {
                 {periodEnd && (
                   <span className="text-sm text-gray-500">
                     · Renews {new Date(periodEnd).toLocaleDateString("en-SG", { day: "numeric", month: "long", year: "numeric" })}
+                    {subscriptionPlan === "monthly" ? " — SGD 9.99 will be charged" : subscriptionPlan === "annual" ? " — SGD 59.99 will be charged" : ""}
                   </span>
                 )}
               </div>

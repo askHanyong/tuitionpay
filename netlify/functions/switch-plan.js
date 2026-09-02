@@ -38,8 +38,8 @@ export const handler = async (event) => {
   });
   if (!getRes.ok) {
     const err = await getRes.json();
-    console.error("switch-plan: Stripe GET error:", err);
-    return { statusCode: 502, body: JSON.stringify({ error: err?.error?.message ?? "Stripe error" }) };
+    console.error("switch-plan: Stripe GET error:", JSON.stringify(err));
+    return { statusCode: 502, body: JSON.stringify({ error: "We couldn't switch your plan right now. Please try again, or contact support if this continues." }) };
   }
   const currentSub = await getRes.json();
   const itemId = currentSub.items?.data?.[0]?.id;
@@ -65,8 +65,8 @@ export const handler = async (event) => {
 
   if (!updateRes.ok) {
     const err = await updateRes.json();
-    console.error("switch-plan: Stripe POST error:", err);
-    return { statusCode: 502, body: JSON.stringify({ error: err?.error?.message ?? "Stripe error" }) };
+    console.error("switch-plan: Stripe POST error:", JSON.stringify(err));
+    return { statusCode: 502, body: JSON.stringify({ error: "We couldn't switch your plan right now. Please try again, or contact support if this continues." }) };
   }
 
   return {
