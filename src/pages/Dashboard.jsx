@@ -1005,7 +1005,7 @@ export default function Dashboard() {
                 disabled={checkoutLoading !== null}
                 className="flex min-h-10 items-center rounded-md border border-amber-600 px-5 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-60"
               >
-                {checkoutLoading === "annual" ? "Redirecting…" : "SGD 99.00 / year · save 17%"}
+                {checkoutLoading === "annual" ? "Redirecting…" : "SGD 59.99 / year · save 50%"}
               </button>
             </div>
           </div>
@@ -1071,7 +1071,7 @@ export default function Dashboard() {
                   disabled={checkoutLoading !== null}
                   className="flex min-h-10 items-center rounded-md border border-amber-600 px-5 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-60"
                 >
-                  {checkoutLoading === "annual" ? "Redirecting…" : "SGD 99.00 / year · save 17%"}
+                  {checkoutLoading === "annual" ? "Redirecting…" : "SGD 59.99 / year · save 50%"}
                 </button>
               </div>
             </div>
