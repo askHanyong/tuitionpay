@@ -970,8 +970,10 @@ export default function Dashboard() {
             onDone={loadAll}
           />
         )}
-        <div className="flex flex-col items-center justify-center rounded-xl border border-[#b8e8d9] bg-[#edf6f3] px-6 py-20 text-center shadow-sm">
-          <p className="mb-4 text-6xl">🎓</p>
+        <div className="flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-white px-6 py-20 text-center shadow-sm">
+          <svg className="mb-4 h-14 w-14 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 14l9-5-9-5-9 5 9 5zm0 0v6m-4-3.5l4 2 4-2" />
+          </svg>
           <h2 className="mb-2 text-xl font-semibold text-[#1b2d4f]">
             Let&apos;s get started!
           </h2>
@@ -987,23 +989,23 @@ export default function Dashboard() {
         </div>
 
         {!isPractitioner && !["active", "trialing", "grandfathered"].includes(subscriptionStatus) && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
-            <p className="text-sm font-semibold text-amber-900">Subscribe to ChopeAndPay</p>
-            <p className="mt-1 text-sm text-amber-800">
+          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+            <p className="text-sm font-semibold text-gray-900">Subscribe to ChopeAndPay</p>
+            <p className="mt-1 text-sm text-gray-500">
               Keep tracking lessons, payments, and students with a simple subscription.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 onClick={() => handleSubscribe("monthly")}
                 disabled={checkoutLoading !== null}
-                className="flex min-h-10 items-center rounded-md bg-amber-600 px-5 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-60"
+                className="flex min-h-10 items-center rounded-md bg-[#1b2d4f] px-5 text-sm font-medium text-white transition hover:bg-[#15243f] disabled:opacity-60"
               >
                 {checkoutLoading === "monthly" ? "Redirecting…" : "SGD 9.99 / month"}
               </button>
               <button
                 onClick={() => handleSubscribe("annual")}
                 disabled={checkoutLoading !== null}
-                className="flex min-h-10 items-center rounded-md border border-amber-600 px-5 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-60"
+                className="flex min-h-10 items-center rounded-md border border-gray-300 px-5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
               >
                 {checkoutLoading === "annual" ? "Redirecting…" : "SGD 59.99 / year · save 50%"}
               </button>
@@ -1051,25 +1053,25 @@ export default function Dashboard() {
 
           {/* Subscription upsell — shown only when there is no active/trialing subscription */}
           {!loading && !isPractitioner && !["active", "trialing", "grandfathered"].includes(subscriptionStatus) && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
-              <p className="text-sm font-semibold text-amber-900">
+            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <p className="text-sm font-semibold text-gray-900">
                 Subscribe to ChopeAndPay
               </p>
-              <p className="mt-1 text-sm text-amber-800">
+              <p className="mt-1 text-sm text-gray-500">
                 Keep tracking lessons, payments, and students with a simple subscription.
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 <button
                   onClick={() => handleSubscribe("monthly")}
                   disabled={checkoutLoading !== null}
-                  className="flex min-h-10 items-center rounded-md bg-amber-600 px-5 text-sm font-medium text-white transition hover:bg-amber-700 disabled:opacity-60"
+                  className="flex min-h-10 items-center rounded-md bg-[#1b2d4f] px-5 text-sm font-medium text-white transition hover:bg-[#15243f] disabled:opacity-60"
                 >
                   {checkoutLoading === "monthly" ? "Redirecting…" : "SGD 9.99 / month"}
                 </button>
                 <button
                   onClick={() => handleSubscribe("annual")}
                   disabled={checkoutLoading !== null}
-                  className="flex min-h-10 items-center rounded-md border border-amber-600 px-5 text-sm font-medium text-amber-700 transition hover:bg-amber-100 disabled:opacity-60"
+                  className="flex min-h-10 items-center rounded-md border border-gray-300 px-5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
                 >
                   {checkoutLoading === "annual" ? "Redirecting…" : "SGD 59.99 / year · save 50%"}
                 </button>
