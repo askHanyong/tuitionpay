@@ -156,6 +156,7 @@ export default function Settings() {
   const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
   const [confirmSwitch, setConfirmSwitch] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
+  const [invoices, setInvoices] = useState([]);
 
   const loadGoogleStatus = async () => {
     const { data } = await supabase
@@ -201,6 +202,16 @@ export default function Settings() {
         .gte("deleted_at", thirtyDaysAgo)
         .order("deleted_at", { ascending: false });
       setDeletedStudents(deleted ?? []);
+
+      if (!isPractitioner) {
+        const { data: invData } = await supabase
+          .from("stripe_invoices")
+          .select("id, amount_paid, currency, hosted_invoice_url, invoice_pdf, period_start, period_end, created_at")
+          .eq("tutor_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(24);
+        setInvoices(invData ?? []);
+      }
 
       // One-time self-service check: a lesson's own rate_type can drift out
       // of sync with its subject's current billing type (e.g. a bug in an
@@ -1332,6 +1343,39 @@ export default function Settings() {
               to subscribe.
             </p>
           )}
+        </section>
+      )}
+
+      {!isPractitioner && invoices.length > 0 && (
+        <section className="space-y-4 rounded-md border border-gray-200 bg-white p-5">
+          <h2 className="text-base font-semibold text-gray-900">Billing history</h2>
+          <ul className="divide-y divide-gray-100">
+            {invoices.map((inv) => {
+              const amount = `SGD ${(inv.amount_paid / 100).toFixed(2)}`;
+              const date = inv.period_start
+                ? new Date(inv.period_start).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" })
+                : new Date(inv.created_at).toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" });
+              const link = inv.hosted_invoice_url ?? inv.invoice_pdf ?? null;
+              return (
+                <li key={inv.id} className="flex items-center justify-between gap-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{amount}</p>
+                    <p className="text-xs text-gray-500">{date}</p>
+                  </div>
+                  {link && (
+                    <a
+                      href={link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-[#0f7a58] hover:underline"
+                    >
+                      View invoice
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </section>
       )}
 

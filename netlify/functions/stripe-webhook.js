@@ -33,6 +33,23 @@ function planFromPriceId(priceId) {
   return null;
 }
 
+async function insertInvoice(supabaseUrl, serviceRoleKey, row) {
+  const res = await fetch(`${supabaseUrl}/rest/v1/stripe_invoices`, {
+    method: "POST",
+    headers: {
+      "apikey": serviceRoleKey,
+      "Authorization": `Bearer ${serviceRoleKey}`,
+      "Content-Type": "application/json",
+      "Prefer": "resolution=merge-duplicates",
+    },
+    body: JSON.stringify(row),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`PostgREST invoice insert failed ${res.status}: ${body}`);
+  }
+}
+
 // Direct PostgREST call — no Supabase client, no WebSocket dependency.
 async function patchTutors(supabaseUrl, serviceRoleKey, filter, patch) {
   const [col, val] = Object.entries(filter)[0];
@@ -171,6 +188,46 @@ export const handler = async (event) => {
           current_period_end:     periodEnd,
           cancel_at_period_end:   sub.cancel_at_period_end ?? false,
         });
+      }
+
+    } else if (type === "invoice.payment_succeeded") {
+      const inv = data.object;
+      // Only store subscription invoices (not one-off charges).
+      if (!inv.subscription) {
+        console.log("stripe-webhook: invoice.payment_succeeded — no subscription, skipping");
+      } else {
+        // Resolve tutor_id via the subscription's metadata, falling back to
+        // a tutors lookup by stripe_customer_id if metadata is absent.
+        let tutorId = inv.subscription_details?.metadata?.tutor_id ?? null;
+        if (!tutorId) {
+          // Fallback: look up by customer ID
+          const lookupRes = await fetch(
+            `${supabaseUrl}/rest/v1/tutors?stripe_customer_id=eq.${encodeURIComponent(inv.customer)}&select=id&limit=1`,
+            {
+              headers: {
+                "apikey": serviceRoleKey,
+                "Authorization": `Bearer ${serviceRoleKey}`,
+              },
+            },
+          );
+          const rows = await lookupRes.json();
+          tutorId = rows?.[0]?.id ?? null;
+        }
+        if (!tutorId) {
+          console.error("stripe-webhook: invoice.payment_succeeded — could not resolve tutor_id for customer", inv.customer);
+        } else {
+          await insertInvoice(supabaseUrl, serviceRoleKey, {
+            tutor_id:           tutorId,
+            stripe_invoice_id:  inv.id,
+            amount_paid:        inv.amount_paid,
+            currency:           inv.currency ?? "sgd",
+            hosted_invoice_url: inv.hosted_invoice_url ?? null,
+            invoice_pdf:        inv.invoice_pdf ?? null,
+            period_start:       inv.period_start ? new Date(inv.period_start * 1000).toISOString() : null,
+            period_end:         inv.period_end   ? new Date(inv.period_end   * 1000).toISOString() : null,
+          });
+          console.log("stripe-webhook: stored invoice", inv.id, "for tutor", tutorId);
+        }
       }
 
     } else if (type === "customer.subscription.deleted") {
