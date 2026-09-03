@@ -321,7 +321,8 @@ export default function Settings() {
       setBillingMismatches([]);
       setShowBillingMismatchDetails(false);
     } catch (err) {
-      showToast(err.message || "Couldn't sync billing types.", "error");
+      console.error("handleSyncBillingTypes:", err.message);
+      showToast("Couldn't sync billing types. Please try again.", "error");
     } finally {
       setSyncingBilling(false);
     }
@@ -336,7 +337,8 @@ export default function Settings() {
       .eq("tutor_id", user.id);
     setRestoringId(null);
     if (error) {
-      showToast(error.message, "error");
+      console.error("handleRestoreStudent:", error.message);
+      showToast("Couldn't restore student. Please try again.", "error");
       return;
     }
     setDeletedStudents((prev) => prev.filter((s) => s.id !== student.id));
@@ -351,8 +353,9 @@ export default function Settings() {
       .update({ [key]: nextValue })
       .eq("id", user.id);
     if (error) {
+      console.error("handleToggleNotification:", error.message);
       setNotifyPrefs((prev) => ({ ...prev, [key]: !nextValue }));
-      showToast(error.message, "error");
+      showToast("Couldn't save notification preferences. Please try again.", "error");
       return;
     }
     showToast("Notification preferences saved.");
@@ -369,7 +372,8 @@ export default function Settings() {
       await loadGoogleStatus();
       showToast("Google Calendar disconnected.");
     } catch (err) {
-      showToast(err.message, "error");
+      console.error("handleDisconnectGoogle:", err.message);
+      showToast("Couldn't disconnect Google Calendar. Please try again.", "error");
     } finally {
       setDisconnecting(false);
     }
@@ -387,7 +391,8 @@ export default function Settings() {
       .insert({ tutor_id: user.id, message: feedbackText.trim() });
     setFeedbackSubmitting(false);
     if (error) {
-      showToast(error.message, "error");
+      console.error("handleFeedbackSubmit:", error.message);
+      showToast("Couldn't send feedback. Please try again.", "error");
       return;
     }
     setFeedbackDone(true);
@@ -404,8 +409,9 @@ export default function Settings() {
       .eq("id", user.id);
     setSaving(false);
     if (error) {
-      setError(error.message);
-      showToast(error.message, "error");
+      console.error("handleSubmit (paynow):", error.message);
+      setError("Couldn't save settings. Please try again.");
+      showToast("Couldn't save settings. Please try again.", "error");
       return;
     }
     showToast("Settings saved.");
