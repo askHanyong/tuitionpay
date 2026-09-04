@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   User,
   Lock,
+  AlertCircle,
 } from "lucide-react";
 
 const PROBLEMS = [
@@ -80,38 +81,46 @@ function PhoneMockup() {
     <div className="hidden flex-none lg:block">
       <div className="w-72 rounded-[2.5rem] border-8 border-gray-900 bg-gray-900 p-2 shadow-2xl">
         <div className="overflow-hidden rounded-[2rem] bg-gray-50">
-          <div className="bg-white px-4 py-3">
-            <p className="text-xs font-semibold text-gray-900">
-              🌿 ChopeAndPay
-            </p>
+          <div className="flex items-center gap-1.5 bg-white px-4 py-3">
+            <span className="inline-flex rounded-md bg-[#edf6f3] p-1">
+              <svg className="h-3 w-3 text-[#1b2d4f]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+              </svg>
+            </span>
+            <p className="text-xs font-semibold text-gray-900">ChopeAndPay</p>
           </div>
           <div className="space-y-3 p-4">
             <div className="rounded-lg bg-[#edf6f3] p-3">
               <p className="text-[10px] font-medium text-gray-500">
-                Today's lessons
+                Today's lesson
               </p>
               <p className="mt-1 text-xs font-semibold text-gray-900">
-                Wei Ming · 3:30pm
+                Marcus · 4:00pm
               </p>
             </div>
             <div className="rounded-lg border border-gray-100 bg-white p-3">
               <p className="text-[10px] font-medium text-gray-500">
-                June recap
+                September recap
               </p>
               <p className="mt-1 text-sm font-bold text-[#0f7a58]">
-                $2,840 collected
+                $3,150 collected
               </p>
             </div>
             <div className="rounded-lg border border-red-100 bg-red-50 p-3">
-              <p className="text-[10px] font-medium text-red-700">
-                ⚠️ Payment due
-              </p>
+              <div className="flex items-center gap-1">
+                <AlertCircle className="h-3 w-3 text-red-600" aria-hidden="true" />
+                <p className="text-[10px] font-medium text-red-700">Payment due</p>
+              </div>
               <p className="mt-1 text-xs text-red-800">
-                Priya — $540, 4 lessons completed
+                Chloe — $360, 3 lessons completed
               </p>
             </div>
             <div className="space-y-2">
-              {["Danial", "Sarah", "Wei Ming"].map((name) => (
+              {[
+                { name: "Marcus", width: "w-3/4" },
+                { name: "Chloe",  width: "w-1/2" },
+                { name: "Reuben", width: "w-1/4" },
+              ].map(({ name, width }) => (
                 <div
                   key={name}
                   className="flex items-center justify-between rounded-lg bg-white px-3 py-2 shadow-sm"
@@ -120,7 +129,7 @@ function PhoneMockup() {
                     {name}
                   </span>
                   <span className="h-1.5 w-16 overflow-hidden rounded-full bg-gray-100">
-                    <span className="block h-full w-2/3 rounded-full bg-[#5ecfaa]" />
+                    <span className={`block h-full ${width} rounded-full bg-[#5ecfaa]`} />
                   </span>
                 </div>
               ))}
