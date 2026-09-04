@@ -181,12 +181,10 @@ export default function Settings() {
     try {
       const { data: codeRow, error: codeErr } = await supabase
         .from("partner_codes")
-        .select("id, code, name, student_limit, active")
+        .select("id, code, partner_name, student_limit, active")
         .eq("code", upper)
         .maybeSingle();
-      // TEMP DEBUG — remove after diagnosis
-      console.log("[partner_codes] upper:", upper, "| codeRow:", codeRow, "| codeErr:", codeErr);
-      if (codeErr || !codeRow?.active) {
+if (codeErr || !codeRow?.active) {
         setPartnerCodeError("Invalid or inactive partner code.");
         return;
       }
@@ -200,7 +198,7 @@ export default function Settings() {
         return;
       }
       setPartnerCodeId(codeRow.id);
-      setPartnerCodeLabel(`${codeRow.code} (${codeRow.name})`);
+      setPartnerCodeLabel(`${codeRow.code} (${codeRow.partner_name})`);
       setPartnerStudentLimit(codeRow.student_limit);
       setPartnerCodeInput("");
       showToast("Partner code updated.");
@@ -231,11 +229,11 @@ export default function Settings() {
         setPartnerCodeId(data.partner_code_id);
         const { data: codeRow } = await supabase
           .from("partner_codes")
-          .select("code, name")
+          .select("code, partner_name")
           .eq("id", data.partner_code_id)
           .single();
         if (codeRow) {
-          setPartnerCodeLabel(`${codeRow.code} (${codeRow.name})`);
+          setPartnerCodeLabel(`${codeRow.code} (${codeRow.partner_name})`);
         }
       }
       if (data) {
