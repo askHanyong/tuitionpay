@@ -7,7 +7,7 @@ const SECTIONS = [
     items: [
       {
         q: "Is ChopeAndPay really free?",
-        a: "Yes, completely free. No credit card needed, no hidden charges. Core features will always remain free.",
+        a: "Yes — free for up to 3 students, no credit card needed. If you outgrow that, plans start from SGD 9.99/month (or SGD 59.99/year, about 50% off).",
       },
       {
         q: "Who built this app?",
@@ -52,11 +52,7 @@ const SECTIONS = [
       },
       {
         q: "Can the developer see my students' names and how much I earn?",
-        a: "No. The developer has committed not to access, view or use any individual tutor data — including student names, hourly rates or earnings. Only anonymous aggregate statistics (like total number of app users) are ever reviewed. Your data is yours alone.",
-      },
-      {
-        q: "How do the rate benchmarks work — can you see what I charge?",
-        a: "No. Rate benchmarks are calculated using anonymous database averages across all tutors teaching the same subject and level. The system only ever sees the average, minimum and maximum — never which tutor charges what. Your individual rate is completely private.",
+        a: "Other tutors can never see your students, rates or earnings — that's enforced at the database level. As the developer, I have the technical ability to access individual accounts for support and bug fixes, but I don't browse or use individual tutor data otherwise.",
       },
     ],
   },
@@ -77,7 +73,7 @@ const SECTIONS = [
       },
       {
         q: "Can I track multiple students?",
-        a: "Yes, as many students as you need. Each student has their own profile, lesson history, payment cycles and progress tracking.",
+        a: "Yes — track up to 3 students free, or unlimited students on a paid plan (from SGD 9.99/month). Each student has their own profile, lesson history, payment cycles and progress tracking.",
       },
       {
         q: "Do I need to download anything?",
