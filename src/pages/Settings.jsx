@@ -184,6 +184,8 @@ export default function Settings() {
         .select("id, code, name, student_limit, active")
         .eq("code", upper)
         .maybeSingle();
+      // TEMP DEBUG — remove after diagnosis
+      console.log("[partner_codes] upper:", upper, "| codeRow:", codeRow, "| codeErr:", codeErr);
       if (codeErr || !codeRow?.active) {
         setPartnerCodeError("Invalid or inactive partner code.");
         return;
