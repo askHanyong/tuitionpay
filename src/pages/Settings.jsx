@@ -1417,7 +1417,7 @@ export default function Settings() {
                 type="text"
                 value={partnerCodeInput}
                 onChange={(e) => { setPartnerCodeInput(e.target.value); setPartnerCodeError(null); }}
-                placeholder={partnerCodeLabel ? "Enter new code to change" : "e.g. WECARE"}
+                placeholder={partnerCodeLabel ? "Enter new code to change" : "e.g. CHOPE"}
                 className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               />
               <button
