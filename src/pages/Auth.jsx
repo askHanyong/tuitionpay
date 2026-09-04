@@ -50,12 +50,12 @@ export default function Auth() {
         let resolvedPartnerStudentLimit = null;
         if (userType === "tutor" && partnerCode.trim()) {
           const upperCode = partnerCode.trim().toUpperCase();
-          const { data: codeRow } = await supabase
+          const { data: codeRow, error: codeErr } = await supabase
             .from("partner_codes")
             .select("id, student_limit, active")
             .eq("code", upperCode)
-            .single();
-          if (!codeRow?.active) {
+            .maybeSingle();
+          if (codeErr || !codeRow?.active) {
             setPartnerCodeError("Invalid or inactive partner code.");
             return;
           }

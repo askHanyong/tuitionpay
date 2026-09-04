@@ -179,12 +179,12 @@ export default function Settings() {
     setPartnerCodeSaving(true);
     setPartnerCodeError(null);
     try {
-      const { data: codeRow } = await supabase
+      const { data: codeRow, error: codeErr } = await supabase
         .from("partner_codes")
         .select("id, code, name, student_limit, active")
         .eq("code", upper)
-        .single();
-      if (!codeRow?.active) {
+        .maybeSingle();
+      if (codeErr || !codeRow?.active) {
         setPartnerCodeError("Invalid or inactive partner code.");
         return;
       }
