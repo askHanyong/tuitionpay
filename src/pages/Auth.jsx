@@ -217,7 +217,7 @@ export default function Auth() {
                       setPartnerCode(e.target.value);
                       setPartnerCodeError(null);
                     }}
-                    placeholder="e.g. WECARE"
+                    placeholder="e.g. CHOPE"
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                   />
                   {partnerCodeError && (
