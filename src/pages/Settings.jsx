@@ -157,6 +157,12 @@ export default function Settings() {
   const [confirmSwitch, setConfirmSwitch] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
   const [invoices, setInvoices] = useState([]);
+  const [partnerCodeId, setPartnerCodeId] = useState(null);
+  const [partnerCodeLabel, setPartnerCodeLabel] = useState(null);
+  const [partnerStudentLimit, setPartnerStudentLimit] = useState(null);
+  const [partnerCodeInput, setPartnerCodeInput] = useState("");
+  const [partnerCodeSaving, setPartnerCodeSaving] = useState(false);
+  const [partnerCodeError, setPartnerCodeError] = useState(null);
 
   const loadGoogleStatus = async () => {
     const { data } = await supabase
@@ -167,12 +173,46 @@ export default function Settings() {
     setGoogleTutor(data ?? null);
   };
 
+  const handleSavePartnerCode = async () => {
+    const upper = partnerCodeInput.trim().toUpperCase();
+    if (!upper) return;
+    setPartnerCodeSaving(true);
+    setPartnerCodeError(null);
+    try {
+      const { data: codeRow } = await supabase
+        .from("partner_codes")
+        .select("id, code, name, student_limit, active")
+        .eq("code", upper)
+        .single();
+      if (!codeRow?.active) {
+        setPartnerCodeError("Invalid or inactive partner code.");
+        return;
+      }
+      const { error: updateErr } = await supabase
+        .from("tutors")
+        .update({ partner_code_id: codeRow.id, partner_student_limit: codeRow.student_limit })
+        .eq("id", user.id);
+      if (updateErr) {
+        console.error("Partner code update failed:", updateErr.message, updateErr);
+        setPartnerCodeError("Something went wrong. Please try again.");
+        return;
+      }
+      setPartnerCodeId(codeRow.id);
+      setPartnerCodeLabel(`${codeRow.code} (${codeRow.name})`);
+      setPartnerStudentLimit(codeRow.student_limit);
+      setPartnerCodeInput("");
+      showToast("Partner code updated.");
+    } finally {
+      setPartnerCodeSaving(false);
+    }
+  };
+
   useEffect(() => {
     const load = async () => {
       const { data, error } = await supabase
         .from("tutors")
         .select(
-          "paynow_number, google_calendar_tokens, notify_lesson_reminders, notify_payment_due, notify_weekly_summary, subscription_status, subscription_plan, stripe_subscription_id, current_period_end, cancel_at_period_end",
+          "paynow_number, google_calendar_tokens, notify_lesson_reminders, notify_payment_due, notify_weekly_summary, subscription_status, subscription_plan, stripe_subscription_id, current_period_end, cancel_at_period_end, partner_code_id, partner_student_limit",
         )
         .eq("id", user.id)
         .single();
@@ -184,6 +224,18 @@ export default function Settings() {
       setSubscriptionId(data?.stripe_subscription_id ?? null);
       setPeriodEnd(data?.current_period_end ?? null);
       setCancelAtPeriodEnd(data?.cancel_at_period_end ?? false);
+      setPartnerStudentLimit(data?.partner_student_limit ?? null);
+      if (data?.partner_code_id) {
+        setPartnerCodeId(data.partner_code_id);
+        const { data: codeRow } = await supabase
+          .from("partner_codes")
+          .select("code, name")
+          .eq("id", data.partner_code_id)
+          .single();
+        if (codeRow) {
+          setPartnerCodeLabel(`${codeRow.code} (${codeRow.name})`);
+        }
+      }
       if (data) {
         setNotifyPrefs({
           notify_lesson_reminders: data.notify_lesson_reminders,
@@ -1349,6 +1401,38 @@ export default function Settings() {
               to subscribe.
             </p>
           )}
+
+          <div className="border-t border-gray-100 pt-4 space-y-2">
+            <p className="text-sm font-medium text-gray-700">Partner code</p>
+            {partnerCodeLabel && (
+              <p className="text-sm text-gray-600">
+                Current: <span className="font-medium">{partnerCodeLabel}</span>
+                {partnerStudentLimit != null && (
+                  <span className="text-gray-400"> · {partnerStudentLimit} free student slots</span>
+                )}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={partnerCodeInput}
+                onChange={(e) => { setPartnerCodeInput(e.target.value); setPartnerCodeError(null); }}
+                placeholder={partnerCodeLabel ? "Enter new code to change" : "e.g. WECARE"}
+                className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+              />
+              <button
+                type="button"
+                onClick={handleSavePartnerCode}
+                disabled={partnerCodeSaving || !partnerCodeInput.trim()}
+                className="min-h-10 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#243d6b] disabled:opacity-60"
+              >
+                {partnerCodeSaving ? "Saving…" : "Apply"}
+              </button>
+            </div>
+            {partnerCodeError && (
+              <p className="text-xs text-red-600">{partnerCodeError}</p>
+            )}
+          </div>
         </section>
       )}
 

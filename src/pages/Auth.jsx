@@ -15,6 +15,8 @@ export default function Auth() {
   const [error, setError] = useState(null);
   const [info, setInfo] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [partnerCode, setPartnerCode] = useState("");
+  const [partnerCodeError, setPartnerCodeError] = useState(null);
 
   // True while a signup flow is in progress. Navigation to /dashboard is
   // only allowed via explicit navigate() calls — never from a session change
@@ -42,6 +44,23 @@ export default function Auth() {
         if (!userType) {
           setError("Please select whether you're a tutor or a practitioner.");
           return;
+        }
+
+        let resolvedPartnerCodeId = null;
+        let resolvedPartnerStudentLimit = null;
+        if (userType === "tutor" && partnerCode.trim()) {
+          const upperCode = partnerCode.trim().toUpperCase();
+          const { data: codeRow } = await supabase
+            .from("partner_codes")
+            .select("id, student_limit, active")
+            .eq("code", upperCode)
+            .single();
+          if (!codeRow?.active) {
+            setPartnerCodeError("Invalid or inactive partner code.");
+            return;
+          }
+          resolvedPartnerCodeId = codeRow.id;
+          resolvedPartnerStudentLimit = codeRow.student_limit;
         }
 
         setSignupInProgress(true);
@@ -75,9 +94,14 @@ export default function Auth() {
           // Email confirmation is disabled — user is signed in immediately.
           if (uid) {
             await new Promise((r) => setTimeout(r, 800));
+            const upsertPayload = { id: uid, user_type: userType };
+            if (resolvedPartnerCodeId) {
+              upsertPayload.partner_code_id = resolvedPartnerCodeId;
+              upsertPayload.partner_student_limit = resolvedPartnerStudentLimit;
+            }
             const { error: upsertError } = await supabase
               .from("tutors")
-              .upsert({ id: uid, user_type: userType }, { onConflict: "id" });
+              .upsert(upsertPayload, { onConflict: "id" });
             if (upsertError) {
               // Non-fatal: user_type is already in auth metadata as fallback.
               console.error("user_type upsert failed:", upsertError.message, upsertError);
@@ -179,6 +203,28 @@ export default function Auth() {
                   ))}
                 </div>
               </div>
+
+              {userType === "tutor" && (
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Partner code{" "}
+                    <span className="font-normal text-gray-400">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={partnerCode}
+                    onChange={(e) => {
+                      setPartnerCode(e.target.value);
+                      setPartnerCodeError(null);
+                    }}
+                    placeholder="e.g. WECARE"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                  />
+                  {partnerCodeError && (
+                    <p className="mt-1 text-xs text-red-600">{partnerCodeError}</p>
+                  )}
+                </div>
+              )}
             </>
           )}
 
