@@ -1,30 +1,42 @@
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import {
+  MessageCircle,
+  Grid3x3,
+  ListChecks,
+  CalendarCheck,
+  Wallet,
+  MessageSquare,
+  TrendingUp,
+  ShieldCheck,
+  User,
+  Lock,
+} from "lucide-react";
 
 const PROBLEMS = [
-  { emoji: "📱", text: "Chasing payments over WhatsApp" },
-  { emoji: "📊", text: "Tracking lessons in Excel spreadsheets" },
-  { emoji: "😰", text: "Forgetting which students haven't paid you" },
+  { Icon: MessageCircle, text: "Chasing payments over WhatsApp" },
+  { Icon: Grid3x3,       text: "Tracking lessons in Excel spreadsheets" },
+  { Icon: ListChecks,    text: "Forgetting which students haven't paid you" },
 ];
 
 const FEATURES = [
   {
-    emoji: "📅",
+    Icon: CalendarCheck,
     title: "Schedule recurring lessons",
     description: "Set it once, never forget.",
   },
   {
-    emoji: "💰",
+    Icon: Wallet,
     title: "Track payments automatically",
     description: "Know exactly which lesson and when payment is due.",
   },
   {
-    emoji: "📲",
+    Icon: MessageSquare,
     title: "Send WhatsApp receipts",
     description: "Professional payment confirmations in one tap.",
   },
   {
-    emoji: "📊",
+    Icon: TrendingUp,
     title: "Monthly earnings reports",
     description: "See your income at a glance.",
   },
@@ -32,19 +44,16 @@ const FEATURES = [
 
 const TRUST_POINTS = [
   {
-    title: "👤 Only you can see your data",
+    Icon: User,
+    title: "Only you can see your data",
     description:
-      "Your students, rates and earnings are visible only to you. Not even the developer can access your individual data.",
+      "Other tutors can never see your students, rates or earnings — enforced at the database level. As the developer, I have access for support and bug fixes, but I don't view individual accounts without reason.",
   },
   {
-    title: "🔐 Bank-level encryption",
+    Icon: Lock,
+    title: "Bank-level encryption",
     description:
       "All data is encrypted in transit and at rest on Supabase (AWS infrastructure).",
-  },
-  {
-    title: "📊 Anonymous benchmarks only",
-    description:
-      "Rate benchmarks are calculated from anonymised averages only. No individual data is ever shared or viewed.",
   },
 ];
 
@@ -203,7 +212,9 @@ export default function Landing() {
                 key={p.text}
                 className="rounded-xl border border-gray-100 bg-white p-6 text-center shadow-sm"
               >
-                <p className="text-4xl">{p.emoji}</p>
+                <span className="inline-flex rounded-xl bg-[#edf6f3] p-2.5">
+                  <p.Icon className="h-6 w-6 text-[#1b2d4f]" aria-hidden="true" />
+                </span>
                 <p className="mt-4 text-sm font-medium text-gray-800">
                   {p.text}
                 </p>
@@ -224,7 +235,9 @@ export default function Landing() {
                 key={f.title}
                 className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm transition hover:shadow-md"
               >
-                <p className="text-3xl">{f.emoji}</p>
+                <span className="inline-flex rounded-xl bg-[#edf6f3] p-2.5">
+                  <f.Icon className="h-6 w-6 text-[#1b2d4f]" aria-hidden="true" />
+                </span>
                 <h3 className="mt-3 text-sm font-semibold text-gray-900">
                   {f.title}
                 </h3>
@@ -260,9 +273,9 @@ export default function Landing() {
       <section className="py-16 sm:py-20">
         <div className="mx-auto max-w-xl px-4 text-center sm:px-6">
           <div className="rounded-2xl border border-[#b8e8d9] bg-[#edf6f3] p-8 shadow-sm">
-            <h2 className="text-2xl font-bold text-gray-900">Free forever</h2>
+            <h2 className="text-2xl font-bold text-gray-900">Start free</h2>
             <p className="mt-2 text-sm text-gray-700">
-              No credit card needed. Built for Singapore tutors.
+              No credit card needed. Free for up to 3 students — upgrade anytime.
             </p>
             <Link
               to="/login?mode=signup"
@@ -276,16 +289,22 @@ export default function Landing() {
 
       <section className="bg-gray-50 py-16 sm:py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <h2 className="text-center text-2xl font-bold text-gray-900 sm:text-3xl">
-            <span aria-hidden="true">🔒</span> Your data is private
+          <h2 className="flex items-center justify-center gap-3 text-2xl font-bold text-gray-900 sm:text-3xl">
+            <span className="inline-flex rounded-xl bg-[#edf6f3] p-2.5">
+              <ShieldCheck className="h-6 w-6 text-[#1b2d4f]" aria-hidden="true" />
+            </span>
+            Your data is private
           </h2>
-          <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
+          <div className="mx-auto mt-10 grid max-w-2xl grid-cols-1 gap-6 sm:grid-cols-2">
             {TRUST_POINTS.map((t) => (
               <div
                 key={t.title}
                 className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm"
               >
-                <p className="text-sm font-semibold text-gray-900">{t.title}</p>
+                <span className="inline-flex rounded-xl bg-[#edf6f3] p-2.5">
+                  <t.Icon className="h-6 w-6 text-[#1b2d4f]" aria-hidden="true" />
+                </span>
+                <p className="mt-3 text-sm font-semibold text-gray-900">{t.title}</p>
                 <p className="mt-2 text-sm text-gray-600">{t.description}</p>
               </div>
             ))}
