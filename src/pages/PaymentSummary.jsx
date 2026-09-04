@@ -25,7 +25,8 @@ export default function PaymentSummary() {
         p_token: token,
       });
       if (error) {
-        setError(error.message);
+        console.error("get_payment_summary RPC error:", error);
+        setError("We're having trouble loading this payment summary right now. Please ask your tutor to resend the link, or try again in a moment.");
       } else if (!data) {
         setError("not_found");
       } else {
