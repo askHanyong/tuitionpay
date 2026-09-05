@@ -41,15 +41,12 @@ function formatDayLabel(dateStr) {
 // Update this in one place to ship a new "What's new" banner -- bumping
 // the id makes it reappear for everyone even if they dismissed a past one.
 const ANNOUNCEMENT = {
-  id: "whats-new-2026-07-06",
-  headline: "What's new in ChopeAndPay ✨",
+  id: "whats-new-2026-09-05",
+  headline: "What's New in ChopeAndPay",
   bullets: [
-    "🌐 Online or face-to-face — mark lessons as online or in-person; online lessons automatically generate a Google Meet link",
-    "✨ AI lesson summaries — turn your rough lesson notes into a clean, parent-friendly summary with one tap",
-    "💰 Smarter monthly recap — see your projected earnings for the month based on your full lesson schedule, regardless of payment cycle",
-    "💬 We'd love your feedback — reach us anytime via the floating feedback button (WhatsApp or email)",
-    "📅 More reliable calendar sync — smoother syncing when editing lessons or scheduling in bulk",
-    "🔜 Coming up — Sync to Google Calendar (currently in review with Google, opening to all users soon!)",
+    "📅 Google Calendar sync is now fully live — no more waitlist! Connect your calendar from Settings and see automatic conflict alerts when scheduling lessons.",
+    "💰 Billing accuracy improvements — fixed a few edge cases in how per-session vs. hourly rates were calculated, so your payment amounts are now always spot-on.",
+    "🧾 Billing history — subscribers can now view and download past invoices right from Settings.",
   ],
 };
 
