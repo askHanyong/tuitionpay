@@ -25,7 +25,13 @@ returns json as $$
                           s.subject
                         ),
     'tutor_first_name', split_part(t.full_name, ' ', 1),
-    -- Branch: agency-collected vs tutor-collected
+    -- Branch: agency-collected vs tutor-collected.
+    -- NOTE (migration 037, DEFERRED): for handoff_after_n placements, this
+    -- should also check whether the completed-lesson count has reached
+    -- agency_placements.handoff_after_lessons and fall through to
+    -- t.paynow_number when the threshold is crossed. Deferred until a live
+    -- handoff-mode placement exists to test the edge case (lesson crossing N
+    -- mid-billing-cycle, timing relative to payment_cycles) against real data.
     'paynow_number',    case
                           when s.agency_placement_id is not null
                             then a.paynow_number
