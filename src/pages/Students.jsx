@@ -204,6 +204,7 @@ export default function Students() {
   const [companies, setCompanies] = useState([]);
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const [partnerStudentLimit, setPartnerStudentLimit] = useState(null);
+  const [agencyByStudent, setAgencyByStudent] = useState({});
 
   const freeTierLimit = partnerStudentLimit ?? 3;
   const isFreeTier = !["active", "trialing", "grandfathered"].includes(subscriptionStatus);
@@ -337,6 +338,24 @@ export default function Students() {
     setLoading(false);
     loadSortSupportData(data ?? []);
     loadSubjectsByStudent();
+    loadAgencyPlacements(data ?? []);
+  };
+
+  const loadAgencyPlacements = async (studentsList) => {
+    if (!studentsList.length) return;
+    const studentIds = studentsList.map((s) => s.id);
+    const { data: placements } = await supabase
+      .from("agency_placements")
+      .select("student_id, agency_id, agencies(name)")
+      .eq("tutor_id", user.id)
+      .is("ended_at", null)
+      .in("student_id", studentIds);
+    if (!placements) return;
+    const map = {};
+    for (const p of placements) {
+      map[p.student_id] = p.agencies?.name ?? null;
+    }
+    setAgencyByStudent(map);
   };
 
   const progressFor = (student) => {
@@ -1270,6 +1289,11 @@ export default function Students() {
                             {companies.find((c) => c.id === s.company_id)?.name ?? "—"}
                           </p>
                         )}
+                        {!isPractitioner && agencyByStudent[s.id] && (
+                          <p className="text-xs text-[#0f7a58]">
+                            Managed by {agencyByStudent[s.id]}
+                          </p>
+                        )}
                       </div>
                       {!isPractitioner && (
                         <span className="text-sm text-gray-700">
@@ -1375,6 +1399,11 @@ export default function Students() {
                               {isPractitioner && (
                                 <p className="text-xs text-gray-500">
                                   {companies.find((c) => c.id === s.company_id)?.name ?? "—"}
+                                </p>
+                              )}
+                              {!isPractitioner && agencyByStudent[s.id] && (
+                                <p className="text-xs text-[#0f7a58]">
+                                  Managed by {agencyByStudent[s.id]}
                                 </p>
                               )}
                             </div>
