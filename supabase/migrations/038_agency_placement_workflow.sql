@@ -112,6 +112,12 @@ ALTER TABLE agency_placements
 ALTER TABLE agency_placements
   ADD COLUMN IF NOT EXISTS ended_with_unsettled_ledger boolean NOT NULL DEFAULT false;
 
+-- Backfill existing rows: any placement with ended_at IS NULL was active
+-- under the old ended_at-based logic and should be 'active', not the new
+-- column default 'pending_agency_review'. Must run before the trigger is
+-- created so it is a plain UPDATE, not subject to state-machine validation.
+UPDATE agency_placements SET status = 'active' WHERE ended_at IS NULL;
+
 
 -- ------------------------------------------------------------
 -- 4. State-machine trigger (BEFORE UPDATE)
@@ -212,33 +218,26 @@ BEGIN
     END CASE;
   END IF;
 
-  -- On 'ended': auto-fill ended_by and ended_at; flag unsettled ledger.
+  -- On 'ended': forcibly set ended_by and ended_at (always authoritative,
+  -- never caller-supplied) and flag unsettled ledger entries.
   -- Ending is allowed to proceed even with unsettled entries — the flag
   -- is informational, not a blocker.
   IF NEW.status = 'ended' AND OLD.status IS DISTINCT FROM 'ended' THEN
-    IF NEW.ended_by IS NULL THEN
-      NEW.ended_by := CASE WHEN v_is_agency_owner THEN 'agency' ELSE 'tutor' END;
-    END IF;
-    IF NEW.ended_at IS NULL THEN
-      NEW.ended_at := now();
-    END IF;
+    NEW.ended_by := CASE WHEN v_is_agency_owner THEN 'agency' ELSE 'tutor' END;
+    NEW.ended_at := now();
     SELECT EXISTS (
       SELECT 1 FROM agency_ledger_entries
       WHERE placement_id = NEW.id AND status != 'settled'
     ) INTO NEW.ended_with_unsettled_ledger;
   END IF;
 
-  -- On 'declined': auto-fill ended_at (frees the unique index slot for a
-  -- fresh request) and ended_by (records which party declined, consistent
-  -- with the transition CASE above which already validated who is allowed
-  -- to decline at each step).
+  -- On 'declined': forcibly set ended_at (frees the unique index slot for
+  -- a fresh request) and ended_by (audit trail; consistent with the
+  -- transition CASE above which already validated who is allowed to decline
+  -- at each step). Both are always authoritative, never caller-supplied.
   IF NEW.status = 'declined' AND OLD.status IS DISTINCT FROM 'declined' THEN
-    IF NEW.ended_at IS NULL THEN
-      NEW.ended_at := now();
-    END IF;
-    IF NEW.ended_by IS NULL THEN
-      NEW.ended_by := CASE WHEN v_is_agency_owner THEN 'agency' ELSE 'tutor' END;
-    END IF;
+    NEW.ended_at := now();
+    NEW.ended_by := CASE WHEN v_is_agency_owner THEN 'agency' ELSE 'tutor' END;
   END IF;
 
   RETURN NEW;
