@@ -120,23 +120,31 @@ UPDATE agency_placements SET status = 'active' WHERE ended_at IS NULL;
 
 
 -- ------------------------------------------------------------
--- 4. State-machine trigger (BEFORE UPDATE)
+-- 4. State-machine trigger (BEFORE INSERT and BEFORE UPDATE)
 --
--- Single trigger consolidating:
---   (a) Status transition validation with caller-role enforcement
---   (b) Commission field write restriction
---   (c) Auto-fill of ended_by, ended_at, ended_with_unsettled_ledger
---       on terminal transitions
+-- A single function handles both events, branching on TG_OP:
+--
+-- On INSERT:
+--   (a) Forcibly reset commission fields to table defaults so a
+--       tutor's initial placement request cannot pre-set terms
+--       that only the agency is allowed to propose.
+--
+-- On UPDATE:
+--   (a) Block changes to agency_id, student_id, tutor_id (immutable
+--       after creation)
+--   (b) Status transition validation with caller-role enforcement
+--   (c) Commission field write restriction
+--   (d) Forcibly set ended_by, ended_at, ended_with_unsettled_ledger
+--       on terminal transitions (always authoritative, never caller-supplied)
 --
 -- SECURITY DEFINER is required so the function can query agencies
 -- to identify the caller's role. auth.uid() resolves from JWT
 -- claims and works correctly inside SECURITY DEFINER in Supabase.
 --
--- v_is_agency_owner and v_is_tutor are computed once at the top
--- against OLD.agency_id / OLD.tutor_id, which are immutable on a
--- placement row. Both variables are accurate in all transition paths,
--- including both decline paths (agency at pending_agency_review,
--- tutor at pending_tutor_confirmation).
+-- v_is_agency_owner and v_is_tutor are computed against
+-- OLD.agency_id / OLD.tutor_id on UPDATE, which are immutable
+-- (enforced by this trigger). Both are accurate in all transition
+-- paths, including both decline paths.
 -- ------------------------------------------------------------
 CREATE OR REPLACE FUNCTION trg_fn_placement_state_machine()
 RETURNS trigger
@@ -148,6 +156,30 @@ DECLARE
   v_is_tutor           boolean;
   v_commission_changed boolean;
 BEGIN
+
+  -- ── INSERT path ─────────────────────────────────────────────
+  -- Forcibly reset commission fields to defaults so the tutor's
+  -- initial request cannot pre-set terms the agency has not agreed to.
+  -- The agency sets real terms during the proposal transition (UPDATE).
+  IF TG_OP = 'INSERT' THEN
+    NEW.commission_mode        := 'ongoing';
+    NEW.commission_rate        := 0.10;
+    NEW.handoff_after_lessons  := NULL;
+    RETURN NEW;
+  END IF;
+
+  -- ── UPDATE path ─────────────────────────────────────────────
+
+  -- Immutability: agency_id, student_id, and tutor_id cannot change
+  -- after creation. Checked first so subsequent logic can trust OLD values.
+  IF NEW.agency_id   IS DISTINCT FROM OLD.agency_id  OR
+     NEW.student_id  IS DISTINCT FROM OLD.student_id OR
+     NEW.tutor_id    IS DISTINCT FROM OLD.tutor_id   THEN
+    RAISE EXCEPTION
+      'agency_id, student_id, and tutor_id cannot be changed after a '
+      'placement is created. Create a fresh placement request instead.';
+  END IF;
+
   -- Identify caller role against the specific placement being updated.
   SELECT EXISTS (
     SELECT 1 FROM agencies
@@ -244,7 +276,12 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER trg_placement_state_machine
+CREATE TRIGGER trg_placement_state_machine_insert
+  BEFORE INSERT ON agency_placements
+  FOR EACH ROW
+  EXECUTE FUNCTION trg_fn_placement_state_machine();
+
+CREATE TRIGGER trg_placement_state_machine_update
   BEFORE UPDATE ON agency_placements
   FOR EACH ROW
   EXECUTE FUNCTION trg_fn_placement_state_machine();
