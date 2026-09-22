@@ -98,7 +98,7 @@ export default function Payments() {
     // so no payment_cycles row exists for them at all. Compute that directly
     // from lessons rather than relying on payment_cycles, since that table
     // only gets a row once the whole cycle has landed.
-    const students = (studentsData ?? []).filter((s) => !s.archived);
+    const students = (studentsData ?? []).filter((s) => !s.archived && !s.deleted_at);
     const pendingStudentIds = new Set(
       activeCycles
         .filter((c) => c.status === "pending")
