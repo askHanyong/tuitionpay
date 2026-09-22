@@ -39,6 +39,9 @@ export default function StudentProfile() {
   const [preview, setPreview] = useState(null);
   const [reporting, setReporting] = useState(false);
   const [primarySubject, setPrimarySubject] = useState(null);
+  const [billNowOpen, setBillNowOpen] = useState(false);
+  const [billNowLoading, setBillNowLoading] = useState(false);
+  const [billNowError, setBillNowError] = useState(null);
 
   const handleArchive = async () => {
     if (
@@ -173,6 +176,10 @@ export default function StudentProfile() {
   const completedLessons = lessons.filter((l) => l.is_completed);
   const openLessons = completedLessons.filter((l) => !l.payment_cycle_id);
   const openCount = openLessons.length;
+  const canBillNow =
+    (student?.payment_mode === "lessons" ||
+      student?.payment_mode === "per_lesson") &&
+    openLessons.length > 0;
   const cycleCount = student?.payment_cycle_count ?? 4;
   const currentCycleProgress = `${terms.lesson} ${Math.min(openCount, cycleCount)} of ${cycleCount}`;
   const lessonsThisMonth = useMemo(() => {
@@ -253,6 +260,40 @@ export default function StudentProfile() {
       tutorName: tutorProfile.full_name,
     });
     setPreview({ title: "Payment receipt", message, mode: "whatsapp" });
+  };
+
+  const handleBillNow = async () => {
+    setBillNowLoading(true);
+    setBillNowError(null);
+    const { error } = await supabase.rpc("create_manual_closeout_cycle", {
+      p_student_id: student.id,
+    });
+    setBillNowLoading(false);
+    if (error) {
+      setBillNowError(error.message);
+      return;
+    }
+    setBillNowOpen(false);
+    await load();
+    showToast("Billing cycle created.");
+  };
+
+  const handleUndoCycle = async (cycleId) => {
+    if (
+      !window.confirm(
+        "Undo this cycle? The lessons will return to normal billing.",
+      )
+    )
+      return;
+    const { error } = await supabase.rpc("delete_manual_closeout_cycle", {
+      p_cycle_id: cycleId,
+    });
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    await load();
+    showToast("Cycle undone.");
   };
 
   const handleSaveNote = async (lessonId) => {
@@ -532,9 +573,22 @@ export default function StudentProfile() {
       </section>
 
       <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-        <h2 className="mb-4 text-base font-semibold text-gray-900">
-          Payment history
-        </h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-gray-900">
+            Payment history
+          </h2>
+          {canBillNow && (
+            <button
+              onClick={() => {
+                setBillNowError(null);
+                setBillNowOpen(true);
+              }}
+              className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f]"
+            >
+              Bill now
+            </button>
+          )}
+        </div>
         {cycles.length === 0 ? (
           <p className="text-sm text-gray-500">No payment cycles yet.</p>
         ) : (
@@ -551,6 +605,11 @@ export default function StudentProfile() {
                     {formatDate(c.period_start)} – {formatDate(c.period_end)}
                   </span>
                   <span className="flex items-center gap-2">
+                    {c.is_manual_closeout && (
+                      <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
+                        Final cycle
+                      </span>
+                    )}
                     <span className="text-sm font-semibold text-gray-900">
                       {formatSGD(c.amount_due)}
                     </span>
@@ -562,26 +621,103 @@ export default function StudentProfile() {
                     Paid on {formatDate(c.paid_at)}
                   </p>
                 )}
-                {c.status === "paid" ? (
-                  <button
-                    onClick={() => handleSendReceipt(c)}
-                    className="mt-2 min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
-                  >
-                    💬 Send WhatsApp Receipt
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleRequestPayment(c)}
-                    className="mt-2 min-h-11 rounded-md bg-orange-500 px-3 text-xs font-medium text-white transition hover:bg-orange-600 hover:shadow"
-                  >
-                    💬 Request Payment
-                  </button>
-                )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {c.status === "paid" ? (
+                    <button
+                      onClick={() => handleSendReceipt(c)}
+                      className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
+                    >
+                      💬 Send WhatsApp Receipt
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleRequestPayment(c)}
+                      className="min-h-11 rounded-md bg-orange-500 px-3 text-xs font-medium text-white transition hover:bg-orange-600 hover:shadow"
+                    >
+                      💬 Request Payment
+                    </button>
+                  )}
+                  {c.is_manual_closeout && c.status === "pending" && (
+                    <button
+                      onClick={() => handleUndoCycle(c.id)}
+                      className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
+                    >
+                      Undo
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ol>
         )}
       </section>
+
+      {billNowOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h3 className="mb-3 text-base font-semibold text-gray-900">
+              Bill now —{" "}
+              {openLessons.length === 1
+                ? `1 ${terms.lesson.toLowerCase()}`
+                : `${openLessons.length} ${terms.lessons.toLowerCase()}`}
+            </h3>
+            <p className="mb-3 text-sm text-gray-600">
+              Creates a final billing cycle for all completed unbilled{" "}
+              {terms.lessons.toLowerCase()}.
+            </p>
+            <ol className="mb-3 space-y-1 rounded-md bg-gray-50 p-3 text-sm text-gray-700">
+              {[...openLessons]
+                .sort((a, b) =>
+                  a.lesson_date < b.lesson_date
+                    ? -1
+                    : a.lesson_date > b.lesson_date
+                      ? 1
+                      : 0,
+                )
+                .map((l) => (
+                  <li key={l.id} className="flex justify-between">
+                    <span>{formatDate(l.lesson_date)}</span>
+                    <span className="font-medium">
+                      {formatSGD(lessonAmount(l, student))}
+                    </span>
+                  </li>
+                ))}
+            </ol>
+            <div className="mb-4 flex justify-between border-t border-gray-200 pt-2 text-sm font-semibold text-gray-900">
+              <span>Total</span>
+              <span>
+                {formatSGD(
+                  openLessons.reduce(
+                    (sum, l) => sum + lessonAmount(l, student),
+                    0,
+                  ),
+                )}
+              </span>
+            </div>
+            {billNowError && (
+              <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+                {billNowError}
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setBillNowOpen(false)}
+                disabled={billNowLoading}
+                className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBillNow}
+                disabled={billNowLoading}
+                className="min-h-11 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] disabled:opacity-50"
+              >
+                {billNowLoading ? "Creating..." : "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {scheduling && (
         <ScheduleLessonsModal

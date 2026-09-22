@@ -26,6 +26,7 @@ export default function Payments() {
   const terms = useTerms();
   const isPractitioner = user?.user_metadata?.user_type === "practitioner";
   const [cycles, setCycles] = useState([]);
+  const [undoingCycleId, setUndoingCycleId] = useState(null);
   const [practitionerCompanies, setPractitionerCompanies] = useState([]);
   const [lessonDatesByCycle, setLessonDatesByCycle] = useState({});
   const [tutorProfile, setTutorProfile] = useState({});
@@ -377,6 +378,27 @@ export default function Payments() {
     });
   };
 
+  const handleUndoCycle = async (cycleId) => {
+    if (
+      !window.confirm(
+        "Undo this cycle? The lessons will return to normal billing.",
+      )
+    )
+      return;
+    setUndoingCycleId(cycleId);
+    const { error } = await supabase.rpc("delete_manual_closeout_cycle", {
+      p_cycle_id: cycleId,
+    });
+    setUndoingCycleId(null);
+    if (error) {
+      setError(error.message);
+      showToast(error.message, "error");
+      return;
+    }
+    await load();
+    showToast("Cycle undone.");
+  };
+
   const handleSendReceipt = (cycle) => {
     const message = buildPaidReceiptMessage({
       studentName: cycle.students?.name,
@@ -529,6 +551,11 @@ export default function Payments() {
                   <span className="flex items-center gap-2 font-medium text-gray-900">
                     {c.students?.name}
                     <StatusBadge status={c.status} />
+                    {c.is_manual_closeout && (
+                      <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
+                        Final cycle
+                      </span>
+                    )}
                   </span>
                   <span className="font-semibold text-gray-900">
                     {formatSGD(c.amount_due)}
@@ -544,7 +571,7 @@ export default function Payments() {
                   {c.students?.guardian_contact &&
                     ` · Contact: ${c.students.guardian_contact}`}
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => handleMarkPaid(c.id)}
                     className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
@@ -557,6 +584,15 @@ export default function Payments() {
                   >
                     💬 Request Payment
                   </button>
+                  {c.is_manual_closeout && (
+                    <button
+                      onClick={() => handleUndoCycle(c.id)}
+                      disabled={undoingCycleId === c.id}
+                      className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+                    >
+                      {undoingCycleId === c.id ? "Undoing..." : "Undo"}
+                    </button>
+                  )}
                 </div>
               </li>
             ))}
@@ -625,7 +661,14 @@ export default function Payments() {
                         </p>
                       )}
                     </div>
-                    <StatusBadge status={c.status} />
+                    <div className="flex items-center gap-2">
+                      {c.is_manual_closeout && (
+                        <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
+                          Final cycle
+                        </span>
+                      )}
+                      <StatusBadge status={c.status} />
+                    </div>
                   </div>
                   <p className="text-sm text-gray-600">
                     {formatDate(c.period_start)} – {formatDate(c.period_end)} ·{" "}
@@ -672,7 +715,14 @@ export default function Payments() {
                         {formatSGD(c.amount_due)}
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={c.status} />
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={c.status} />
+                          {c.is_manual_closeout && (
+                            <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
+                              Final cycle
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right">
                         {c.status === "paid" && (
