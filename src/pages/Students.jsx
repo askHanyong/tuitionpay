@@ -200,6 +200,7 @@ export default function Students() {
   const [lastLessonByStudent, setLastLessonByStudent] = useState({});
   const [paymentStatusByStudent, setPaymentStatusByStudent] = useState({});
   const [view, setView] = useState("active");
+  const [attentionFilter, setAttentionFilter] = useState("needs_attention");
   const [undoDelete, setUndoDelete] = useState(null); // { id, name, timer }
   const [companies, setCompanies] = useState([]);
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
@@ -754,7 +755,14 @@ export default function Students() {
       )
     : viewStudents;
 
-  const sortedStudents = [...filteredStudents].sort((a, b) => {
+  const displayStudents =
+    !normalizedSearch && attentionFilter === "needs_attention" && view === "active"
+      ? filteredStudents.filter(
+          (s) => (paymentStatusByStudent[s.id]?.tier ?? "grey") !== "green",
+        )
+      : filteredStudents;
+
+  const sortedStudents = [...displayStudents].sort((a, b) => {
     switch (sortBy) {
       case "name_asc":
         return a.name.localeCompare(b.name);
@@ -1202,6 +1210,33 @@ export default function Students() {
             Archived ({archivedCount})
           </button>
         </div>
+
+        {view === "active" && (
+          <div className="mb-4 flex gap-1 rounded-lg bg-gray-100 p-1 w-fit">
+            <button
+              type="button"
+              onClick={() => setAttentionFilter("needs_attention")}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                attentionFilter === "needs_attention"
+                  ? "bg-white text-[#1b2d4f] shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Needs attention
+            </button>
+            <button
+              type="button"
+              onClick={() => setAttentionFilter("all")}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                attentionFilter === "all"
+                  ? "bg-white text-[#1b2d4f] shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              All
+            </button>
+          </div>
+        )}
 
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
