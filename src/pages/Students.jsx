@@ -340,6 +340,7 @@ export default function Students() {
     loadSortSupportData(data ?? []);
     loadSubjectsByStudent();
     loadAgencyPlacements(data ?? []);
+    return data ?? [];
   };
 
   const loadAgencyPlacements = async (studentsList) => {
@@ -455,25 +456,16 @@ export default function Students() {
 
   useEffect(() => {
     const load = async () => {
-      const [{ data, error }, { data: tutorData }] = await Promise.all([
-        supabase
-          .from("students")
-          .select("*")
-          .eq("tutor_id", user.id)
-          .order("created_at", { ascending: false }),
+      const [studentData, { data: tutorData }] = await Promise.all([
+        loadStudents(),
         supabase
           .from("tutors")
           .select("subscription_status, partner_student_limit")
           .eq("id", user.id)
           .single(),
       ]);
-      if (error) setError(error.message);
-      setStudents(data ?? []);
       setSubscriptionStatus(tutorData?.subscription_status ?? null);
       setPartnerStudentLimit(tutorData?.partner_student_limit ?? null);
-      setLoading(false);
-      loadSortSupportData(data ?? []);
-      loadSubjectsByStudent();
       if (isPractitioner) {
         const { data: companiesData } = await supabase
           .from("practitioner_companies")
@@ -484,7 +476,7 @@ export default function Students() {
       }
       const editStudentId = location.state?.editStudentId;
       if (editStudentId) {
-        const target = (data ?? []).find((s) => s.id === editStudentId);
+        const target = studentData.find((s) => s.id === editStudentId);
         if (target) await handleEdit(target);
         navigate(location.pathname, { replace: true, state: {} });
       }
