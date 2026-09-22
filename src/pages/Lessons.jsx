@@ -265,9 +265,10 @@ export default function Lessons() {
         supabase
           .from("lessons")
           .select(
-            "*, students(name, subject, hourly_rate, payment_mode, payment_cycle_count)",
+            "*, students!inner(name, subject, hourly_rate, payment_mode, payment_cycle_count)",
           )
           .eq("tutor_id", user.id)
+          .is("students.deleted_at", null)
           .order("lesson_date", { ascending: false })
           .order("created_at", { ascending: false })
           .limit(1000),
@@ -382,9 +383,10 @@ export default function Lessons() {
     const { data, error } = await supabase
       .from("lessons")
       .select(
-        "*, students(name, subject, hourly_rate, payment_mode, payment_cycle_count)",
+        "*, students!inner(name, subject, hourly_rate, payment_mode, payment_cycle_count)",
       )
       .eq("tutor_id", user.id)
+      .is("students.deleted_at", null)
       .order("lesson_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(1000);

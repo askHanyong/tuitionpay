@@ -91,9 +91,10 @@ export default function Calendar() {
     const { data } = await supabase
       .from("lessons")
       .select(
-        "*, students(name, subject, hourly_rate, address, payment_mode, payment_cycle_count, company_id), payment_cycles(id, status, amount_due)",
+        "*, students!inner(name, subject, hourly_rate, address, payment_mode, payment_cycle_count, company_id), payment_cycles(id, status, amount_due)",
       )
       .eq("tutor_id", user.id)
+      .is("students.deleted_at", null)
       .order("created_at", { ascending: true });
     setLessons(data ?? []);
   };
