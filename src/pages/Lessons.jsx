@@ -213,6 +213,7 @@ export default function Lessons() {
   const [checkingConflict, setCheckingConflict] = useState(false);
   const [step, setStep] = useState(1);
   const [pickerSearch, setPickerSearch] = useState("");
+  const pickerInputRef = useRef(null);
   const [paymentTierByStudent, setPaymentTierByStudent] = useState(new Map());
   const [successCycle, setSuccessCycle] = useState(null);
   const [parentSummary, setParentSummary] = useState("");
@@ -806,6 +807,12 @@ export default function Lessons() {
     return subs.map((s) => s.subject).filter(Boolean).join(" · ");
   };
 
+  useEffect(() => {
+    if (step === 1 && !loading) {
+      pickerInputRef.current?.focus();
+    }
+  }, [step, loading]);
+
   const shortlistStudents = useMemo(() => {
     const lastDate = new Map();
     for (const l of lessons) {
@@ -814,7 +821,7 @@ export default function Lessons() {
     }
     return [...lastDate.entries()]
       .sort((a, b) => (b[1] > a[1] ? 1 : -1))
-      .slice(0, 4)
+      .slice(0, 5)
       .map(([id]) => students.find((s) => s.id === id))
       .filter(Boolean);
   }, [lessons, students]);
@@ -827,6 +834,11 @@ export default function Lessons() {
           subjectsLabel(s).toLowerCase().includes(normalizedPickerSearch),
       )
     : [];
+
+  const allStudentsSorted = useMemo(
+    () => [...students].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? "", undefined, { sensitivity: "base" })),
+    [students],
+  );
 
   const handleEditLesson = (lesson) => {
     setEditingId(lesson.id);
@@ -1673,9 +1685,18 @@ export default function Lessons() {
               🔍
             </span>
             <input
+              ref={pickerInputRef}
               type="text"
               value={pickerSearch}
               onChange={(e) => setPickerSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                const first = normalizedPickerSearch
+                  ? pickerResults[0]
+                  : shortlistStudents[0];
+                if (first) { setPickerSearch(""); handleSelectStudent(first); }
+              }}
               placeholder={`Search ${terms.students.toLowerCase()} by name or subject...`}
               className="min-h-11 w-full rounded-md border border-gray-300 px-9 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
               autoComplete="off"
@@ -1696,7 +1717,7 @@ export default function Lessons() {
             <p className="text-sm text-gray-500">Loading...</p>
           ) : normalizedPickerSearch ? (
             pickerResults.length === 0 ? (
-              <p className="text-sm text-gray-500">No {terms.student.toLowerCase()} found.</p>
+              <p className="text-sm text-gray-500">No {terms.students.toLowerCase()} match.</p>
             ) : (
               <ul className="divide-y divide-gray-100 rounded-md border border-gray-200 bg-white">
                 {pickerResults.map((s) => {
@@ -1724,7 +1745,7 @@ export default function Lessons() {
             <>
               {shortlistStudents.length > 0 && (
                 <div>
-                  <p className="mb-2 text-xs font-medium text-gray-400 uppercase tracking-wide">Recent</p>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">Recent</p>
                   <ul className="divide-y divide-gray-100 rounded-md border border-gray-200 bg-white">
                     {shortlistStudents.map((s) => {
                       const subs = subjectsLabel(s);
@@ -1748,7 +1769,33 @@ export default function Lessons() {
                   </ul>
                 </div>
               )}
-              {shortlistStudents.length === 0 && students.length === 0 && (
+              {allStudentsSorted.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">All {terms.students.toLowerCase()}</p>
+                  <ul className="max-h-80 overflow-y-auto divide-y divide-gray-100 rounded-md border border-gray-200 bg-white">
+                    {allStudentsSorted.map((s) => {
+                      const subs = subjectsLabel(s);
+                      const tier = paymentTierByStudent.get(s.id) ?? "grey";
+                      return (
+                        <li key={s.id}>
+                          <button
+                            type="button"
+                            onClick={() => handleSelectStudent(s)}
+                            className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-[#edf6f3] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-[#5ecfaa]"
+                          >
+                            <StudentAvatar name={s.name} tier={tier} avatarColor={s.avatar_color} />
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-[#1b2d4f]">{s.name}</p>
+                              {subs && <p className="text-xs text-[#0f7a58]">{subs}</p>}
+                            </div>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+              {students.length === 0 && (
                 <p className="text-sm text-gray-500">No {terms.students.toLowerCase()} yet.</p>
               )}
             </>
