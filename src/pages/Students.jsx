@@ -581,6 +581,19 @@ export default function Students() {
           .eq("id", editingId)
           .eq("tutor_id", user.id);
         if (error) throw error;
+        const orig = students.find((s) => s.id === editingId);
+        const paymentChanged =
+          orig &&
+          (orig.payment_mode !== payload.payment_mode ||
+            orig.payment_cycle_count !== payload.payment_cycle_count ||
+            orig.payment_custom_day !== payload.payment_custom_day);
+        if (paymentChanged) {
+          const { error: rpcError } = await supabase.rpc(
+            "recompute_payment_cycles",
+            { p_student_id: editingId, p_tutor_id: user.id },
+          );
+          if (rpcError) throw rpcError;
+        }
       } else {
         const { data, error } = await supabase
           .from("students")
