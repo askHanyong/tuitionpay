@@ -140,12 +140,13 @@ function computeForMonth(
     monthDate.getFullYear() < now.getFullYear() ||
     (monthDate.getFullYear() === now.getFullYear() &&
       monthDate.getMonth() < now.getMonth());
-  // Pending amounts only make sense for the month that's still in progress --
-  // a month that has already ended is fully settled or already reflected in
-  // history, so it should never display a pending balance.
+  // The mid-cycle estimate only makes sense for the month still in progress.
+  // But a real payment_cycles row that is still unpaid is money genuinely
+  // owed, so it must keep showing as pending even after its month has ended
+  // (e.g. a Sept cycle still unpaid in October).
   const pending = isCurrentMonth
     ? pendingFromCycles + pendingFromMidCycleLessons
-    : 0;
+    : pendingFromCycles;
 
   // Projected earnings for past months: use the settled collected+pending
   // total so the number matches reality. Using lesson-based math for past
