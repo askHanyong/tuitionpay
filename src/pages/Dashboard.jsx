@@ -41,12 +41,12 @@ function formatDayLabel(dateStr) {
 // Update this in one place to ship a new "What's new" banner -- bumping
 // the id makes it reappear for everyone even if they dismissed a past one.
 const ANNOUNCEMENT = {
-  id: "whats-new-2026-09-05",
+  id: "whats-new-2026-10-09",
   headline: "What's New in ChopeAndPay",
   bullets: [
-    "📅 Google Calendar sync is now fully live — no more waitlist! Connect your calendar from Settings and see automatic conflict alerts when scheduling lessons.",
-    "💰 Billing accuracy improvements — fixed a few edge cases in how per-session vs. hourly rates were calculated, so your payment amounts are now always spot-on.",
-    "🧾 Billing history — subscribers can now view and download past invoices right from Settings.",
+    "💳 Bill now — finishing with a student part-way through a cycle, say 3 of 4 lessons? Open their profile, go to Payment history and tap Bill now to collect for the lessons done so far. Tapped it by mistake? You can Undo it while it's still unpaid.",
+    "📅 Cleaner calendar — lessons from students you've deleted no longer linger on your Calendar and Lessons pages.",
+    "📊 Monthly recap fix — unpaid amounts from past months now stay in Pending on the recap card, so nothing slips through the cracks.",
   ],
 };
 
