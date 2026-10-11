@@ -352,8 +352,8 @@ export default function StudentProfile() {
 
       <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-semibold text-gray-900">
                 {student.name}
               </h1>
@@ -401,7 +401,7 @@ export default function StudentProfile() {
               )}
             </p>
             {student.address && (
-              <p className="mt-1 flex items-center gap-2 text-sm text-gray-600">
+              <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-gray-600">
                 <span>📍 {student.address}</span>
                 <a
                   href={buildGoogleMapsUrl(student.address)}
@@ -414,7 +414,7 @@ export default function StudentProfile() {
               </p>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setScheduling(true)}
               className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
