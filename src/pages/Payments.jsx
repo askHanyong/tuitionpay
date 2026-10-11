@@ -553,7 +553,7 @@ export default function Payments() {
                     <StatusBadge status={c.status} />
                     {c.is_manual_closeout && (
                       <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
-                        Final cycle
+                        Partial cycle
                       </span>
                     )}
                   </span>
@@ -664,7 +664,7 @@ export default function Payments() {
                     <div className="flex items-center gap-2">
                       {c.is_manual_closeout && (
                         <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
-                          Final cycle
+                          Partial cycle
                         </span>
                       )}
                       <StatusBadge status={c.status} />
@@ -719,7 +719,7 @@ export default function Payments() {
                           <StatusBadge status={c.status} />
                           {c.is_manual_closeout && (
                             <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
-                              Final cycle
+                              Partial cycle
                             </span>
                           )}
                         </div>

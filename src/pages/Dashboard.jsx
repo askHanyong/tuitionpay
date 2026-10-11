@@ -44,7 +44,7 @@ const ANNOUNCEMENT = {
   id: "whats-new-2026-10-09",
   headline: "What's New in ChopeAndPay",
   bullets: [
-    "💳 Bill now — finishing with a student part-way through a cycle, say 3 of 4 lessons? Open their profile, go to Payment history and tap Bill now to collect for the lessons done so far. Tapped it by mistake? You can Undo it while it's still unpaid.",
+    "💳 Bill now — need to collect before a cycle completes, say after 3 of 4 lessons? Open the student's profile, go to Payment history and tap Bill now to bill the lessons done so far. Later lessons carry on as normal, and you can Undo while it's still unpaid.",
     "📅 Cleaner calendar — lessons from students you've deleted no longer linger on your Calendar and Lessons pages.",
     "📊 Monthly recap fix — unpaid amounts from past months now stay in Pending on the recap card, so nothing slips through the cracks.",
   ],

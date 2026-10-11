@@ -607,7 +607,7 @@ export default function StudentProfile() {
                   <span className="flex items-center gap-2">
                     {c.is_manual_closeout && (
                       <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
-                        Final cycle
+                        Partial cycle
                       </span>
                     )}
                     <span className="text-sm font-semibold text-gray-900">
@@ -662,8 +662,8 @@ export default function StudentProfile() {
                 : `${openLessons.length} ${terms.lessons.toLowerCase()}`}
             </h3>
             <p className="mb-3 text-sm text-gray-600">
-              Creates a final billing cycle for all completed unbilled{" "}
-              {terms.lessons.toLowerCase()}.
+              Bills all completed {terms.lessons.toLowerCase()} not yet billed.{" "}
+              {terms.lessons} after this start a new count as normal.
             </p>
             <ol className="mb-3 space-y-1 rounded-md bg-gray-50 p-3 text-sm text-gray-700">
               {[...openLessons]
