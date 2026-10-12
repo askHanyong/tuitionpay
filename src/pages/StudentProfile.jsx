@@ -176,10 +176,7 @@ export default function StudentProfile() {
   const completedLessons = lessons.filter((l) => l.is_completed);
   const openLessons = completedLessons.filter((l) => !l.payment_cycle_id);
   const openCount = openLessons.length;
-  const canBillNow =
-    (student?.payment_mode === "lessons" ||
-      student?.payment_mode === "per_lesson") &&
-    openLessons.length > 0;
+  const canBillNow = openLessons.length > 0;
   const cycleCount = student?.payment_cycle_count ?? 4;
   const currentCycleProgress = `${terms.lesson} ${Math.min(openCount, cycleCount)} of ${cycleCount}`;
   const lessonsThisMonth = useMemo(() => {
@@ -663,7 +660,9 @@ export default function StudentProfile() {
             </h3>
             <p className="mb-3 text-sm text-gray-600">
               Bills all completed {terms.lessons.toLowerCase()} not yet billed.{" "}
-              {terms.lessons} after this start a new count as normal.
+              {isMonthlyBilled
+                ? `Later ${terms.lessons.toLowerCase()} carry on in the normal billing cycle.`
+                : `${terms.lessons} after this start a new count as normal.`}
             </p>
             <ol className="mb-3 space-y-1 rounded-md bg-gray-50 p-3 text-sm text-gray-700">
               {[...openLessons]
