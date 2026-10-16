@@ -18,7 +18,10 @@ import {
 import { getWeekSummaryKey, showAppNotification } from "../lib/notifications";
 import { buildGoogleMapsUrl } from "../lib/maps";
 import { lessonAmount } from "../lib/paymentMode";
-import { buildPaymentRequestMessage } from "../lib/whatsapp";
+import {
+  buildPaymentRequestMessage,
+  buildPaymentSummaryUrl,
+} from "../lib/whatsapp";
 import { deleteCalendarEvent, getValidAccessToken } from "../lib/googleCalendar";
 import { useToast } from "../contexts/ToastContext";
 import { useTerms } from "../contexts/TerminologyContext";
@@ -761,6 +764,7 @@ export default function Dashboard() {
         monthLabel: formatMonth(cycle.period_end),
         dueDateLabel: formatDateFull(cycle.period_end),
         guardianName: student.guardian_name,
+        paymentLink: buildPaymentSummaryUrl(student.payment_token),
       });
       setPreview({
         title: "Payment request",

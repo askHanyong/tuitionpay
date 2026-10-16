@@ -15,6 +15,7 @@ import { lessonAmount } from "../lib/paymentMode";
 import {
   buildPaidReceiptMessage,
   buildPaymentRequestMessage,
+  buildPaymentSummaryUrl,
 } from "../lib/whatsapp";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
@@ -41,7 +42,7 @@ export default function Payments() {
         supabase
           .from("payment_cycles")
           .select(
-            "*, students(name, subject, guardian_name, guardian_relationship, guardian_contact, payment_mode, payment_cycle_count, payment_custom_day, company_id)",
+            "*, students(name, subject, guardian_name, guardian_relationship, guardian_contact, payment_token, payment_mode, payment_cycle_count, payment_custom_day, company_id)",
           )
           .eq("tutor_id", user.id)
           .order("created_at", { ascending: false }),
@@ -367,6 +368,9 @@ export default function Payments() {
       amountDue: cycle.amount_due,
       tutorName: tutorProfile.full_name,
       guardianName: cycle.students?.guardian_name,
+      paymentLink: isPractitioner
+        ? null
+        : buildPaymentSummaryUrl(cycle.students?.payment_token),
       paynowNumber: tutorProfile.paynow_number,
       paymentMode: cycle.students?.payment_mode,
       monthLabel: formatMonth(cycle.period_end),

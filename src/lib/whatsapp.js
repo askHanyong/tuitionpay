@@ -7,6 +7,12 @@ function greeting(guardianName) {
   return name ? `Hi ${name}!` : "Hi!";
 }
 
+// Public, no-login page where a parent can see their payment summary.
+// Always the production URL, since parents open it from WhatsApp.
+export function buildPaymentSummaryUrl(token) {
+  return token ? `https://chopeandpay.com/pay/${token}` : null;
+}
+
 function studentLabel(studentName, subject) {
   return subject ? `${studentName} (${subject})` : studentName;
 }
@@ -65,6 +71,7 @@ export function buildPaymentRequestMessage({
   monthLabel,
   dueDateLabel,
   guardianName,
+  paymentLink,
 }) {
   const lines = [
     paymentRequestOpeningLine({
@@ -82,6 +89,7 @@ export function buildPaymentRequestMessage({
     `Payment can be made via PayNow. Thank you! 😊`,
   ];
   if (paynowNumber) lines.push(`PayNow: ${paynowNumber}`);
+  if (paymentLink) lines.push(`🔗 Payment summary: ${paymentLink}`);
   lines.push("", `— ${tutorName || "Your tutor"}`);
   return lines.join("\n");
 }

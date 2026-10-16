@@ -8,6 +8,7 @@ import { useToast } from "../contexts/ToastContext";
 import {
   buildPaidReceiptMessage,
   buildPaymentRequestMessage,
+  buildPaymentSummaryUrl,
 } from "../lib/whatsapp";
 import { useAuth } from "../contexts/AuthContext";
 import { useTerms } from "../contexts/TerminologyContext";
@@ -64,7 +65,7 @@ export default function StudentProfile() {
   };
 
   const handleSharePaymentSummary = async () => {
-    const link = `https://chopeandpay.com/pay/${student.payment_token}`;
+    const link = buildPaymentSummaryUrl(student.payment_token);
     try {
       await navigator.clipboard.writeText(link);
       showToast(`Link copied! Share with your ${terms.student.toLowerCase()}.`);
@@ -241,6 +242,9 @@ export default function StudentProfile() {
       amountDue: cycle.amount_due,
       tutorName: tutorProfile.full_name,
       guardianName: student.guardian_name,
+      paymentLink: isPractitioner
+        ? null
+        : buildPaymentSummaryUrl(student.payment_token),
       paynowNumber: tutorProfile.paynow_number,
       paymentMode: student.payment_mode,
       monthLabel: formatMonth(cycle.period_end),
