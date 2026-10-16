@@ -1093,6 +1093,7 @@ export default function Students() {
             />
             <p className="mt-1 text-xs text-gray-500">
               WhatsApp reminders and receipts will open this parent&apos;s chat directly.
+              For non-Singapore numbers, include + and the country code (e.g. +852 9123 4567).
             </p>
           </div>
         )}
