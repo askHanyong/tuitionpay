@@ -45,6 +45,7 @@ const emptyForm = {
   company_id: "",
   lesson_duration_hours: "",
   address: "",
+  guardian_contact: "",
   payment_mode: "lessons",
   payment_cycle_count: "4",
   payment_custom_day: "1",
@@ -428,6 +429,7 @@ export default function Students() {
       lesson_duration_hours: "",
       avatar_color: student.avatar_color ?? "",
       address: student.address ?? "",
+      guardian_contact: student.guardian_contact ?? "",
       payment_mode: student.payment_mode ?? "lessons",
       payment_cycle_count: String(student.payment_cycle_count ?? 4),
       payment_custom_day: String(student.payment_custom_day ?? 1),
@@ -563,6 +565,7 @@ export default function Students() {
           ? null
           : Number(primary.lesson_duration_hours),
       address: form.address.trim() || null,
+      guardian_contact: (form.guardian_contact ?? "").trim() || null,
       payment_mode: form.payment_mode,
       payment_cycle_count:
         form.payment_mode === "lessons" ? Number(form.payment_cycle_count) : 4,
@@ -1072,6 +1075,27 @@ export default function Students() {
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
           />
         </div>
+
+        {!isPractitioner && (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Parent WhatsApp number (optional)
+            </label>
+            <input
+              type="tel"
+              inputMode="tel"
+              value={form.guardian_contact ?? ""}
+              onChange={(e) =>
+                setForm({ ...form, guardian_contact: e.target.value })
+              }
+              placeholder="e.g. 9123 4567 or +65 9123 4567"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              WhatsApp reminders and receipts will open this parent&apos;s chat directly.
+            </p>
+          </div>
+        )}
 
         {!isPractitioner && (
           <div className="rounded-md border border-gray-200 p-4">

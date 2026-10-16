@@ -83,6 +83,23 @@ export function buildProgressReportMessage({
   return `Hi! Please find attached ${studentName}'s progress report for ${monthLabel}. Feel free to reach out if you have any questions! 😊 — ${tutorName || "Your tutor"}`;
 }
 
-export function buildWhatsAppLink(message) {
-  return `https://wa.me/?text=${encodeURIComponent(message)}`;
+// Turns what a tutor typed (e.g. "9123 4567", "+65 9123 4567", "+60 12-345 6789")
+// into digits-only international format for wa.me. An 8-digit number is assumed
+// to be Singapore. Anything that isn't clearly a phone number (e.g. "Mrs Tan")
+// returns null, and the link falls back to the normal "pick a contact" behaviour.
+export function normalizeWhatsAppNumber(raw) {
+  if (!raw) return null;
+  const text = String(raw).trim();
+  if (!/^[+(\d][\d\s\-()]*$/.test(text)) return null;
+  let digits = text.replace(/\D/g, "");
+  if (!text.startsWith("+")) {
+    if (digits.startsWith("00")) digits = digits.slice(2);
+    else if (digits.length === 8) digits = `65${digits}`;
+  }
+  return digits.length >= 10 && digits.length <= 15 ? digits : null;
+}
+
+export function buildWhatsAppLink(message, phone) {
+  const number = normalizeWhatsAppNumber(phone);
+  return `https://wa.me/${number ?? ""}?text=${encodeURIComponent(message)}`;
 }

@@ -245,7 +245,12 @@ export default function StudentProfile() {
       monthLabel: formatMonth(cycle.period_end),
       dueDateLabel: formatDateFull(cycle.period_end),
     });
-    setPreview({ title: "Payment request", message, mode: "whatsapp" });
+    setPreview({
+      title: "Payment request",
+      message,
+      mode: "whatsapp",
+      phone: student.guardian_contact,
+    });
   };
 
   const handleSendReceipt = (cycle) => {
@@ -256,7 +261,12 @@ export default function StudentProfile() {
       amountDue: cycle.amount_due,
       tutorName: tutorProfile.full_name,
     });
-    setPreview({ title: "Payment receipt", message, mode: "whatsapp" });
+    setPreview({
+      title: "Payment receipt",
+      message,
+      mode: "whatsapp",
+      phone: student.guardian_contact,
+    });
   };
 
   const handleBillNow = async () => {
@@ -731,6 +741,7 @@ export default function StudentProfile() {
           title={preview.title}
           initialMessage={preview.message}
           mode={preview.mode}
+          phone={preview.phone}
           onClose={() => setPreview(null)}
         />
       )}

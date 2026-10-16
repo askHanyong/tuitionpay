@@ -5,6 +5,7 @@ export default function MessagePreviewModal({
   title,
   initialMessage,
   mode,
+  phone,
   onClose,
 }) {
   const [text, setText] = useState(initialMessage);
@@ -17,7 +18,7 @@ export default function MessagePreviewModal({
   };
 
   const handleSendWhatsApp = () => {
-    window.open(buildWhatsAppLink(text), "_blank");
+    window.open(buildWhatsAppLink(text, phone), "_blank");
     onClose();
   };
 

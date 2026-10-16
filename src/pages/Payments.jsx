@@ -375,6 +375,7 @@ export default function Payments() {
       title: "Payment request",
       message,
       mode: "whatsapp",
+      phone: cycle.students?.guardian_contact,
     });
   };
 
@@ -411,6 +412,7 @@ export default function Payments() {
       title: "Payment receipt",
       message,
       mode: "whatsapp",
+      phone: cycle.students?.guardian_contact,
     });
   };
 
@@ -748,6 +750,7 @@ export default function Payments() {
           title={preview.title}
           initialMessage={preview.message}
           mode={preview.mode}
+          phone={preview.phone}
           onClose={() => setPreview(null)}
         />
       )}

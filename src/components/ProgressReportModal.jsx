@@ -43,7 +43,7 @@ export default function ProgressReportModal({
       monthLabel,
       tutorName,
     });
-    window.open(buildWhatsAppLink(message), "_blank");
+    window.open(buildWhatsAppLink(message, student.guardian_contact), "_blank");
   };
 
   return (
