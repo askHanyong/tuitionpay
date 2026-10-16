@@ -42,6 +42,7 @@ export default function ProgressReportModal({
       studentName: student.name,
       monthLabel,
       tutorName,
+      guardianName: student.guardian_name,
     });
     window.open(buildWhatsAppLink(message, student.guardian_contact), "_blank");
   };

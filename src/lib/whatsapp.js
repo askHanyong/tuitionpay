@@ -1,6 +1,12 @@
 import { formatSGD } from "./paymentNotice";
 import { formatLessonDates } from "./date";
 
+// "Hi Mrs Tan!" when the tutor saved a guardian name, otherwise plain "Hi!".
+function greeting(guardianName) {
+  const name = (guardianName ?? "").trim();
+  return name ? `Hi ${name}!` : "Hi!";
+}
+
 function studentLabel(studentName, subject) {
   return subject ? `${studentName} (${subject})` : studentName;
 }
@@ -11,9 +17,10 @@ export function buildPaidReceiptMessage({
   lessonDates,
   amountDue,
   tutorName,
+  guardianName,
 }) {
   return [
-    `Hi! 👋 Just to confirm payment received for ${studentLabel(studentName, subject)}.`,
+    `${greeting(guardianName)} 👋 Just to confirm payment received for ${studentLabel(studentName, subject)}.`,
     `📚 Lessons: ${formatLessonDates(lessonDates)}`,
     "",
     `💰 Amount: ${formatSGD(amountDue)}`,
@@ -32,16 +39,18 @@ function paymentRequestOpeningLine({
   amountDue,
   monthLabel,
   dueDateLabel,
+  guardianName,
 }) {
+  const hi = greeting(guardianName);
   switch (paymentMode) {
     case "monthly":
-      return `Hi! Just a reminder that payment for ${studentLabelText}'s ${monthLabel} lessons is due. Total: ${formatSGD(amountDue)} for ${lessonDates.length} lesson${lessonDates.length === 1 ? "" : "s"}.`;
+      return `${hi} Just a reminder that payment for ${studentLabelText}'s ${monthLabel} lessons is due. Total: ${formatSGD(amountDue)} for ${lessonDates.length} lesson${lessonDates.length === 1 ? "" : "s"}.`;
     case "per_lesson":
-      return `Hi! Just a reminder that payment for ${studentLabelText}'s ${dueDateLabel} lesson is due. Amount: ${formatSGD(amountDue)}.`;
+      return `${hi} Just a reminder that payment for ${studentLabelText}'s ${dueDateLabel} lesson is due. Amount: ${formatSGD(amountDue)}.`;
     case "custom_date":
-      return `Hi! Just a reminder that ${studentLabelText}'s monthly payment of ${formatSGD(amountDue)} is due on ${dueDateLabel}.`;
+      return `${hi} Just a reminder that ${studentLabelText}'s monthly payment of ${formatSGD(amountDue)} is due on ${dueDateLabel}.`;
     default:
-      return `Hi! 👋 Just a friendly reminder that 4 lessons have been completed for ${studentLabelText}.`;
+      return `${hi} 👋 Just a friendly reminder that 4 lessons have been completed for ${studentLabelText}.`;
   }
 }
 
@@ -55,9 +64,11 @@ export function buildPaymentRequestMessage({
   paymentMode = "lessons",
   monthLabel,
   dueDateLabel,
+  guardianName,
 }) {
   const lines = [
     paymentRequestOpeningLine({
+      guardianName,
       paymentMode,
       studentLabelText: studentLabel(studentName, subject),
       lessonDates,
@@ -79,8 +90,9 @@ export function buildProgressReportMessage({
   studentName,
   monthLabel,
   tutorName,
+  guardianName,
 }) {
-  return `Hi! Please find attached ${studentName}'s progress report for ${monthLabel}. Feel free to reach out if you have any questions! 😊 — ${tutorName || "Your tutor"}`;
+  return `${greeting(guardianName)} Please find attached ${studentName}'s progress report for ${monthLabel}. Feel free to reach out if you have any questions! 😊 — ${tutorName || "Your tutor"}`;
 }
 
 // Turns what a tutor typed (e.g. "9123 4567", "+65 9123 4567", "+60 12-345 6789")

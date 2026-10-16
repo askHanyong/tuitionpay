@@ -366,6 +366,7 @@ export default function Payments() {
       lessonDates: lessonDatesByCycle[cycle.id] ?? [],
       amountDue: cycle.amount_due,
       tutorName: tutorProfile.full_name,
+      guardianName: cycle.students?.guardian_name,
       paynowNumber: tutorProfile.paynow_number,
       paymentMode: cycle.students?.payment_mode,
       monthLabel: formatMonth(cycle.period_end),
@@ -407,6 +408,7 @@ export default function Payments() {
       lessonDates: lessonDatesByCycle[cycle.id] ?? [],
       amountDue: cycle.amount_due,
       tutorName: tutorProfile.full_name,
+      guardianName: cycle.students?.guardian_name,
     });
     setPreview({
       title: "Payment receipt",
