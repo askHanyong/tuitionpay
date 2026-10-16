@@ -193,9 +193,6 @@ export default function Dashboard() {
   const [onboardingDismissed, setOnboardingDismissed] = useState(
     () => localStorage.getItem("chopeandpay_onboarding_dismissed") === "true",
   );
-  const pendingCount = paymentCycles.filter(
-    (c) => c.status === "pending",
-  ).length;
   // Practitioners skip the onboarding popup entirely — they go straight to
   // the normal empty-state Dashboard ("Add your first client").
   const showOnboarding =
@@ -546,34 +543,6 @@ export default function Dashboard() {
   }
 
   const now = new Date();
-  const isThisMonth = (dateStr) => {
-    if (!dateStr) return false;
-    const d = new Date(`${dateStr}T00:00:00`);
-    return (
-      d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
-    );
-  };
-  // `lessons` only covers strictly-before-today (see its fetch query --
-  // .lt("lesson_date", todayKey())), because today's lessons are tracked
-  // separately in `scheduledLessons`/`todayLessons` for the "mark as done"
-  // UI. That split works fine for the widgets that consume those arrays
-  // directly, but every "this month" aggregate below was reading `lessons`
-  // alone and so silently dropped a lesson the moment it was completed
-  // *today* -- it wouldn't count until tomorrow. `scheduledLessons` covers
-  // today onward and is guaranteed disjoint from `lessons` (same boundary,
-  // complementary comparisons), so folding in just its completed entries is
-  // safe: no lesson can appear in both, and not-yet-completed future
-  // lessons are correctly still excluded.
-  const knownCompletedOrPast = [
-    ...lessons,
-    ...scheduledLessons.filter((l) => l.is_completed),
-  ];
-  const collectedThisMonth = paymentCycles
-    .filter((c) => c.status === "paid" && isThisMonth(c.period_end))
-    .reduce((sum, c) => sum + Number(c.amount_due), 0);
-  const lessonsCompletedThisMonth = knownCompletedOrPast.filter(
-    (l) => l.is_completed && isThisMonth(l.lesson_date),
-  ).length;
   const paymentStatusByStudent = new Map();
   for (const s of students) {
     paymentStatusByStudent.set(
@@ -648,6 +617,34 @@ export default function Dashboard() {
       }, 0);
     return fromCycles + fromMidCycle;
   })();
+
+  // "Needs your attention" lists every unpaid cycle once. For tutors, a cycle
+  // that belongs to an overdue student is flagged red with the reason from the
+  // student's payment status (e.g. "September unpaid") and sorted first.
+  // Practitioners keep their separate overdue card and see no flags here.
+  const overdueReasonByCycleId = new Map();
+  if (!isPractitioner) {
+    for (const st of overdueStudents) {
+      const status = paymentStatusByStudent.get(st.id);
+      if (!status?.collectCycle) continue;
+      const label = status.label ?? "";
+      overdueReasonByCycleId.set(
+        status.collectCycle.id,
+        label.includes(" — ") ? label.split(" — ").slice(1).join(" — ") : label,
+      );
+    }
+  }
+  const unpaidCycles = paymentCycles
+    .filter((c) => c.status === "pending")
+    .sort(
+      (a, b) =>
+        (overdueReasonByCycleId.has(b.id) ? 1 : 0) -
+        (overdueReasonByCycleId.has(a.id) ? 1 : 0),
+    );
+  const unpaidTotal = unpaidCycles.reduce(
+    (sum, c) => sum + Number(c.amount_due),
+    0,
+  );
 
   const todayLessonNumber = (lesson) =>
     lesson.is_completed
@@ -1140,30 +1137,6 @@ export default function Dashboard() {
             )}
           </section>
 
-          {/* Summary banner */}
-          <div className="grid grid-cols-2 gap-3 rounded-xl bg-[#1b2d4f] p-4 text-white shadow-sm sm:grid-cols-4">
-            <div>
-              <p className="text-2xl font-semibold">{students.length}</p>
-              <p className="text-xs text-[#5ecfaa]">Active {terms.students.toLowerCase()}</p>
-            </div>
-            <div>
-              <p className="text-2xl font-semibold">{lessonsCompletedThisMonth}</p>
-              <p className="text-xs text-[#5ecfaa]">{terms.lessons} this month</p>
-            </div>
-            <div>
-              <p className="text-2xl font-semibold">
-                {formatSGD(collectedThisMonth)}
-              </p>
-              <p className="text-xs text-[#5ecfaa]">Collected this month</p>
-            </div>
-            <div>
-              <p className="text-2xl font-semibold">
-                {formatSGD(allPendingAmount)}
-              </p>
-              <p className="text-xs text-[#5ecfaa]">Pending payment</p>
-            </div>
-          </div>
-
           {!isPractitioner && <AnnouncementBanner />}
 
           {/* Subscription upsell — shown only when there is no active/trialing subscription */}
@@ -1233,8 +1206,8 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Overdue notices */}
-          {!loading && overdueStudents.length > 0 && (
+          {/* Overdue notices (practitioners only; tutors see overdue flags in "Needs your attention") */}
+          {isPractitioner && !loading && overdueStudents.length > 0 && (
             <div className="rounded-xl border border-red-200 bg-red-50/60 p-5 shadow-sm">
               <h2 className="mb-3 text-base font-semibold text-red-800">
                 ⚠️ Action needed — payments overdue
@@ -1317,69 +1290,103 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Needs your attention: unpaid cycles only. Full history lives on the Payments page. */}
+          {/* Needs your attention: every unpaid cycle once; overdue ones flagged. Full history lives on the Payments page. */}
           <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-900">
-                Needs your attention
-              </h2>
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">
+                  Needs your attention
+                </h2>
+                {!loading && unpaidCycles.length > 0 && (
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    {unpaidCycles.length} unpaid ·{" "}
+                    <span className="font-semibold text-amber-700">
+                      {formatSGD(unpaidTotal)}
+                    </span>
+                  </p>
+                )}
+              </div>
               <Link
                 to="/payments"
-                className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
+                className="flex-none whitespace-nowrap text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
               >
                 View all payments →
               </Link>
             </div>
             {loading ? (
               <p className="text-sm text-gray-500">Loading...</p>
-            ) : pendingCount === 0 ? (
+            ) : unpaidCycles.length === 0 ? (
               <p className="text-sm text-gray-500">
                 ✅ All paid up — nothing to collect.
               </p>
             ) : (
               <ul className="divide-y divide-gray-100">
-                {paymentCycles
-                  .filter((c) => c.status === "pending")
-                  .map((c) => {
-                    const student = students.find((st) => st.id === c.student_id);
-                    return (
-                      <li
-                        key={c.id}
-                        className="flex flex-col gap-2 rounded-lg px-2 py-3 transition hover:bg-gray-50 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div className="flex items-center justify-between gap-3 sm:justify-start">
-                          <span className="text-sm text-gray-700">
-                            {c.students?.name}
-                          </span>
-                          <span className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-gray-900">
-                              {formatSGD(c.amount_due)}
+                {unpaidCycles.map((c) => {
+                  const student = students.find((st) => st.id === c.student_id);
+                  const overdueReason = overdueReasonByCycleId.get(c.id);
+                  const isOverdue = overdueReasonByCycleId.has(c.id);
+                  return (
+                    <li
+                      key={c.id}
+                      className={`flex flex-col gap-2 rounded-lg px-2 py-3 transition sm:flex-row sm:items-center sm:justify-between ${
+                        isOverdue ? "bg-red-50/60 hover:bg-red-50" : "hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          {student ? (
+                            <Link
+                              to={`/students/${student.id}`}
+                              className="text-sm font-medium text-gray-900 hover:text-[#1b2d4f]"
+                            >
+                              {c.students?.name}
+                            </Link>
+                          ) : (
+                            <span className="text-sm font-medium text-gray-900">
+                              {c.students?.name}
                             </span>
-                            <StatusBadge status={c.status} />
+                          )}
+                          <span className="text-sm font-semibold text-gray-900">
+                            {formatSGD(c.amount_due)}
                           </span>
+                          {isOverdue ? (
+                            <span
+                              className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${TIER_BADGE_CLASSES.red}`}
+                            >
+                              🔴 Overdue
+                            </span>
+                          ) : (
+                            <StatusBadge status={c.status} />
+                          )}
                         </div>
-                        {!isPractitioner && student && (
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={() => handleRemind(student, c)}
-                              disabled={remindingStudentId === student.id}
-                              className="min-h-11 rounded-md bg-orange-500 px-3 text-xs font-medium text-white transition hover:bg-orange-600 hover:shadow disabled:opacity-60"
-                            >
-                              {remindingStudentId === student.id
-                                ? "Preparing…"
-                                : "💬 Remind"}
-                            </button>
-                            <button
-                              onClick={() => handleCollectPayment(c.id)}
-                              className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
-                            >
-                              Mark as paid
-                            </button>
-                          </div>
+                        {isOverdue && overdueReason && (
+                          <p className="mt-0.5 text-xs text-red-700">
+                            {overdueReason}
+                          </p>
                         )}
-                      </li>
-                    );
-                  })}
+                      </div>
+                      {!isPractitioner && student && (
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => handleRemind(student, c)}
+                            disabled={remindingStudentId === student.id}
+                            className="min-h-11 rounded-md bg-orange-500 px-3 text-xs font-medium text-white transition hover:bg-orange-600 hover:shadow disabled:opacity-60"
+                          >
+                            {remindingStudentId === student.id
+                              ? "Preparing…"
+                              : "💬 Remind"}
+                          </button>
+                          <button
+                            onClick={() => handleCollectPayment(c.id)}
+                            className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
+                          >
+                            Mark as paid
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
@@ -1407,13 +1414,21 @@ export default function Dashboard() {
               </h2>
               <Link
                 to="/students"
-                className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
+                className="flex-none whitespace-nowrap text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
               >
-                Manage {terms.students.toLowerCase()} →
+                Manage →
               </Link>
             </div>
             {!loading && students.length > 0 && (
               <p className="mb-3 text-sm">
+                <span className="font-medium text-gray-700">
+                  {students.length}{" "}
+                  {(students.length === 1
+                    ? terms.student
+                    : terms.students
+                  ).toLowerCase()}
+                </span>{" "}
+                ·{" "}
                 {overdueCount === 0 && dueSoonCount === 0 ? (
                   <span className="font-medium text-[#0f7a58]">
                     ✅ All payments up to date
