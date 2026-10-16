@@ -1034,74 +1034,6 @@ export default function Dashboard() {
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
         {/* ── LEFT PANEL — Today & upcoming (60%) ── */}
         <div className="min-w-0 flex-1 space-y-6 md:flex-[3]">
-          {/* Summary banner */}
-          <div className="grid grid-cols-2 gap-3 rounded-xl bg-[#1b2d4f] p-4 text-white shadow-sm sm:grid-cols-4">
-            <div>
-              <p className="text-2xl font-semibold">{students.length}</p>
-              <p className="text-xs text-[#5ecfaa]">Active {terms.students.toLowerCase()}</p>
-            </div>
-            <div>
-              <p className="text-2xl font-semibold">{lessonsCompletedThisMonth}</p>
-              <p className="text-xs text-[#5ecfaa]">{terms.lessons} this month</p>
-            </div>
-            <div>
-              <p className="text-2xl font-semibold">
-                {formatSGD(collectedThisMonth)}
-              </p>
-              <p className="text-xs text-[#5ecfaa]">Collected this month</p>
-            </div>
-            <div>
-              <p className="text-2xl font-semibold">
-                {formatSGD(allPendingAmount)}
-              </p>
-              <p className="text-xs text-[#5ecfaa]">Pending payment</p>
-            </div>
-          </div>
-
-          {!isPractitioner && <AnnouncementBanner />}
-
-          {/* Subscription upsell — shown only when there is no active/trialing subscription */}
-          {!loading && !isPractitioner && !["active", "trialing", "grandfathered"].includes(subscriptionStatus) && (
-            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-gray-900">
-                Subscribe to ChopeAndPay
-              </p>
-              <p className="mt-1 text-sm text-gray-500">
-                Keep tracking lessons, payments, and students with a simple subscription.
-              </p>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button
-                  onClick={() => handleSubscribe("monthly")}
-                  disabled={checkoutLoading !== null}
-                  className="flex min-h-10 items-center gap-2 rounded-md bg-[#1b2d4f] px-5 text-sm font-medium text-white transition hover:bg-[#15243f] disabled:opacity-60"
-                >
-                  {checkoutLoading === "monthly" && (
-                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                    </svg>
-                  )}
-                  {checkoutLoading === "monthly" ? "Redirecting…" : "SGD 9.99 / month"}
-                </button>
-                <button
-                  onClick={() => handleSubscribe("annual")}
-                  disabled={checkoutLoading !== null}
-                  className="flex min-h-10 items-center gap-2 rounded-md border border-gray-300 px-5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
-                >
-                  {checkoutLoading === "annual" && (
-                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                    </svg>
-                  )}
-                  {checkoutLoading === "annual" ? "Redirecting…" : "SGD 59.99 / year · save 50%"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {!loading && GrandfatheredBanner}
-
           {/* Subscription status — shown when active so tutor knows their plan */}
           {!loading && subscriptionStatus === "past_due" && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm">
@@ -1110,19 +1042,6 @@ export default function Dashboard() {
                 Please update your payment method to keep your subscription active.
               </p>
             </div>
-          )}
-
-          <FeedbackPromptCard lessonCount={lessons.length} />
-
-          {!loading && !checklistDismissed && (
-            <GettingStartedChecklist
-              tutorId={user.id}
-              hasStudent={students.length > 0}
-              hasLesson={lessons.length > 0}
-              googleCalendarConnected={googleCalendarConnected}
-              dismissed={checklistDismissed}
-              onDismissed={() => setChecklistDismissed(true)}
-            />
           )}
 
           {/* Today's lessons */}
@@ -1209,6 +1128,87 @@ export default function Dashboard() {
               </ul>
             )}
           </section>
+
+          {/* Summary banner */}
+          <div className="grid grid-cols-2 gap-3 rounded-xl bg-[#1b2d4f] p-4 text-white shadow-sm sm:grid-cols-4">
+            <div>
+              <p className="text-2xl font-semibold">{students.length}</p>
+              <p className="text-xs text-[#5ecfaa]">Active {terms.students.toLowerCase()}</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold">{lessonsCompletedThisMonth}</p>
+              <p className="text-xs text-[#5ecfaa]">{terms.lessons} this month</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold">
+                {formatSGD(collectedThisMonth)}
+              </p>
+              <p className="text-xs text-[#5ecfaa]">Collected this month</p>
+            </div>
+            <div>
+              <p className="text-2xl font-semibold">
+                {formatSGD(allPendingAmount)}
+              </p>
+              <p className="text-xs text-[#5ecfaa]">Pending payment</p>
+            </div>
+          </div>
+
+          {!isPractitioner && <AnnouncementBanner />}
+
+          {/* Subscription upsell — shown only when there is no active/trialing subscription */}
+          {!loading && !isPractitioner && !["active", "trialing", "grandfathered"].includes(subscriptionStatus) && (
+            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <p className="text-sm font-semibold text-gray-900">
+                Subscribe to ChopeAndPay
+              </p>
+              <p className="mt-1 text-sm text-gray-500">
+                Keep tracking lessons, payments, and students with a simple subscription.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <button
+                  onClick={() => handleSubscribe("monthly")}
+                  disabled={checkoutLoading !== null}
+                  className="flex min-h-10 items-center gap-2 rounded-md bg-[#1b2d4f] px-5 text-sm font-medium text-white transition hover:bg-[#15243f] disabled:opacity-60"
+                >
+                  {checkoutLoading === "monthly" && (
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                  )}
+                  {checkoutLoading === "monthly" ? "Redirecting…" : "SGD 9.99 / month"}
+                </button>
+                <button
+                  onClick={() => handleSubscribe("annual")}
+                  disabled={checkoutLoading !== null}
+                  className="flex min-h-10 items-center gap-2 rounded-md border border-gray-300 px-5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
+                >
+                  {checkoutLoading === "annual" && (
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                  )}
+                  {checkoutLoading === "annual" ? "Redirecting…" : "SGD 59.99 / year · save 50%"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!loading && GrandfatheredBanner}
+
+          <FeedbackPromptCard lessonCount={lessons.length} />
+
+          {!loading && !checklistDismissed && (
+            <GettingStartedChecklist
+              tutorId={user.id}
+              hasStudent={students.length > 0}
+              hasLesson={lessons.length > 0}
+              googleCalendarConnected={googleCalendarConnected}
+              dismissed={checklistDismissed}
+              onDismissed={() => setChecklistDismissed(true)}
+            />
+          )}
 
           {/* Next 7 days */}
           {!loading && (
