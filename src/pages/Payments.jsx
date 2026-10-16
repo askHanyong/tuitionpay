@@ -41,7 +41,7 @@ export default function Payments() {
         supabase
           .from("payment_cycles")
           .select(
-            "*, students(name, subject, guardian_name, guardian_contact, payment_mode, payment_cycle_count, payment_custom_day, company_id)",
+            "*, students(name, subject, guardian_name, guardian_relationship, guardian_contact, payment_mode, payment_cycle_count, payment_custom_day, company_id)",
           )
           .eq("tutor_id", user.id)
           .order("created_at", { ascending: false }),
@@ -570,6 +570,12 @@ export default function Payments() {
                 )}
                 <p className="mb-3 text-sm text-gray-600">
                   {formatDate(c.period_start)} to {formatDate(c.period_end)}
+                  {c.students?.guardian_name &&
+                    ` · ${c.students.guardian_name}${
+                      c.students.guardian_relationship
+                        ? ` (${c.students.guardian_relationship.charAt(0).toUpperCase()}${c.students.guardian_relationship.slice(1)})`
+                        : ""
+                    }`}
                   {c.students?.guardian_contact &&
                     ` · Contact: ${c.students.guardian_contact}`}
                 </p>

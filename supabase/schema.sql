@@ -21,6 +21,7 @@ create table if not exists students (
   lesson_duration_hours numeric(4, 2),
   guardian_name text,
   guardian_contact text,
+  guardian_relationship text check (guardian_relationship is null or guardian_relationship in ('mother', 'father', 'guardian', 'other')),
   notes text,
   created_at timestamptz not null default now(),
   payment_mode text not null default 'lessons' check (payment_mode in ('lessons', 'monthly', 'per_lesson', 'custom_date')),

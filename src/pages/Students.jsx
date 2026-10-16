@@ -45,6 +45,8 @@ const emptyForm = {
   company_id: "",
   lesson_duration_hours: "",
   address: "",
+  guardian_name: "",
+  guardian_relationship: "",
   guardian_contact: "",
   payment_mode: "lessons",
   payment_cycle_count: "4",
@@ -429,6 +431,8 @@ export default function Students() {
       lesson_duration_hours: "",
       avatar_color: student.avatar_color ?? "",
       address: student.address ?? "",
+      guardian_name: student.guardian_name ?? "",
+      guardian_relationship: student.guardian_relationship ?? "",
       guardian_contact: student.guardian_contact ?? "",
       payment_mode: student.payment_mode ?? "lessons",
       payment_cycle_count: String(student.payment_cycle_count ?? 4),
@@ -565,6 +569,8 @@ export default function Students() {
           ? null
           : Number(primary.lesson_duration_hours),
       address: form.address.trim() || null,
+      guardian_name: (form.guardian_name ?? "").trim() || null,
+      guardian_relationship: form.guardian_relationship || null,
       guardian_contact: (form.guardian_contact ?? "").trim() || null,
       payment_mode: form.payment_mode,
       payment_cycle_count:
@@ -1077,24 +1083,63 @@ export default function Students() {
         </div>
 
         {!isPractitioner && (
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Parent WhatsApp number (optional)
-            </label>
-            <input
-              type="tel"
-              inputMode="tel"
-              value={form.guardian_contact ?? ""}
-              onChange={(e) =>
-                setForm({ ...form, guardian_contact: e.target.value })
-              }
-              placeholder="e.g. 9123 4567 or +65 9123 4567"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              WhatsApp reminders and receipts will open this parent&apos;s chat directly.
-              For non-Singapore numbers, include + and the country code (e.g. +852 9123 4567).
+          <div className="rounded-md border border-gray-200 p-4">
+            <p className="mb-3 text-sm font-medium text-gray-700">
+              Parent / guardian (optional)
             </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={form.guardian_name ?? ""}
+                  onChange={(e) =>
+                    setForm({ ...form, guardian_name: e.target.value })
+                  }
+                  placeholder="e.g. Mrs Tan"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">
+                  Relationship
+                </label>
+                <select
+                  value={form.guardian_relationship ?? ""}
+                  onChange={(e) =>
+                    setForm({ ...form, guardian_relationship: e.target.value })
+                  }
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                >
+                  <option value="">Select…</option>
+                  <option value="mother">Mother</option>
+                  <option value="father">Father</option>
+                  <option value="guardian">Guardian</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-3">
+              <label className="mb-1 block text-xs font-medium text-gray-600">
+                WhatsApp number
+              </label>
+              <input
+                type="tel"
+                inputMode="tel"
+                value={form.guardian_contact ?? ""}
+                onChange={(e) =>
+                  setForm({ ...form, guardian_contact: e.target.value })
+                }
+                placeholder="e.g. 9123 4567 or +65 9123 4567"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                WhatsApp reminders and receipts will open this parent&apos;s chat directly.
+                For non-Singapore numbers, include + and the country code (e.g. +852 9123 4567).
+              </p>
+            </div>
           </div>
         )}
 
