@@ -4,7 +4,12 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { formatSGD } from "../lib/paymentNotice";
 import { formatLessonTime, toDateKey } from "../lib/date";
-import { formatDate, formatMonth, formatRelative } from "../utils/dateFormat";
+import {
+  formatDate,
+  formatDateFull,
+  formatMonth,
+  formatRelative,
+} from "../utils/dateFormat";
 import {
   computeStudentPaymentStatus,
   tierRank,
@@ -13,6 +18,7 @@ import {
 import { getWeekSummaryKey, showAppNotification } from "../lib/notifications";
 import { buildGoogleMapsUrl } from "../lib/maps";
 import { lessonAmount } from "../lib/paymentMode";
+import { buildPaymentRequestMessage } from "../lib/whatsapp";
 import { deleteCalendarEvent, getValidAccessToken } from "../lib/googleCalendar";
 import { useToast } from "../contexts/ToastContext";
 import { useTerms } from "../contexts/TerminologyContext";
@@ -23,6 +29,7 @@ import GettingStartedChecklist from "../components/GettingStartedChecklist";
 import MonthlyRecapCard from "../components/MonthlyRecapCard";
 import NotificationPrompt from "../components/NotificationPrompt";
 import LessonDetailModal from "../components/LessonDetailModal";
+import MessagePreviewModal from "../components/MessagePreviewModal";
 
 const todayKey = () => toDateKey(new Date());
 const tomorrowKey = () => toDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
@@ -184,6 +191,8 @@ export default function Dashboard() {
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(null); // "monthly" | "annual" | null
+  const [preview, setPreview] = useState(null); // WhatsApp message preview
+  const [remindingStudentId, setRemindingStudentId] = useState(null);
   const [grandfatheredBannerDismissed, setGrandfatheredBannerDismissed] = useState(() => {
     try { return localStorage.getItem("chope_grandfathered_banner_dismissed") === "1"; } catch { return false; }
   });
@@ -750,6 +759,54 @@ export default function Dashboard() {
     await loadAll();
   };
 
+  // Opens the same editable WhatsApp payment request the Payments page uses,
+  // for the oldest unpaid cycle of an overdue student. PayNow details and the
+  // cycle's lesson dates are fetched on tap so loadAll() stays unchanged.
+  const handleRemind = async (student, cycle) => {
+    setRemindingStudentId(student.id);
+    try {
+      const [{ data: tutor }, { data: cycleLessons }] = await Promise.all([
+        supabase
+          .from("tutors")
+          .select("full_name, paynow_number")
+          .eq("id", user.id)
+          .single(),
+        supabase
+          .from("lessons")
+          .select("lesson_date")
+          .eq("tutor_id", user.id)
+          .eq("student_id", cycle.student_id)
+          .eq("is_completed", true)
+          .gte("lesson_date", cycle.period_start)
+          .lte("lesson_date", cycle.period_end)
+          .order("lesson_date", { ascending: true }),
+      ]);
+      const message = buildPaymentRequestMessage({
+        studentName: student.name,
+        subject: student.subject,
+        lessonDates: (cycleLessons ?? []).map((l) => l.lesson_date),
+        amountDue: cycle.amount_due,
+        tutorName: tutor?.full_name ?? user?.user_metadata?.full_name,
+        paynowNumber: tutor?.paynow_number,
+        paymentMode: student.payment_mode,
+        monthLabel: formatMonth(cycle.period_end),
+        dueDateLabel: formatDateFull(cycle.period_end),
+        guardianName: student.guardian_name,
+      });
+      setPreview({
+        title: "Payment request",
+        message,
+        mode: "whatsapp",
+        phone: student.guardian_contact,
+      });
+    } catch (err) {
+      console.error("handleRemind:", err);
+      showToast("Could not prepare the reminder. Please try again.", "error");
+    } finally {
+      setRemindingStudentId(null);
+    }
+  };
+
   const handleCollectPayment = async (cycleId) => {
     const { error } = await supabase
       .from("payment_cycles")
@@ -1227,14 +1284,25 @@ export default function Dashboard() {
                         </p>
                       </div>
                       {status.collectCycle && (
-                        <button
-                          onClick={() =>
-                            handleCollectPayment(status.collectCycle.id)
-                          }
-                          className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
-                        >
-                          Collect Payment
-                        </button>
+                        <div className="flex flex-wrap gap-2">
+                          {!isPractitioner && (
+                            <button
+                              onClick={() => handleRemind(s, status.collectCycle)}
+                              disabled={remindingStudentId === s.id}
+                              className="min-h-11 rounded-md bg-orange-500 px-3 text-xs font-medium text-white transition hover:bg-orange-600 hover:shadow disabled:opacity-60"
+                            >
+                              {remindingStudentId === s.id ? "Preparing…" : "💬 Remind"}
+                            </button>
+                          )}
+                          <button
+                            onClick={() =>
+                              handleCollectPayment(status.collectCycle.id)
+                            }
+                            className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
+                          >
+                            Collect Payment
+                          </button>
+                        </div>
                       )}
                     </li>
                   );
@@ -1553,6 +1621,16 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {preview && (
+        <MessagePreviewModal
+          title={preview.title}
+          initialMessage={preview.message}
+          mode={preview.mode}
+          phone={preview.phone}
+          onClose={() => setPreview(null)}
+        />
+      )}
 
       {detailOverdueLesson && (
         <LessonDetailModal
