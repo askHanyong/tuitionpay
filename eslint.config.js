@@ -24,7 +24,7 @@ export default defineConfig([
     extends: [js.configs.recommended],
     languageOptions: {
       globals: globals.node,
-      sourceType: 'commonjs',
+      sourceType: 'module',
     },
   },
 ])

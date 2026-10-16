@@ -991,17 +991,9 @@ export default function Lessons() {
         } else {
           // No Google Calendar event yet (original sync failed or lesson predates sync).
           // Try to create one now so future edits can update it.
-          const student = students.find((s) => s.id === form.student_id);
-          const mode = student?.payment_mode ?? "lessons";
-          const isMonthlyBilled = mode === "monthly" || mode === "custom_date";
-          const isPerLesson = mode === "per_lesson";
           const lessonCount = lessons.filter(
             (l) => l.student_id === form.student_id && l.is_completed,
           ).length;
-          const lessonLabel =
-            isMonthlyBilled || isPerLesson
-              ? `Lesson ${lessonCount}`
-              : `Lesson ${lessonCount} of ${student?.payment_cycle_count ?? 4}`;
           await pushLessonToGoogleCalendar({
             lessonId: editingId,
             studentId: form.student_id,

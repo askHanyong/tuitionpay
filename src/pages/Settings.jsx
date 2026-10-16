@@ -149,7 +149,6 @@ export default function Settings() {
   const [subscriptionPlan, setSubscriptionPlan] = useState(null);
   const [subscriptionId, setSubscriptionId] = useState(null);
   const [periodEnd, setPeriodEnd] = useState(null);
-  const [billingAction, setBillingAction] = useState(null); // "cancel" | "switch" | null
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingMessage, setBillingMessage] = useState(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -157,7 +156,6 @@ export default function Settings() {
   const [confirmSwitch, setConfirmSwitch] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
   const [invoices, setInvoices] = useState([]);
-  const [partnerCodeId, setPartnerCodeId] = useState(null);
   const [partnerCodeLabel, setPartnerCodeLabel] = useState(null);
   const [partnerStudentLimit, setPartnerStudentLimit] = useState(null);
   const [partnerCodeInput, setPartnerCodeInput] = useState("");
@@ -197,7 +195,6 @@ if (codeErr || !codeRow?.active) {
         setPartnerCodeError("Something went wrong. Please try again.");
         return;
       }
-      setPartnerCodeId(codeRow.id);
       setPartnerCodeLabel(`${codeRow.code} (${codeRow.partner_name})`);
       setPartnerStudentLimit(codeRow.student_limit);
       setPartnerCodeInput("");
@@ -226,7 +223,6 @@ if (codeErr || !codeRow?.active) {
       setCancelAtPeriodEnd(data?.cancel_at_period_end ?? false);
       setPartnerStudentLimit(data?.partner_student_limit ?? null);
       if (data?.partner_code_id) {
-        setPartnerCodeId(data.partner_code_id);
         const { data: codeRow } = await supabase
           .from("partner_codes")
           .select("code, partner_name")

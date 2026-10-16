@@ -32,7 +32,6 @@ import LessonDetailModal from "../components/LessonDetailModal";
 import MessagePreviewModal from "../components/MessagePreviewModal";
 
 const todayKey = () => toDateKey(new Date());
-const tomorrowKey = () => toDateKey(new Date(Date.now() + 24 * 60 * 60 * 1000));
 
 // Update this in one place to ship a new "What's new" banner -- bumping
 // the id makes it reappear for everyone even if they dismissed a past one.
@@ -171,13 +170,11 @@ export default function Dashboard() {
   const [paymentCycles, setPaymentCycles] = useState([]);
   const [todayLessons, setTodayLessons] = useState([]);
   const [scheduledLessons, setScheduledLessons] = useState([]);
-  const [hasScheduledLesson, setHasScheduledLesson] = useState(false);
   const [overdueLessons, setOverdueLessons] = useState([]);
   const [detailOverdueLesson, setDetailOverdueLesson] = useState(null);
   const [checklistDismissed, setChecklistDismissed] = useState(true);
   const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
-  const [subscriptionPeriodEnd, setSubscriptionPeriodEnd] = useState(null);
   const [checkoutLoading, setCheckoutLoading] = useState(null); // "monthly" | "annual" | null
   const [preview, setPreview] = useState(null); // WhatsApp message preview
   const [remindingStudentId, setRemindingStudentId] = useState(null);
@@ -307,7 +304,6 @@ export default function Dashboard() {
     setPaymentCycles(excludeDeleted(excludeArchived(cyclesData)));
     setTodayLessons(excludeDeleted(excludeArchived(todayData)));
     setScheduledLessons(excludeDeleted(excludeArchived(scheduledData)));
-    setHasScheduledLesson(excludeDeleted(excludeArchived(scheduledData)).length > 0);
     const nowTimeKey = new Date().toTimeString().slice(0, 5);
     const isInThePast = (l) =>
       l.lesson_date < todayKey() ||
@@ -335,7 +331,6 @@ export default function Dashboard() {
           Boolean(tutorData.google_calendar_tokens?.access_token),
         );
         setSubscriptionStatus(tutorData.subscription_status ?? null);
-        setSubscriptionPeriodEnd(tutorData.current_period_end ?? null);
       }
       await loadAll();
     };
@@ -856,7 +851,7 @@ export default function Dashboard() {
   };
 
   const dismissGrandfatheredBanner = () => {
-    try { localStorage.setItem("chope_grandfathered_banner_dismissed", "1"); } catch {}
+    try { localStorage.setItem("chope_grandfathered_banner_dismissed", "1"); } catch { /* storage unavailable */ }
     setGrandfatheredBannerDismissed(true);
   };
 
@@ -1248,7 +1243,7 @@ export default function Dashboard() {
                             }
                             className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
                           >
-                            Collect Payment
+                            Mark as paid
                           </button>
                         </div>
                       )}
@@ -1544,7 +1539,7 @@ export default function Dashboard() {
                               }
                               className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
                             >
-                              Collect Payment
+                              Mark as paid
                             </button>
                           )}
                         </div>

@@ -180,7 +180,7 @@ export default function ScheduleLessonsModal({
     try {
       await attempt();
       return { ok: true };
-    } catch (err1) {
+    } catch {
       try {
         await attempt();
         return { ok: true };
