@@ -1096,6 +1096,50 @@ export default function Dashboard() {
             )}
           </section>
 
+          {/* Upcoming lessons */}
+          <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">
+                Upcoming {terms.lessons}
+              </h2>
+              <Link
+                to="/lessons"
+                className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
+              >
+                Log a {terms.lesson.toLowerCase()} →
+              </Link>
+            </div>
+            {loading ? (
+              <p className="text-sm text-gray-500">Loading...</p>
+            ) : upcomingLessons.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                No upcoming {terms.lessons.toLowerCase()} this week 🎉
+              </p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {upcomingLessons.map((l) => (
+                  <li
+                    key={l.id}
+                    className="flex items-center justify-between rounded-lg px-2 py-3 transition hover:bg-gray-50"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {l.students?.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {formatDate(l.lesson_date)}
+                        {l.lesson_time && ` · ${formatLessonTime(l.lesson_time)}`}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-[#edf6f3] px-2.5 py-1 text-xs font-medium text-[#0f7a58]">
+                      {lessonBadgeLabel(l)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
           {/* Summary banner */}
           <div className="grid grid-cols-2 gap-3 rounded-xl bg-[#1b2d4f] p-4 text-white shadow-sm sm:grid-cols-4">
             <div>
@@ -1273,6 +1317,88 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* Needs your attention: unpaid cycles only. Full history lives on the Payments page. */}
+          <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-gray-900">
+                Needs your attention
+              </h2>
+              <Link
+                to="/payments"
+                className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
+              >
+                View all payments →
+              </Link>
+            </div>
+            {loading ? (
+              <p className="text-sm text-gray-500">Loading...</p>
+            ) : pendingCount === 0 ? (
+              <p className="text-sm text-gray-500">
+                ✅ All paid up — nothing to collect.
+              </p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {paymentCycles
+                  .filter((c) => c.status === "pending")
+                  .map((c) => {
+                    const student = students.find((st) => st.id === c.student_id);
+                    return (
+                      <li
+                        key={c.id}
+                        className="flex flex-col gap-2 rounded-lg px-2 py-3 transition hover:bg-gray-50 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="flex items-center justify-between gap-3 sm:justify-start">
+                          <span className="text-sm text-gray-700">
+                            {c.students?.name}
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-gray-900">
+                              {formatSGD(c.amount_due)}
+                            </span>
+                            <StatusBadge status={c.status} />
+                          </span>
+                        </div>
+                        {!isPractitioner && student && (
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => handleRemind(student, c)}
+                              disabled={remindingStudentId === student.id}
+                              className="min-h-11 rounded-md bg-orange-500 px-3 text-xs font-medium text-white transition hover:bg-orange-600 hover:shadow disabled:opacity-60"
+                            >
+                              {remindingStudentId === student.id
+                                ? "Preparing…"
+                                : "💬 Remind"}
+                            </button>
+                            <button
+                              onClick={() => handleCollectPayment(c.id)}
+                              className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
+                            >
+                              Mark as paid
+                            </button>
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+              </ul>
+            )}
+          </section>
+        </div>
+
+        {/* ── RIGHT PANEL — Money (40%) ── */}
+        <div className="space-y-6 md:flex-none md:w-[40%] md:self-start">
+          {/* Monthly recap — desktop only (mobile version is in left panel) */}
+          <div className="hidden md:block">
+            <MonthlyRecapCard
+              lessons={lessons}
+              paymentCycles={paymentCycles}
+              students={students}
+              scheduledLessons={scheduledLessons}
+              tutorName={user?.user_metadata?.full_name}
+              currentMonthPendingOverride={allPendingAmount}
+            />
+          </div>
+
           {/* Student payment progress */}
           <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
             <div className="mb-4 flex items-center justify-between">
@@ -1423,132 +1549,6 @@ export default function Dashboard() {
                     </li>
                   );
                 })}
-              </ul>
-            )}
-          </section>
-
-          {/* Needs your attention: unpaid cycles only. Full history lives on the Payments page. */}
-          <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-900">
-                Needs your attention
-              </h2>
-              <Link
-                to="/payments"
-                className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
-              >
-                View all payments →
-              </Link>
-            </div>
-            {loading ? (
-              <p className="text-sm text-gray-500">Loading...</p>
-            ) : pendingCount === 0 ? (
-              <p className="text-sm text-gray-500">
-                ✅ All paid up — nothing to collect.
-              </p>
-            ) : (
-              <ul className="divide-y divide-gray-100">
-                {paymentCycles
-                  .filter((c) => c.status === "pending")
-                  .map((c) => {
-                    const student = students.find((st) => st.id === c.student_id);
-                    return (
-                      <li
-                        key={c.id}
-                        className="flex flex-col gap-2 rounded-lg px-2 py-3 transition hover:bg-gray-50 sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <div className="flex items-center justify-between gap-3 sm:justify-start">
-                          <span className="text-sm text-gray-700">
-                            {c.students?.name}
-                          </span>
-                          <span className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-gray-900">
-                              {formatSGD(c.amount_due)}
-                            </span>
-                            <StatusBadge status={c.status} />
-                          </span>
-                        </div>
-                        {!isPractitioner && student && (
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              onClick={() => handleRemind(student, c)}
-                              disabled={remindingStudentId === student.id}
-                              className="min-h-11 rounded-md bg-orange-500 px-3 text-xs font-medium text-white transition hover:bg-orange-600 hover:shadow disabled:opacity-60"
-                            >
-                              {remindingStudentId === student.id
-                                ? "Preparing…"
-                                : "💬 Remind"}
-                            </button>
-                            <button
-                              onClick={() => handleCollectPayment(c.id)}
-                              className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
-                            >
-                              Mark as paid
-                            </button>
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-              </ul>
-            )}
-          </section>
-        </div>
-
-        {/* ── RIGHT PANEL — Money (40%) ── */}
-        <div className="space-y-6 md:sticky md:top-4 md:flex-none md:w-[40%] md:self-start">
-          {/* Monthly recap — desktop only (mobile version is in left panel) */}
-          <div className="hidden md:block">
-            <MonthlyRecapCard
-              lessons={lessons}
-              paymentCycles={paymentCycles}
-              students={students}
-              scheduledLessons={scheduledLessons}
-              tutorName={user?.user_metadata?.full_name}
-              currentMonthPendingOverride={allPendingAmount}
-            />
-          </div>
-
-          {/* Upcoming lessons */}
-          <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-900">
-                Upcoming {terms.lessons}
-              </h2>
-              <Link
-                to="/lessons"
-                className="text-sm font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
-              >
-                Log a {terms.lesson.toLowerCase()} →
-              </Link>
-            </div>
-            {loading ? (
-              <p className="text-sm text-gray-500">Loading...</p>
-            ) : upcomingLessons.length === 0 ? (
-              <p className="text-sm text-gray-500">
-                No upcoming {terms.lessons.toLowerCase()} this week 🎉
-              </p>
-            ) : (
-              <ul className="divide-y divide-gray-100">
-                {upcomingLessons.map((l) => (
-                  <li
-                    key={l.id}
-                    className="flex items-center justify-between rounded-lg px-2 py-3 transition hover:bg-gray-50"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {l.students?.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatDate(l.lesson_date)}
-                        {l.lesson_time && ` · ${formatLessonTime(l.lesson_time)}`}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-[#edf6f3] px-2.5 py-1 text-xs font-medium text-[#0f7a58]">
-                      {lessonBadgeLabel(l)}
-                    </span>
-                  </li>
-                ))}
               </ul>
             )}
           </section>
