@@ -567,7 +567,6 @@ export default function Dashboard() {
       d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
     );
   };
-  const studentsById = new Map(students.map((s) => [s.id, s]));
   // `lessons` only covers strictly-before-today (see its fetch query --
   // .lt("lesson_date", todayKey())), because today's lessons are tracked
   // separately in `scheduledLessons`/`todayLessons` for the "mark as done"
@@ -586,90 +585,6 @@ export default function Dashboard() {
   const collectedThisMonth = paymentCycles
     .filter((c) => c.status === "paid" && isThisMonth(c.period_end))
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
-  // A cycle only exists once its full lesson group has landed, so a student
-  // mid-cycle has no payment_cycles row at all yet. Their full cycle amount
-  // only counts as pending once the cycle is far enough along to be
-  // imminent -- at least (payment_cycle_count - 1) completed unbilled
-  // lessons -- not from the very first lesson of the cycle.
-  const pendingFromCyclesThisMonth = paymentCycles
-    .filter((c) => c.status === "pending" && isThisMonth(c.period_end))
-    .reduce((sum, c) => sum + Number(c.amount_due), 0);
-  const midCycleStudentIdsThisMonth = new Set(
-    knownCompletedOrPast
-      .filter((l) => !l.payment_cycle_id && isThisMonth(l.lesson_date))
-      .map((l) => l.student_id),
-  );
-  const pendingFromMidCycleLessonsThisMonth = [
-    ...midCycleStudentIdsThisMonth,
-  ].reduce((sum, studentId) => {
-    const student = studentsById.get(studentId);
-    if (!student) return sum;
-    const mode = student.payment_mode ?? "lessons";
-    // Monthly/custom-date billing has no fixed cycle size -- every unbilled
-    // lesson this month accumulates toward that month's total, regardless
-    // of payment_cycle_count (which only applies to "lessons" mode). Sum
-    // each lesson's actual duration_minutes * rate rather than assuming a
-    // fixed per-lesson amount.
-    if (mode === "monthly" || mode === "custom_date") {
-      // Monthly/custom-date students are still "accumulating" for most of the
-      // month -- only start showing them as pending once the month is almost
-      // over (last 3 days), so the dashboard doesn't nag about a balance
-      // that's still growing.
-      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      const daysToEnd = Math.round(
-        (endOfMonth -
-          new Date(now.getFullYear(), now.getMonth(), now.getDate())) /
-          (1000 * 60 * 60 * 24),
-      );
-      if (daysToEnd > 3) return sum;
-      const unbilledThisMonthLessons = knownCompletedOrPast.filter(
-        (l) =>
-          l.student_id === studentId &&
-          !l.payment_cycle_id &&
-          isThisMonth(l.lesson_date),
-      );
-      const total = unbilledThisMonthLessons.reduce(
-        (s, l) => s + lessonAmount(l, student),
-        0,
-      );
-      return sum + total;
-    }
-    const cycleCount = student.payment_cycle_count ?? 4;
-    const unbilledCount = openCountByStudent.get(studentId) ?? 0;
-    if (unbilledCount < cycleCount - 1) return sum;
-    // The cycle is only "imminent" enough to count toward this month's
-    // pending if the scheduled lesson that would complete it (the next
-    // lesson needed to reach payment_cycle_count) actually falls within
-    // this month -- otherwise the cycle won't close until a later month.
-    const nextScheduled = (scheduledLessonsByStudent.get(studentId) ?? [])
-      .slice()
-      .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1));
-    const lessonsNeeded = cycleCount - unbilledCount;
-    const completingLesson = nextScheduled[lessonsNeeded - 1];
-    if (completingLesson && !isThisMonth(completingLesson.lesson_date)) {
-      return sum;
-    }
-    const unbilledLessons = knownCompletedOrPast
-      .filter(
-        (l) =>
-          l.student_id === studentId && !l.payment_cycle_id && l.is_completed,
-      )
-      .sort((a, b) =>
-        a.lesson_date < b.lesson_date
-          ? -1
-          : a.lesson_date > b.lesson_date
-            ? 1
-            : 0,
-      )
-      .slice(-cycleCount);
-    const cycleAmount = unbilledLessons.reduce(
-      (s, l) => s + lessonAmount(l, student),
-      0,
-    );
-    return sum + cycleAmount;
-  }, 0);
-  const pendingThisMonth =
-    pendingFromCyclesThisMonth + pendingFromMidCycleLessonsThisMonth;
   const lessonsCompletedThisMonth = knownCompletedOrPast.filter(
     (l) => l.is_completed && isThisMonth(l.lesson_date),
   ).length;
@@ -1045,10 +960,28 @@ export default function Dashboard() {
           )}
 
           {/* Today's lessons */}
-          <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
-            <h2 className="mb-4 text-base font-semibold text-gray-900">
-              Today&apos;s {terms.lessons.toLowerCase()}
-            </h2>
+          <section className="rounded-xl border-2 border-[#5ecfaa] bg-gradient-to-b from-[#effaf6] to-white p-5 shadow-md ring-4 ring-[#5ecfaa]/15">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-[#1b2d4f]">
+                <span className="rounded-md bg-[#1b2d4f] px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-[#5ecfaa]">
+                  Today
+                </span>
+                {terms.lessons}
+              </h2>
+              {!loading && todayLessons.length > 0 && (
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    todayLessons.every((l) => l.is_completed)
+                      ? "bg-[#d1fae5] text-[#065f46]"
+                      : "bg-white text-[#1b2d4f] ring-1 ring-[#5ecfaa]"
+                  }`}
+                >
+                  {todayLessons.every((l) => l.is_completed)
+                    ? "All done ✓"
+                    : `${todayLessons.filter((l) => l.is_completed).length} of ${todayLessons.length} done`}
+                </span>
+              )}
+            </div>
             {loading ? (
               <p className="text-sm text-gray-500">Loading...</p>
             ) : todayLessons.length === 0 ? (
@@ -1609,11 +1542,11 @@ export default function Dashboard() {
                 </span>
                 {" · "}
                 <span className="font-medium text-amber-700">
-                  ⏳ Pending: {formatSGD(pendingThisMonth)}
+                  ⏳ Pending: {formatSGD(allPendingAmount)}
                 </span>
                 {" · "}
                 <span className="font-semibold text-gray-900">
-                  Total: {formatSGD(collectedThisMonth + pendingThisMonth)}
+                  Total: {formatSGD(collectedThisMonth + allPendingAmount)}
                 </span>
               </p>
             </section>
