@@ -38,7 +38,7 @@ export function currentMonthStr() {
 // of the statement month (earlier ones are needed to know how much of a
 // one-off placement fee has already been used). range: { start, end } of the
 // statement month, end exclusive.
-export function buildStatement({ payee, students, lessons, items = [], range }) {
+export function buildStatement({ payee, students, lessons, items = [], range, paidLessonIds = null }) {
   const sharePct = Number(payee.share_percent);
   const inMonth = (d) => !range || (d >= range.start && d < range.end);
 
@@ -75,6 +75,8 @@ export function buildStatement({ payee, students, lessons, items = [], range }) 
           amount,
           placementFee,
           counted: round2(amount - placementFee),
+          // true/false once we know the student's payment status, else null
+          paid: paidLessonIds ? paidLessonIds.has(l.id) : null,
         };
       });
 
@@ -89,6 +91,8 @@ export function buildStatement({ payee, students, lessons, items = [], range }) 
         total: sum("amount"),
         placementTotal: sum("placementFee"),
         countedTotal: sum("counted"),
+        unpaidTotal: round2(rows.filter((r) => r.paid === false).reduce((t, r) => t + r.counted, 0)),
+        paidCount: rows.filter((r) => r.paid === true).length,
         hours: sum("hours"),
       };
     })
@@ -105,9 +109,10 @@ export function buildStatement({ payee, students, lessons, items = [], range }) 
   const groupMap = new Map();
   for (const b of blocks.filter((x) => x.collectedBy === "me")) {
     const key = b.directPayer || "Direct";
-    const g = groupMap.get(key) ?? { payer: key, total: 0, students: [] };
+    const g = groupMap.get(key) ?? { payer: key, total: 0, students: [], studentIds: [] };
     g.total = round2(g.total + b.countedTotal);
     g.students.push(b.student.name);
+    g.studentIds.push(b.student.id);
     groupMap.set(key, g);
   }
   const directGroups = [...groupMap.values()].sort((a, b) =>
@@ -125,6 +130,7 @@ export function buildStatement({ payee, students, lessons, items = [], range }) 
     items,
     itemsTotal,
     blocks,
+    unpaidByStudents: round2(blocks.reduce((t, b) => t + b.unpaidTotal, 0)),
     placementTotal,
     hasPlacement: placementTotal > 0,
     feesCollectedByAgency,

@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import AppShell from "../components/AppShell";
+import SettlementBoard from "../components/SettlementBoard";
 import { formatSGD } from "../lib/paymentNotice";
 import {
   buildStatement,
@@ -45,6 +46,8 @@ export default function Statements() {
   const [unpaid, setUnpaid] = useState([]);
   const [itemForm, setItemForm] = useState({ description: "", amount: "", direction: "owed_to_me", note: "" });
   const [savingItem, setSavingItem] = useState(false);
+  const [paidIds, setPaidIds] = useState(() => new Set());
+  const [boardVersion, setBoardVersion] = useState(0);
 
   const activePayees = payees.filter((p) => !p.archived);
   const payee = payees.find((p) => p.id === payeeId) ?? null;
@@ -101,7 +104,7 @@ export default function Statements() {
       const { data: les, error: lErr } = await supabase
         .from("lessons")
         .select(
-          "id, student_id, lesson_date, lesson_time, duration_minutes, rate, rate_type, subject",
+          "id, student_id, lesson_date, lesson_time, duration_minutes, rate, rate_type, subject, payment_cycle_id",
         )
         .eq("tutor_id", user.id)
         .eq("is_completed", true)
@@ -113,6 +116,20 @@ export default function Statements() {
       // (all earlier lessons are needed so a one-off placement fee is spread correctly)
       if (cancelled) return;
       if (lErr) setError(lErr.message);
+      // Which of these lessons has the student already paid for?
+      const cycleIds = [...new Set((les ?? []).map((l) => l.payment_cycle_id).filter(Boolean))];
+      let paid = new Set();
+      if (cycleIds.length) {
+        const { data: cyc } = await supabase
+          .from("payment_cycles")
+          .select("id, status")
+          .eq("tutor_id", user.id)
+          .in("id", cycleIds);
+        const paidCycles = new Set((cyc ?? []).filter((c) => c.status === "paid").map((c) => c.id));
+        paid = new Set((les ?? []).filter((l) => paidCycles.has(l.payment_cycle_id)).map((l) => l.id));
+      }
+      if (cancelled) return;
+      setPaidIds(paid);
       setLessons(les ?? []);
     })();
     return () => {
@@ -154,6 +171,7 @@ export default function Statements() {
       .eq("status", "sent")
       .order("month");
     setUnpaid(data ?? []);
+    setBoardVersion((v) => v + 1);
   };
 
   useEffect(() => {
@@ -190,9 +208,10 @@ export default function Statements() {
             lessons,
             items,
             range: monthRange(monthStr),
+            paidLessonIds: paidIds,
           })
         : null,
-    [effectivePayee, linkedStudents, lessons, items, monthStr],
+    [effectivePayee, linkedStudents, lessons, items, monthStr, paidIds],
   );
 
   const syncClaimedTotal = async (nextItems) => {
@@ -373,6 +392,17 @@ export default function Statements() {
       </div>
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
 
+      <SettlementBoard
+        payees={payees}
+        monthStr={monthStr}
+        onMonthChange={setMonthStr}
+        refreshKey={boardVersion}
+        onOpenPayee={(id) => {
+          setPayeeId(id);
+          setTimeout(() => document.getElementById("statement-detail")?.scrollIntoView({ behavior: "smooth" }), 50);
+        }}
+      />
+
       <section className="mb-5 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900">Payees</h2>
@@ -487,7 +517,7 @@ export default function Statements() {
       )}
 
       {activePayees.length > 0 && (
-        <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <section id="statement-detail" className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
           <div className="mb-4 grid gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-gray-600">Payee</label>
@@ -535,6 +565,7 @@ export default function Statements() {
                           </span>
                         </span>
                         <span className="text-xs text-gray-600">
+                          {b.paidCount}/{b.rows.length} paid ·{" "}
                           {b.collectedBy === "me"
                             ? b.directPayer
                               ? directPayerLabel(b.directPayer)
@@ -546,7 +577,11 @@ export default function Statements() {
                         <tbody>
                           {b.rows.map((r) => (
                             <tr key={r.id} className="border-t border-gray-100">
-                              <td className="px-3 py-1.5">{fmtDay(r.date)}</td>
+                              <td className="px-3 py-1.5">
+                                {fmtDay(r.date)}
+                                {r.paid === true && <span className="ml-2 text-xs text-green-700" title="Student has paid">✅ paid</span>}
+                                {r.paid === false && <span className="ml-2 text-xs text-amber-700" title="Student has not paid yet">⏳ unpaid</span>}
+                              </td>
                               <td className="px-3 py-1.5 text-gray-600">
                                 {r.perSession ? "per session" : `${Number(r.hours.toFixed(2))} h`}
                               </td>
@@ -633,6 +668,12 @@ export default function Statements() {
                         <span>{Number(i.amount) < 0 ? "− " : ""}{formatSGD(Math.abs(Number(i.amount)))}</span>
                       </div>
                     ))}
+                    {statement.unpaidByStudents > 0 && (
+                      <div className="flex justify-between py-0.5 text-xs text-amber-700">
+                        <span>Included above but not yet paid by students</span>
+                        <span>{formatSGD(statement.unpaidByStudents)}</span>
+                      </div>
+                    )}
                     <div className="mt-1 flex justify-between border-t border-gray-300 pt-1.5 font-semibold">
                       <span>{statement.net < 0 ? `Net: you owe ${payee.name}` : `Total ${payee.name} to reimburse you`}</span>
                       <span>{formatSGD(Math.abs(statement.net))}</span>
