@@ -359,3 +359,42 @@ create policy "Tutors manage own payees"
   on payees for all
   using (tutor_id = (select auth.uid()))
   with check (tutor_id = (select auth.uid()));
+
+-- Agency statements, phase 2 (migration 050)
+create table if not exists payee_claim_items (
+  id uuid primary key default gen_random_uuid(),
+  tutor_id uuid not null references tutors (id) on delete cascade,
+  payee_id uuid not null references payees (id) on delete cascade,
+  month date not null check (extract(day from month) = 1),
+  description text not null,
+  amount numeric(10, 2) not null,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists payee_statements (
+  id uuid primary key default gen_random_uuid(),
+  tutor_id uuid not null references tutors (id) on delete cascade,
+  payee_id uuid not null references payees (id) on delete cascade,
+  month date not null check (extract(day from month) = 1),
+  share_percent numeric(5, 2) not null check (share_percent >= 0 and share_percent <= 100),
+  claimed_total numeric(10, 2) not null,
+  status text not null default 'sent' check (status in ('sent', 'reimbursed')),
+  sent_at timestamptz not null default now(),
+  reimbursed_at timestamptz,
+  created_at timestamptz not null default now(),
+  unique (payee_id, month)
+);
+
+alter table payee_claim_items enable row level security;
+alter table payee_statements enable row level security;
+
+create policy "Tutors manage own claim items"
+  on payee_claim_items for all
+  using (tutor_id = (select auth.uid()))
+  with check (tutor_id = (select auth.uid()));
+
+create policy "Tutors manage own payee statements"
+  on payee_statements for all
+  using (tutor_id = (select auth.uid()))
+  with check (tutor_id = (select auth.uid()));
