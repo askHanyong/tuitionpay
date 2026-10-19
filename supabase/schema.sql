@@ -39,7 +39,10 @@ create table if not exists students (
   payment_cycle_count integer not null default 4 check (payment_cycle_count between 2 and 20),
   payment_custom_day integer check (payment_custom_day is null or payment_custom_day between 1 and 31),
   payee_id uuid references payees (id) on delete set null,
-  fee_collected_by text not null default 'payee' check (fee_collected_by in ('payee', 'me'))
+  fee_collected_by text not null default 'payee' check (fee_collected_by in ('payee', 'me')),
+  placement_fee_agency text,
+  placement_fee_amount numeric(10, 2) check (placement_fee_amount is null or placement_fee_amount >= 0),
+  placement_fee_start date
 );
 
 -- Lessons belong to a student (and, transitively, a tutor).
