@@ -30,61 +30,85 @@ export function currentMonthStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-// students: this payee's students. lessons: completed lessons in the month.
-export function buildStatement({ payee, students, lessons, items = [] }) {
+// students: this payee's students. lessons: completed lessons up to the end
+// of the statement month (earlier ones are needed to know how much of a
+// one-off placement fee has already been used). range: { start, end } of the
+// statement month, end exclusive.
+export function buildStatement({ payee, students, lessons, items = [], range }) {
   const sharePct = Number(payee.share_percent);
-  const byStudent = new Map(students.map((s) => [s.id, s]));
+  const inMonth = (d) => !range || (d >= range.start && d < range.end);
 
   const blocks = students
     .map((student) => {
-      const rows = lessons
+      const sorted = lessons
         .filter((l) => l.student_id === student.id)
         .sort((a, b) =>
-          `${a.lesson_date} ${a.lesson_time ?? ""}`.localeCompare(
-            `${b.lesson_date} ${b.lesson_time ?? ""}`,
+          `${a.lesson_date} ${a.lesson_time ?? ""} ${a.id}`.localeCompare(
+            `${b.lesson_date} ${b.lesson_time ?? ""} ${b.id}`,
           ),
-        )
-        .map((l) => {
-          const perSession = l.rate_type === "per_session";
-          return {
-            id: l.id,
-            date: l.lesson_date,
-            subject: l.subject || student.subject || "",
-            hours: perSession ? null : (l.duration_minutes ?? 0) / 60,
-            rate: l.rate ?? student.hourly_rate ?? 0,
-            perSession,
-            amount: round2(lessonAmount(l, student)),
-          };
-        });
-      const total = round2(rows.reduce((sum, r) => sum + r.amount, 0));
-      const hours = round2(rows.reduce((sum, r) => sum + (r.hours ?? 0), 0));
+        );
+
+      // One-off placement fee: comes off the earliest lessons (on/after the
+      // start date, if set) until the total is used up.
+      let feeLeft = Number(student.placement_fee_amount) || 0;
+      const feeStart = student.placement_fee_start || null;
+
+      const allRows = sorted.map((l) => {
+        const perSession = l.rate_type === "per_session";
+        const amount = round2(lessonAmount(l, student));
+        let placementFee = 0;
+        if (feeLeft > 0 && (!feeStart || l.lesson_date >= feeStart)) {
+          placementFee = round2(Math.min(feeLeft, amount));
+          feeLeft = round2(feeLeft - placementFee);
+        }
+        return {
+          id: l.id,
+          date: l.lesson_date,
+          subject: l.subject || student.subject || "",
+          hours: perSession ? null : (l.duration_minutes ?? 0) / 60,
+          rate: l.rate ?? student.hourly_rate ?? 0,
+          perSession,
+          amount,
+          placementFee,
+          counted: round2(amount - placementFee),
+        };
+      });
+
+      const rows = allRows.filter((r) => inMonth(r.date));
+      const sum = (key) => round2(rows.reduce((t, r) => t + (r[key] ?? 0), 0));
       return {
         student,
         collectedBy: student.fee_collected_by === "me" ? "me" : "payee",
+        placementAgency: student.placement_fee_agency || "referral agency",
         rows,
-        total,
-        hours,
+        total: sum("amount"),
+        placementTotal: sum("placementFee"),
+        countedTotal: sum("counted"),
+        hours: sum("hours"),
       };
     })
-    .filter((b) => b.rows.length > 0 && byStudent.has(b.student.id))
+    .filter((b) => b.rows.length > 0)
     .sort((a, b) => a.student.name.localeCompare(b.student.name));
 
   const feesCollectedByAgency = round2(
-    blocks.filter((b) => b.collectedBy === "payee").reduce((s, b) => s + b.total, 0),
+    blocks.filter((b) => b.collectedBy === "payee").reduce((s, b) => s + b.countedTotal, 0),
   );
   const feesCollectedByMe = round2(
-    blocks.filter((b) => b.collectedBy === "me").reduce((s, b) => s + b.total, 0),
+    blocks.filter((b) => b.collectedBy === "me").reduce((s, b) => s + b.countedTotal, 0),
   );
   const agencyOwesMe = round2((feesCollectedByAgency * sharePct) / 100);
   const iOweAgency = round2((feesCollectedByMe * (100 - sharePct)) / 100);
 
   const itemsTotal = round2(items.reduce((sum, i) => sum + Number(i.amount), 0));
+  const placementTotal = round2(blocks.reduce((s, b) => s + b.placementTotal, 0));
 
   return {
     sharePct,
     items,
     itemsTotal,
     blocks,
+    placementTotal,
+    hasPlacement: placementTotal > 0,
     feesCollectedByAgency,
     feesCollectedByMe,
     agencyOwesMe,
@@ -107,14 +131,23 @@ export async function downloadStatementXlsx({ payee, monthStr, tutorName, statem
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Statement");
-  ws.columns = [
-    { width: 24 },
-    { width: 22 },
-    { width: 10 },
-    { width: 12 },
-    { width: 14 },
-  ];
+  const wide = statement.hasPlacement;
+  const lastCol = wide ? 7 : 5;
+  ws.columns = wide
+    ? [{ width: 24 }, { width: 20 }, { width: 10 }, { width: 12 }, { width: 14 }, { width: 22 }, { width: 14 }]
+    : [{ width: 24 }, { width: 22 }, { width: 10 }, { width: 12 }, { width: 14 }];
   const money = '"$"#,##0.00';
+  const pad = (cells) => {
+    const out = [...cells];
+    while (out.length < lastCol) out.splice(out.length - 1, 0, "");
+    return out;
+  };
+  // Row with its amount in the last column, label in the first.
+  const amountRow = (label, value) => {
+    const r = ws.addRow(pad([label, value]));
+    r.getCell(lastCol).numFmt = money;
+    return r;
+  };
 
   const title = ws.addRow([`${payee.name} — statement for ${monthLabelFromStr(monthStr)}`]);
   title.font = { bold: true, size: 14 };
@@ -122,66 +155,53 @@ export async function downloadStatementXlsx({ payee, monthStr, tutorName, statem
   ws.addRow([]);
 
   for (const b of statement.blocks) {
-    const head = ws.addRow([
-      b.student.name,
-      [b.student.subject, b.student.level].filter(Boolean).join(" · "),
-      "",
-      "",
-      b.collectedBy === "me" ? "Paid to tutor" : "Paid to agency",
-    ]);
+    const collected = b.collectedBy === "me" ? "Paid to tutor" : "Paid to agency";
+    const head = ws.addRow(
+      pad([b.student.name, [b.student.subject, b.student.level].filter(Boolean).join(" · "), collected]),
+    );
     head.font = { bold: true };
-    head.eachCell((c) => {
+    head.eachCell({ includeEmpty: true }, (c) => {
       c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE8F5EF" } };
     });
-    const cols = ws.addRow(["Date", "Subject", "Hours", "Rate", "Amount"]);
+    const colHeads = wide
+      ? ["Date", "Subject", "Hours", "Rate", "Billed", `Paid to ${b.placementAgency}`, "Counted"]
+      : ["Date", "Subject", "Hours", "Rate", "Amount"];
+    const cols = ws.addRow(colHeads);
     cols.font = { italic: true, color: { argb: "FF555555" } };
     for (const r of b.rows) {
-      const row = ws.addRow([
-        fmtDate(r.date),
-        r.subject,
-        r.perSession ? "per session" : r.hours,
-        r.rate,
-        r.amount,
-      ]);
+      const cells = [fmtDate(r.date), r.subject, r.perSession ? "per session" : r.hours, r.rate, r.amount];
+      if (wide) cells.push(r.placementFee > 0 ? r.placementFee : "", r.counted);
+      const row = ws.addRow(cells);
       row.getCell(3).numFmt = "0.0#";
-      row.getCell(4).numFmt = money;
-      row.getCell(5).numFmt = money;
+      for (let c = 4; c <= lastCol; c++) row.getCell(c).numFmt = money;
     }
-    const sub = ws.addRow(["Total", "", b.hours, "", b.total]);
+    const subCells = ["Total", "", b.hours, "", b.total];
+    if (wide) subCells.push(b.placementTotal > 0 ? b.placementTotal : "", b.countedTotal);
+    const sub = ws.addRow(subCells);
     sub.font = { bold: true };
     sub.getCell(3).numFmt = "0.0#";
-    sub.getCell(5).numFmt = money;
+    for (let c = 5; c <= lastCol; c++) sub.getCell(c).numFmt = money;
     ws.addRow([]);
   }
 
-  const lines = [
-    [`Fees paid to ${payee.name}`, statement.feesCollectedByAgency],
-    [`${payee.name} owes you (${statement.sharePct}%)`, statement.agencyOwesMe],
-    [`Fees paid directly to you`, statement.feesCollectedByMe],
-    [
-      `You owe ${payee.name} (${round2(100 - statement.sharePct)}% of direct fees)`,
-      -statement.iOweAgency,
-    ],
-  ];
   const sumHead = ws.addRow(["Summary"]);
   sumHead.font = { bold: true, size: 12 };
-  for (const [label, value] of lines) {
-    const r = ws.addRow([label, "", "", "", value]);
-    r.getCell(5).numFmt = money;
-  }
+  amountRow(`Fees paid to ${payee.name}`, statement.feesCollectedByAgency);
+  amountRow(`${payee.name} owes you (${statement.sharePct}%)`, statement.agencyOwesMe);
+  amountRow("Fees paid directly to you", statement.feesCollectedByMe);
+  amountRow(
+    `You owe ${payee.name} (${round2(100 - statement.sharePct)}% of direct fees)`,
+    -statement.iOweAgency,
+  );
   for (const item of statement.items ?? []) {
-    const r = ws.addRow([
-      item.note ? `${item.description} (${item.note})` : item.description,
-      "",
-      "",
-      "",
-      Number(item.amount),
-    ]);
-    r.getCell(5).numFmt = money;
+    amountRow(item.note ? `${item.description} (${item.note})` : item.description, Number(item.amount));
   }
-  const net = ws.addRow([`Total ${payee.name} to reimburse you`, "", "", "", statement.net]);
+  const net = amountRow(`Total ${payee.name} to reimburse you`, statement.net);
   net.font = { bold: true };
-  net.getCell(5).numFmt = money;
+  if (wide) {
+    const note = ws.addRow(["Placement fees paid directly to a referral agency are excluded from the amounts above."]);
+    note.font = { italic: true, color: { argb: "FF777777" } };
+  }
 
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], {

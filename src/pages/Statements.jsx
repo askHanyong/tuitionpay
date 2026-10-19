@@ -80,7 +80,9 @@ export default function Statements() {
     (async () => {
       const { data: studs, error: sErr } = await supabase
         .from("students")
-        .select("id, name, subject, level, hourly_rate, fee_collected_by, payee_id")
+        .select(
+          "id, name, subject, level, hourly_rate, fee_collected_by, payee_id, placement_fee_agency, placement_fee_amount, placement_fee_start",
+        )
         .eq("tutor_id", user.id)
         .eq("payee_id", payeeId)
         .is("deleted_at", null);
@@ -94,7 +96,7 @@ export default function Statements() {
         setLessons([]);
         return;
       }
-      const { start, end } = monthRange(monthStr);
+      const { end } = monthRange(monthStr);
       const { data: les, error: lErr } = await supabase
         .from("lessons")
         .select(
@@ -106,8 +108,8 @@ export default function Statements() {
           "student_id",
           studs.map((s) => s.id),
         )
-        .gte("lesson_date", start)
         .lt("lesson_date", end);
+      // (all earlier lessons are needed so a one-off placement fee is spread correctly)
       if (cancelled) return;
       if (lErr) setError(lErr.message);
       setLessons(les ?? []);
@@ -181,9 +183,15 @@ export default function Statements() {
   const statement = useMemo(
     () =>
       effectivePayee
-        ? buildStatement({ payee: effectivePayee, students: linkedStudents, lessons, items })
+        ? buildStatement({
+            payee: effectivePayee,
+            students: linkedStudents,
+            lessons,
+            items,
+            range: monthRange(monthStr),
+          })
         : null,
-    [effectivePayee, linkedStudents, lessons, items],
+    [effectivePayee, linkedStudents, lessons, items, monthStr],
   );
 
   const syncClaimedTotal = async (nextItems) => {
@@ -194,6 +202,7 @@ export default function Statements() {
       students: linkedStudents,
       lessons,
       items: nextItems,
+      range: monthRange(monthStr),
     });
     await supabase
       .from("payee_statements")
@@ -536,7 +545,14 @@ export default function Statements() {
                               <td className="px-3 py-1.5 text-gray-600">
                                 {r.perSession ? "per session" : `${Number(r.hours.toFixed(2))} h`}
                               </td>
-                              <td className="px-3 py-1.5 text-right">{formatSGD(r.amount)}</td>
+                              <td className="px-3 py-1.5 text-right">
+                                {formatSGD(r.amount)}
+                                {r.placementFee > 0 && (
+                                  <span className="block text-xs text-amber-700">
+                                    − {formatSGD(r.placementFee)} paid to {b.placementAgency} → {formatSGD(r.counted)}
+                                  </span>
+                                )}
+                              </td>
                             </tr>
                           ))}
                           <tr className="border-t border-gray-200 font-medium">
@@ -544,6 +560,22 @@ export default function Statements() {
                             <td className="px-3 py-1.5 text-gray-600">{Number(b.hours.toFixed(2))} h</td>
                             <td className="px-3 py-1.5 text-right">{formatSGD(b.total)}</td>
                           </tr>
+                          {b.placementTotal > 0 && (
+                            <tr className="text-xs text-gray-600">
+                              <td className="px-3 py-1" colSpan={2}>
+                                Placement fee paid to {b.placementAgency} (not claimed)
+                              </td>
+                              <td className="px-3 py-1 text-right">
+                                − {formatSGD(b.placementTotal)}
+                              </td>
+                            </tr>
+                          )}
+                          {b.placementTotal > 0 && (
+                            <tr className="text-sm font-medium">
+                              <td className="px-3 py-1" colSpan={2}>Counted</td>
+                              <td className="px-3 py-1 text-right">{formatSGD(b.countedTotal)}</td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>

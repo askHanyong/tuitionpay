@@ -50,6 +50,9 @@ const emptyForm = {
   guardian_contact: "",
   payee_id: "",
   fee_collected_by: "payee",
+  placement_fee_agency: "",
+  placement_fee_amount: "",
+  placement_fee_start: "",
   payment_mode: "lessons",
   payment_cycle_count: "4",
   payment_custom_day: "1",
@@ -439,6 +442,9 @@ export default function Students() {
       guardian_contact: student.guardian_contact ?? "",
       payee_id: student.payee_id ?? "",
       fee_collected_by: student.fee_collected_by ?? "payee",
+      placement_fee_agency: student.placement_fee_agency ?? "",
+      placement_fee_amount: student.placement_fee_amount ?? "",
+      placement_fee_start: student.placement_fee_start ?? "",
       payment_mode: student.payment_mode ?? "lessons",
       payment_cycle_count: String(student.payment_cycle_count ?? 4),
       payment_custom_day: String(student.payment_custom_day ?? 1),
@@ -593,6 +599,17 @@ export default function Students() {
         : {
             payee_id: form.payee_id || null,
             fee_collected_by: form.payee_id ? form.fee_collected_by : "payee",
+            ...(form.payee_id && form.placement_fee_amount !== ""
+              ? {
+                  placement_fee_agency: (form.placement_fee_agency ?? "").trim() || null,
+                  placement_fee_amount: Number(form.placement_fee_amount),
+                  placement_fee_start: form.placement_fee_start || null,
+                }
+              : {
+                  placement_fee_agency: null,
+                  placement_fee_amount: null,
+                  placement_fee_start: null,
+                }),
           }),
       payment_mode: form.payment_mode,
       payment_cycle_count:
@@ -1199,6 +1216,41 @@ export default function Students() {
                     {opt.label}
                   </label>
                 ))}
+                <div className="mt-3 border-t border-gray-100 pt-3">
+                  <p className="mb-1 text-xs font-medium text-gray-600">
+                    One-off placement fee paid to a referral agency (optional)
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <input
+                      type="text"
+                      value={form.placement_fee_agency ?? ""}
+                      onChange={(e) => setForm({ ...form, placement_fee_agency: e.target.value })}
+                      placeholder="Agency, e.g. Mindflex"
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                    />
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={form.placement_fee_amount ?? ""}
+                      onChange={(e) => setForm({ ...form, placement_fee_amount: e.target.value })}
+                      placeholder="Total $"
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                    />
+                    <input
+                      type="date"
+                      value={form.placement_fee_start ?? ""}
+                      onChange={(e) => setForm({ ...form, placement_fee_start: e.target.value })}
+                      aria-label="Applies from lessons on or after"
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Taken from this student&apos;s first lessons (from the date above, if set)
+                    until the total is used up. It isn&apos;t claimed from the agency above.
+                  </p>
+                </div>
               </div>
             ) : (
               <p className="mt-2 text-xs text-gray-500">
