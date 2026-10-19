@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
@@ -446,6 +447,14 @@ export default function Payments() {
   return (
     <AppShell>
       {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {!isPractitioner && (
+        <div className="mb-4 text-right">
+          <Link to="/statements" className="text-sm font-medium text-[#1b2d4f] hover:underline">
+            Agency statements →
+          </Link>
+        </div>
+      )}
 
       <section>
         <h2 className="mb-3 text-base font-semibold text-gray-900">

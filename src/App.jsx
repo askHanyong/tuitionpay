@@ -12,6 +12,7 @@ import Dashboard from "./pages/Dashboard";
 import Students from "./pages/Students";
 import Lessons from "./pages/Lessons";
 import Payments from "./pages/Payments";
+import Statements from "./pages/Statements";
 import Calendar from "./pages/Calendar";
 import StudentProfile from "./pages/StudentProfile";
 import Settings from "./pages/Settings";
@@ -71,6 +72,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Payments />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/statements"
+              element={
+                <ProtectedRoute>
+                  <Statements />
                 </ProtectedRoute>
               }
             />

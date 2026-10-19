@@ -48,6 +48,8 @@ const emptyForm = {
   guardian_name: "",
   guardian_relationship: "",
   guardian_contact: "",
+  payee_id: "",
+  fee_collected_by: "payee",
   payment_mode: "lessons",
   payment_cycle_count: "4",
   payment_custom_day: "1",
@@ -188,6 +190,7 @@ export default function Students() {
   const location = useLocation();
   const navigate = useNavigate();
   const [students, setStudents] = useState([]);
+  const [payees, setPayees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -434,6 +437,8 @@ export default function Students() {
       guardian_name: student.guardian_name ?? "",
       guardian_relationship: student.guardian_relationship ?? "",
       guardian_contact: student.guardian_contact ?? "",
+      payee_id: student.payee_id ?? "",
+      fee_collected_by: student.fee_collected_by ?? "payee",
       payment_mode: student.payment_mode ?? "lessons",
       payment_cycle_count: String(student.payment_cycle_count ?? 4),
       payment_custom_day: String(student.payment_custom_day ?? 1),
@@ -459,6 +464,17 @@ export default function Students() {
       subjects: f.subjects.filter((_, i) => i !== index),
     }));
   };
+
+  useEffect(() => {
+    if (!user || isPractitioner) return;
+    supabase
+      .from("payees")
+      .select("id, name, share_percent")
+      .eq("tutor_id", user.id)
+      .eq("archived", false)
+      .order("name")
+      .then(({ data }) => setPayees(data ?? []));
+  }, [user, isPractitioner]);
 
   useEffect(() => {
     const load = async () => {
@@ -572,6 +588,12 @@ export default function Students() {
       guardian_name: (form.guardian_name ?? "").trim() || null,
       guardian_relationship: form.guardian_relationship || null,
       guardian_contact: (form.guardian_contact ?? "").trim() || null,
+      ...(isPractitioner
+        ? {}
+        : {
+            payee_id: form.payee_id || null,
+            fee_collected_by: form.payee_id ? form.fee_collected_by : "payee",
+          }),
       payment_mode: form.payment_mode,
       payment_cycle_count:
         form.payment_mode === "lessons" ? Number(form.payment_cycle_count) : 4,
@@ -1140,6 +1162,55 @@ export default function Students() {
                 For non-Singapore numbers, include + and the country code (e.g. +852 9123 4567).
               </p>
             </div>
+          </div>
+        )}
+
+        {!isPractitioner && (
+          <div className="rounded-md border border-gray-200 p-4">
+            <p className="mb-3 text-sm font-medium text-gray-700">
+              Agency (optional)
+            </p>
+            <select
+              value={form.payee_id ?? ""}
+              onChange={(e) => setForm({ ...form, payee_id: e.target.value })}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+            >
+              <option value="">None (private student)</option>
+              {payees.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({Number(p.share_percent)}% yours)
+                </option>
+              ))}
+            </select>
+            {form.payee_id ? (
+              <div className="mt-3 space-y-1.5 text-sm text-gray-700">
+                <p className="text-xs font-medium text-gray-600">Who collects the fee?</p>
+                {[
+                  { value: "payee", label: "The agency pays me my share" },
+                  { value: "me", label: "I collect it and owe the agency their share" },
+                ].map((opt) => (
+                  <label key={opt.value} className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="fee_collected_by"
+                      checked={form.fee_collected_by === opt.value}
+                      onChange={() => setForm({ ...form, fee_collected_by: opt.value })}
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-xs text-gray-500">
+                {payees.length === 0 ? (
+                  <>
+                    Add agencies under <Link to="/statements" className="underline">Agency statements</Link> first.
+                  </>
+                ) : (
+                  "Choose an agency to include this student in its monthly statement."
+                )}
+              </p>
+            )}
           </div>
         )}
 
