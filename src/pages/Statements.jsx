@@ -39,6 +39,11 @@ export default function Statements() {
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [items, setItems] = useState([]);
+  const [record, setRecord] = useState(null);
+  const [unpaid, setUnpaid] = useState([]);
+  const [itemForm, setItemForm] = useState({ description: "", amount: "", direction: "owed_to_me", note: "" });
+  const [savingItem, setSavingItem] = useState(false);
 
   const activePayees = payees.filter((p) => !p.archived);
   const payee = payees.find((p) => p.id === payeeId) ?? null;
@@ -112,17 +117,173 @@ export default function Statements() {
     };
   }, [user, payeeId, monthStr]);
 
+  const monthDate = `${monthStr}-01`;
+
+  const loadItemsAndRecord = async () => {
+    if (!user || !payeeId) return;
+    const [{ data: its, error: iErr }, { data: rec, error: rErr }] = await Promise.all([
+      supabase
+        .from("payee_claim_items")
+        .select("*")
+        .eq("tutor_id", user.id)
+        .eq("payee_id", payeeId)
+        .eq("month", monthDate)
+        .order("created_at"),
+      supabase
+        .from("payee_statements")
+        .select("*")
+        .eq("tutor_id", user.id)
+        .eq("payee_id", payeeId)
+        .eq("month", monthDate)
+        .maybeSingle(),
+    ]);
+    if (iErr || rErr) setError((iErr || rErr).message);
+    setItems(its ?? []);
+    setRecord(rec ?? null);
+  };
+
+  const loadUnpaid = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("payee_statements")
+      .select("*")
+      .eq("tutor_id", user.id)
+      .eq("status", "sent")
+      .order("month");
+    setUnpaid(data ?? []);
+  };
+
+  useEffect(() => {
+    (async () => {
+      await loadItemsAndRecord();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, payeeId, monthStr]);
+
+  useEffect(() => {
+    (async () => {
+      await loadUnpaid();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Once a statement has been sent, its share % is frozen at what was sent.
+  const effectivePayee = useMemo(
+    () => (payee && record ? { ...payee, share_percent: record.share_percent } : payee),
+    [payee, record],
+  );
+
+  const linkedStudents = useMemo(
+    () => (payee ? students.filter((x) => x.payee_id === payee.id) : []),
+    [payee, students],
+  );
+
   const statement = useMemo(
     () =>
-      payee
-        ? buildStatement({
-            payee,
-            students: students.filter((x) => x.payee_id === payee.id),
-            lessons,
-          })
+      effectivePayee
+        ? buildStatement({ payee: effectivePayee, students: linkedStudents, lessons, items })
         : null,
-    [payee, students, lessons],
+    [effectivePayee, linkedStudents, lessons, items],
   );
+
+  const syncClaimedTotal = async (nextItems) => {
+    // Keep a sent statement's recorded total in step with the lines on screen.
+    if (!record || record.status === "reimbursed") return;
+    const next = buildStatement({
+      payee: effectivePayee,
+      students: linkedStudents,
+      lessons,
+      items: nextItems,
+    });
+    await supabase
+      .from("payee_statements")
+      .update({ claimed_total: next.net })
+      .eq("id", record.id)
+      .eq("tutor_id", user.id);
+  };
+
+  const addItem = async (e) => {
+    e.preventDefault();
+    const description = itemForm.description.trim();
+    const raw = Math.abs(Number(itemForm.amount));
+    if (!description) return setError("Please describe the expense.");
+    if (!raw) return setError("Please enter an amount.");
+    setSavingItem(true);
+    setError(null);
+    const amount = itemForm.direction === "i_owe" ? -raw : raw;
+    const { data, error: err } = await supabase
+      .from("payee_claim_items")
+      .insert({
+        tutor_id: user.id,
+        payee_id: payeeId,
+        month: monthDate,
+        description,
+        amount,
+        note: itemForm.note.trim() || null,
+      })
+      .select()
+      .single();
+    setSavingItem(false);
+    if (err) return setError(err.message);
+    const next = [...items, data];
+    setItems(next);
+    setItemForm({ description: "", amount: "", direction: itemForm.direction, note: "" });
+    await syncClaimedTotal(next);
+    loadUnpaid();
+  };
+
+  const deleteItem = async (id) => {
+    const { error: err } = await supabase
+      .from("payee_claim_items")
+      .delete()
+      .eq("id", id)
+      .eq("tutor_id", user.id);
+    if (err) return setError(err.message);
+    const next = items.filter((i) => i.id !== id);
+    setItems(next);
+    await syncClaimedTotal(next);
+    loadUnpaid();
+  };
+
+  const markSent = async () => {
+    const { error: err } = await supabase.from("payee_statements").insert({
+      tutor_id: user.id,
+      payee_id: payeeId,
+      month: monthDate,
+      share_percent: payee.share_percent,
+      claimed_total: statement.net,
+    });
+    if (err) return setError(err.message);
+    showToast("Marked as sent");
+    await loadItemsAndRecord();
+    loadUnpaid();
+  };
+
+  const setReimbursed = async (rec, reimbursed) => {
+    const { error: err } = await supabase
+      .from("payee_statements")
+      .update({
+        status: reimbursed ? "reimbursed" : "sent",
+        reimbursed_at: reimbursed ? new Date().toISOString() : null,
+      })
+      .eq("id", rec.id)
+      .eq("tutor_id", user.id);
+    if (err) return setError(err.message);
+    if (reimbursed) showToast("Marked as reimbursed");
+    await loadItemsAndRecord();
+    loadUnpaid();
+  };
+
+  const undoSent = async () => {
+    const { error: err } = await supabase
+      .from("payee_statements")
+      .delete()
+      .eq("id", record.id)
+      .eq("tutor_id", user.id);
+    if (err) return setError(err.message);
+    await loadItemsAndRecord();
+    loadUnpaid();
+  };
 
   const openNew = () => {
     setForm({ id: null, name: "", share_percent: "80" });
@@ -180,7 +341,7 @@ export default function Statements() {
         .eq("id", user.id)
         .maybeSingle();
       await downloadStatementXlsx({
-        payee,
+        payee: effectivePayee,
         monthStr,
         tutorName: tutor?.full_name || user.user_metadata?.full_name || "",
         statement,
@@ -287,6 +448,34 @@ export default function Statements() {
         )}
       </section>
 
+      {unpaid.length > 0 && (
+        <section className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <h2 className="mb-2 text-sm font-semibold text-gray-900">
+            Unpaid claims ({unpaid.length})
+          </h2>
+          <ul className="divide-y divide-amber-100">
+            {unpaid.map((u) => (
+              <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                <span>
+                  {payees.find((p) => p.id === u.payee_id)?.name ?? "Payee"} ·{" "}
+                  {monthLabelFromStr(u.month.slice(0, 7))} · sent{" "}
+                  {new Date(u.sent_at).toLocaleDateString("en-SG", { day: "numeric", month: "short" })}
+                </span>
+                <span className="flex items-center gap-3">
+                  <span className="font-medium">{formatSGD(u.claimed_total)}</span>
+                  <button
+                    onClick={() => setReimbursed(u, true)}
+                    className="rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-800 hover:bg-amber-100"
+                  >
+                    Reimbursed
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {activePayees.length > 0 && (
         <section className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
           <div className="mb-4 grid gap-3 sm:grid-cols-2">
@@ -317,7 +506,7 @@ export default function Statements() {
                 {payee.name} — {monthLabelFromStr(monthStr)}
               </h2>
 
-              {!students.some((x) => x.payee_id === payee.id) ? (
+              {linkedStudents.length === 0 ? (
                 <p className="text-sm text-gray-500">
                   No students are linked to {payee.name} yet. Open a student on the{" "}
                   <Link to="/students" className="underline">Students</Link> page, edit, and choose this payee.
@@ -377,12 +566,74 @@ export default function Statements() {
                       <span>You owe {payee.name} ({Number((100 - statement.sharePct).toFixed(2))}% of direct fees)</span>
                       <span>− {formatSGD(statement.iOweAgency)}</span>
                     </div>
+                    {items.map((i) => (
+                      <div key={i.id} className="flex justify-between py-0.5">
+                        <span>
+                          {i.description}
+                          {i.note ? <span className="text-gray-500"> ({i.note})</span> : null}
+                          <button
+                            onClick={() => deleteItem(i.id)}
+                            aria-label={`Remove ${i.description}`}
+                            className="ml-2 text-xs text-gray-400 hover:text-red-600"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                        <span>{Number(i.amount) < 0 ? "− " : ""}{formatSGD(Math.abs(Number(i.amount)))}</span>
+                      </div>
+                    ))}
                     <div className="mt-1 flex justify-between border-t border-gray-300 pt-1.5 font-semibold">
                       <span>Total {payee.name} to reimburse you</span>
                       <span>{formatSGD(statement.net)}</span>
                     </div>
                   </div>
 
+                  <form onSubmit={addItem} className="rounded-md border border-dashed border-gray-300 p-3">
+                    <p className="mb-2 text-xs font-medium text-gray-600">Add an expense or adjustment</p>
+                    <div className="grid gap-2 sm:grid-cols-[1fr_7rem_10rem]">
+                      <input
+                        className={inputClass}
+                        placeholder="e.g. Transport to centre"
+                        value={itemForm.description}
+                        onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
+                      />
+                      <input
+                        className={inputClass}
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        step="0.01"
+                        placeholder="$"
+                        value={itemForm.amount}
+                        onChange={(e) => setItemForm({ ...itemForm, amount: e.target.value })}
+                      />
+                      <select
+                        className={inputClass}
+                        value={itemForm.direction}
+                        onChange={(e) => setItemForm({ ...itemForm, direction: e.target.value })}
+                      >
+                        <option value="owed_to_me">{payee.name} owes me</option>
+                        <option value="i_owe">I owe {payee.name}</option>
+                      </select>
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <input
+                        className={inputClass}
+                        placeholder="Note (optional)"
+                        value={itemForm.note}
+                        onChange={(e) => setItemForm({ ...itemForm, note: e.target.value })}
+                      />
+                      <button
+                        type="submit"
+                        disabled={savingItem}
+                        className="min-h-10 shrink-0 rounded-md border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </form>
+
+                  <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={handleExport}
                     disabled={exporting}
@@ -390,6 +641,45 @@ export default function Statements() {
                   >
                     {exporting ? "Preparing…" : "⬇ Download Excel"}
                   </button>
+                  {!record && (
+                    <button
+                      onClick={markSent}
+                      className="min-h-11 rounded-md border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                    >
+                      ✓ Mark as sent
+                    </button>
+                  )}
+                  {record?.status === "sent" && (
+                    <>
+                      <button
+                        onClick={() => setReimbursed(record, true)}
+                        className="min-h-11 rounded-md bg-[#5ecfaa] px-4 text-sm font-medium text-[#1b2d4f] hover:brightness-95"
+                      >
+                        💰 Mark as reimbursed
+                      </button>
+                      <button onClick={undoSent} className="text-xs text-gray-500 underline">
+                        Undo sent
+                      </button>
+                    </>
+                  )}
+                  {record?.status === "reimbursed" && (
+                    <>
+                      <span className="text-sm text-green-700">
+                        ✅ Reimbursed{" "}
+                        {record.reimbursed_at &&
+                          new Date(record.reimbursed_at).toLocaleDateString("en-SG", { day: "numeric", month: "short" })}
+                      </span>
+                      <button onClick={() => setReimbursed(record, false)} className="text-xs text-gray-500 underline">
+                        Undo
+                      </button>
+                    </>
+                  )}
+                  </div>
+                  {record && (
+                    <p className="text-xs text-gray-500">
+                      Sent {new Date(record.sent_at).toLocaleDateString("en-SG", { day: "numeric", month: "short" })} at {Number(record.share_percent)}% share.
+                    </p>
+                  )}
                 </div>
               )}
             </>

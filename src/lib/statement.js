@@ -31,7 +31,7 @@ export function currentMonthStr() {
 }
 
 // students: this payee's students. lessons: completed lessons in the month.
-export function buildStatement({ payee, students, lessons }) {
+export function buildStatement({ payee, students, lessons, items = [] }) {
   const sharePct = Number(payee.share_percent);
   const byStudent = new Map(students.map((s) => [s.id, s]));
 
@@ -78,14 +78,18 @@ export function buildStatement({ payee, students, lessons }) {
   const agencyOwesMe = round2((feesCollectedByAgency * sharePct) / 100);
   const iOweAgency = round2((feesCollectedByMe * (100 - sharePct)) / 100);
 
+  const itemsTotal = round2(items.reduce((sum, i) => sum + Number(i.amount), 0));
+
   return {
     sharePct,
+    items,
+    itemsTotal,
     blocks,
     feesCollectedByAgency,
     feesCollectedByMe,
     agencyOwesMe,
     iOweAgency,
-    net: round2(agencyOwesMe - iOweAgency),
+    net: round2(agencyOwesMe - iOweAgency + itemsTotal),
     totalHours: round2(blocks.reduce((s, b) => s + b.hours, 0)),
   };
 }
@@ -163,6 +167,16 @@ export async function downloadStatementXlsx({ payee, monthStr, tutorName, statem
   sumHead.font = { bold: true, size: 12 };
   for (const [label, value] of lines) {
     const r = ws.addRow([label, "", "", "", value]);
+    r.getCell(5).numFmt = money;
+  }
+  for (const item of statement.items ?? []) {
+    const r = ws.addRow([
+      item.note ? `${item.description} (${item.note})` : item.description,
+      "",
+      "",
+      "",
+      Number(item.amount),
+    ]);
     r.getCell(5).numFmt = money;
   }
   const net = ws.addRow([`Total ${payee.name} to reimburse you`, "", "", "", statement.net]);
