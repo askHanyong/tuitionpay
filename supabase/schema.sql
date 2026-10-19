@@ -11,6 +11,17 @@ create table if not exists tutors (
   created_at timestamptz not null default now()
 );
 
+-- Payees: agencies a tutor claims from (share_percent = tutor's share).
+create table if not exists payees (
+  id uuid primary key default gen_random_uuid(),
+  tutor_id uuid not null references tutors (id) on delete cascade,
+  name text not null,
+  share_percent numeric(5, 2) not null default 80 check (share_percent >= 0 and share_percent <= 100),
+  notes text,
+  archived boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
 -- Students belong to a tutor.
 create table if not exists students (
   id uuid primary key default gen_random_uuid(),
@@ -26,7 +37,9 @@ create table if not exists students (
   created_at timestamptz not null default now(),
   payment_mode text not null default 'lessons' check (payment_mode in ('lessons', 'monthly', 'per_lesson', 'custom_date')),
   payment_cycle_count integer not null default 4 check (payment_cycle_count between 2 and 20),
-  payment_custom_day integer check (payment_custom_day is null or payment_custom_day between 1 and 31)
+  payment_custom_day integer check (payment_custom_day is null or payment_custom_day between 1 and 31),
+  payee_id uuid references payees (id) on delete set null,
+  fee_collected_by text not null default 'payee' check (fee_collected_by in ('payee', 'me'))
 );
 
 -- Lessons belong to a student (and, transitively, a tutor).
@@ -308,6 +321,7 @@ alter table tutors enable row level security;
 alter table students enable row level security;
 alter table lessons enable row level security;
 alter table payment_cycles enable row level security;
+alter table payees enable row level security;
 
 create policy "Tutors can view own profile" on tutors
   for select using (id = auth.uid());
@@ -340,3 +354,8 @@ create policy "Tutors can update own payment cycles" on payment_cycles
   for update using (tutor_id = auth.uid());
 create policy "Tutors can delete own payment cycles" on payment_cycles
   for delete using (tutor_id = auth.uid());
+
+create policy "Tutors manage own payees"
+  on payees for all
+  using (tutor_id = (select auth.uid()))
+  with check (tutor_id = (select auth.uid()));
