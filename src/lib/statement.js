@@ -5,6 +5,10 @@
 
 import { lessonAmount } from "./paymentMode";
 
+// "SSEC" -> "Paid directly by SSEC"; text that already starts with "Paid" is kept as typed.
+export const directPayerLabel = (payer) =>
+  /^paid\b/i.test(payer) ? payer : `Paid directly by ${payer}`;
+
 const round2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 
 export function monthRange(monthStr) {
@@ -173,7 +177,7 @@ export async function downloadStatementXlsx({ payee, monthStr, tutorName, statem
     const collected =
       b.collectedBy === "me"
         ? b.directPayer
-          ? `Paid directly by ${b.directPayer}`
+          ? directPayerLabel(b.directPayer)
           : "Paid to tutor"
         : "Paid to agency";
     const head = ws.addRow(

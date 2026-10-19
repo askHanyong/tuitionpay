@@ -8,6 +8,7 @@ import { formatSGD } from "../lib/paymentNotice";
 import {
   buildStatement,
   currentMonthStr,
+  directPayerLabel,
   downloadStatementXlsx,
   monthLabelFromStr,
   monthRange,
@@ -536,7 +537,7 @@ export default function Statements() {
                         <span className="text-xs text-gray-600">
                           {b.collectedBy === "me"
                             ? b.directPayer
-                              ? `Paid directly by ${b.directPayer}`
+                              ? directPayerLabel(b.directPayer)
                               : "Paid to you"
                             : `Paid to ${payee.name}`}
                         </span>
