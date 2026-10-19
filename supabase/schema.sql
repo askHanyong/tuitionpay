@@ -42,7 +42,8 @@ create table if not exists students (
   fee_collected_by text not null default 'payee' check (fee_collected_by in ('payee', 'me')),
   placement_fee_agency text,
   placement_fee_amount numeric(10, 2) check (placement_fee_amount is null or placement_fee_amount >= 0),
-  placement_fee_start date
+  placement_fee_start date,
+  direct_payer text
 );
 
 -- Lessons belong to a student (and, transitively, a tutor).
