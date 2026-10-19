@@ -79,6 +79,7 @@ export function buildStatement({ payee, students, lessons, items = [], range }) 
       return {
         student,
         collectedBy: student.fee_collected_by === "me" ? "me" : "payee",
+        directPayer: (student.direct_payer ?? "").trim(),
         placementAgency: student.placement_fee_agency || "referral agency",
         rows,
         total: sum("amount"),
@@ -96,6 +97,19 @@ export function buildStatement({ payee, students, lessons, items = [], range }) 
   const feesCollectedByMe = round2(
     blocks.filter((b) => b.collectedBy === "me").reduce((s, b) => s + b.countedTotal, 0),
   );
+  // Directly-collected fees grouped by who paid the tutor (SSEC, Edulab, ...).
+  const groupMap = new Map();
+  for (const b of blocks.filter((x) => x.collectedBy === "me")) {
+    const key = b.directPayer || "Direct";
+    const g = groupMap.get(key) ?? { payer: key, total: 0, students: [] };
+    g.total = round2(g.total + b.countedTotal);
+    g.students.push(b.student.name);
+    groupMap.set(key, g);
+  }
+  const directGroups = [...groupMap.values()].sort((a, b) =>
+    a.payer === "Direct" ? 1 : b.payer === "Direct" ? -1 : a.payer.localeCompare(b.payer),
+  );
+
   const agencyOwesMe = round2((feesCollectedByAgency * sharePct) / 100);
   const iOweAgency = round2((feesCollectedByMe * (100 - sharePct)) / 100);
 
@@ -111,6 +125,7 @@ export function buildStatement({ payee, students, lessons, items = [], range }) 
     hasPlacement: placementTotal > 0,
     feesCollectedByAgency,
     feesCollectedByMe,
+    directGroups,
     agencyOwesMe,
     iOweAgency,
     net: round2(agencyOwesMe - iOweAgency + itemsTotal),
@@ -155,7 +170,12 @@ export async function downloadStatementXlsx({ payee, monthStr, tutorName, statem
   ws.addRow([]);
 
   for (const b of statement.blocks) {
-    const collected = b.collectedBy === "me" ? "Paid to tutor" : "Paid to agency";
+    const collected =
+      b.collectedBy === "me"
+        ? b.directPayer
+          ? `Paid directly by ${b.directPayer}`
+          : "Paid to tutor"
+        : "Paid to agency";
     const head = ws.addRow(
       pad([b.student.name, [b.student.subject, b.student.level].filter(Boolean).join(" · "), collected]),
     );
@@ -188,7 +208,17 @@ export async function downloadStatementXlsx({ payee, monthStr, tutorName, statem
   sumHead.font = { bold: true, size: 12 };
   amountRow(`Fees paid to ${payee.name}`, statement.feesCollectedByAgency);
   amountRow(`${payee.name} owes you (${statement.sharePct}%)`, statement.agencyOwesMe);
-  amountRow("Fees paid directly to you", statement.feesCollectedByMe);
+  if (statement.directGroups.length === 0) {
+    amountRow("Fees paid directly to you", statement.feesCollectedByMe);
+  } else {
+    ws.addRow(["Fees paid directly to you"]).font = { bold: true };
+    for (const g of statement.directGroups) {
+      amountRow(`  ${g.payer} – ${g.students.join(", ")}`, g.total);
+    }
+    if (statement.directGroups.length > 1) {
+      amountRow("  Total paid directly to you", statement.feesCollectedByMe).font = { bold: true };
+    }
+  }
   amountRow(
     `You owe ${payee.name} (${round2(100 - statement.sharePct)}% of direct fees)`,
     -statement.iOweAgency,
@@ -196,7 +226,10 @@ export async function downloadStatementXlsx({ payee, monthStr, tutorName, statem
   for (const item of statement.items ?? []) {
     amountRow(item.note ? `${item.description} (${item.note})` : item.description, Number(item.amount));
   }
-  const net = amountRow(`Total ${payee.name} to reimburse you`, statement.net);
+  const net = amountRow(
+    statement.net < 0 ? `Net: you owe ${payee.name}` : `Total ${payee.name} to reimburse you`,
+    Math.abs(statement.net),
+  );
   net.font = { bold: true };
   if (wide) {
     const note = ws.addRow(["Placement fees paid directly to a referral agency are excluded from the amounts above."]);

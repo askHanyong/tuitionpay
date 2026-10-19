@@ -50,6 +50,7 @@ const emptyForm = {
   guardian_contact: "",
   payee_id: "",
   fee_collected_by: "payee",
+  direct_payer: "",
   placement_fee_agency: "",
   placement_fee_amount: "",
   placement_fee_start: "",
@@ -442,6 +443,7 @@ export default function Students() {
       guardian_contact: student.guardian_contact ?? "",
       payee_id: student.payee_id ?? "",
       fee_collected_by: student.fee_collected_by ?? "payee",
+      direct_payer: student.direct_payer ?? "",
       placement_fee_agency: student.placement_fee_agency ?? "",
       placement_fee_amount: student.placement_fee_amount ?? "",
       placement_fee_start: student.placement_fee_start ?? "",
@@ -599,6 +601,10 @@ export default function Students() {
         : {
             payee_id: form.payee_id || null,
             fee_collected_by: form.payee_id ? form.fee_collected_by : "payee",
+            direct_payer:
+              form.payee_id && form.fee_collected_by === "me"
+                ? (form.direct_payer ?? "").trim() || null
+                : null,
             ...(form.payee_id && form.placement_fee_amount !== ""
               ? {
                   placement_fee_agency: (form.placement_fee_agency ?? "").trim() || null,
@@ -1216,6 +1222,17 @@ export default function Students() {
                     {opt.label}
                   </label>
                 ))}
+                {form.fee_collected_by === "me" && (
+                  <div className="pl-6">
+                    <input
+                      type="text"
+                      value={form.direct_payer ?? ""}
+                      onChange={(e) => setForm({ ...form, direct_payer: e.target.value })}
+                      placeholder="Paid directly by (e.g. SSEC, Edulab)"
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                    />
+                  </div>
+                )}
                 <div className="mt-3 border-t border-gray-100 pt-3">
                   <p className="mb-1 text-xs font-medium text-gray-600">
                     One-off placement fee paid to a referral agency (optional)

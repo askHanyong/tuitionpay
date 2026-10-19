@@ -81,7 +81,7 @@ export default function Statements() {
       const { data: studs, error: sErr } = await supabase
         .from("students")
         .select(
-          "id, name, subject, level, hourly_rate, fee_collected_by, payee_id, placement_fee_agency, placement_fee_amount, placement_fee_start",
+          "id, name, subject, level, hourly_rate, fee_collected_by, payee_id, placement_fee_agency, placement_fee_amount, placement_fee_start, direct_payer",
         )
         .eq("tutor_id", user.id)
         .eq("payee_id", payeeId)
@@ -534,7 +534,11 @@ export default function Statements() {
                           </span>
                         </span>
                         <span className="text-xs text-gray-600">
-                          {b.collectedBy === "me" ? "Paid to you" : `Paid to ${payee.name}`}
+                          {b.collectedBy === "me"
+                            ? b.directPayer
+                              ? `Paid directly by ${b.directPayer}`
+                              : "Paid to you"
+                            : `Paid to ${payee.name}`}
                         </span>
                       </div>
                       <table className="w-full text-sm">
@@ -592,8 +596,22 @@ export default function Statements() {
                     </div>
                     <div className="flex justify-between py-0.5">
                       <span>Fees paid directly to you</span>
-                      <span>{formatSGD(statement.feesCollectedByMe)}</span>
+                      <span>{statement.directGroups.length > 1 ? "" : formatSGD(statement.feesCollectedByMe)}</span>
                     </div>
+                    {statement.directGroups.map((g) => (
+                      <div key={g.payer} className="flex justify-between py-0.5 pl-4 text-gray-600">
+                        <span>
+                          {g.payer} – {g.students.join(", ")}
+                        </span>
+                        <span>{statement.directGroups.length > 1 ? formatSGD(g.total) : ""}</span>
+                      </div>
+                    ))}
+                    {statement.directGroups.length > 1 && (
+                      <div className="flex justify-between py-0.5 pl-4 font-medium">
+                        <span>Total paid directly to you</span>
+                        <span>{formatSGD(statement.feesCollectedByMe)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between py-0.5">
                       <span>You owe {payee.name} ({Number((100 - statement.sharePct).toFixed(2))}% of direct fees)</span>
                       <span>− {formatSGD(statement.iOweAgency)}</span>
@@ -615,8 +633,8 @@ export default function Statements() {
                       </div>
                     ))}
                     <div className="mt-1 flex justify-between border-t border-gray-300 pt-1.5 font-semibold">
-                      <span>Total {payee.name} to reimburse you</span>
-                      <span>{formatSGD(statement.net)}</span>
+                      <span>{statement.net < 0 ? `Net: you owe ${payee.name}` : `Total ${payee.name} to reimburse you`}</span>
+                      <span>{formatSGD(Math.abs(statement.net))}</span>
                     </div>
                   </div>
 
