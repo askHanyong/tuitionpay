@@ -44,6 +44,11 @@ export default function StudentProfile() {
   const [billNowLoading, setBillNowLoading] = useState(false);
   const [billNowError, setBillNowError] = useState(null);
 
+  // Booking link
+  const [bookingLink, setBookingLink] = useState(null);
+  const [bookingLinkLoading, setBookingLinkLoading] = useState(false);
+  const [bookingLinkError, setBookingLinkError] = useState(null);
+
   const handleArchive = async () => {
     if (
       !window.confirm(
@@ -81,6 +86,7 @@ export default function StudentProfile() {
       { data: cyclesData },
       { data: tutorData },
       { data: subjectRows },
+      { data: bookingLinkData },
     ] = await Promise.all([
       supabase
         .from("students")
@@ -114,6 +120,12 @@ export default function StudentProfile() {
         .eq("tutor_id", user.id)
         .order("created_at", { ascending: true })
         .limit(1),
+      supabase
+        .from("booking_links")
+        .select("id, token, is_active")
+        .eq("student_id", id)
+        .eq("tutor_id", user.id)
+        .maybeSingle(),
     ]);
     if (studentError) setError(studentError.message);
     setStudent(studentData ?? null);
@@ -127,6 +139,7 @@ export default function StudentProfile() {
     setNoteDrafts(
       Object.fromEntries((lessonsData ?? []).map((l) => [l.id, l.notes ?? ""])),
     );
+    setBookingLink(bookingLinkData ?? null);
     setLoading(false);
   };
 
@@ -330,6 +343,54 @@ export default function StudentProfile() {
     );
     setEditingNoteId(null);
     showToast("Note saved.");
+  };
+
+  const handleCreateBookingLink = async () => {
+    setBookingLinkLoading(true);
+    setBookingLinkError(null);
+    const { data, error } = await supabase
+      .from("booking_links")
+      .insert({ tutor_id: user.id, student_id: student.id })
+      .select("id, token, is_active")
+      .single();
+    setBookingLinkLoading(false);
+    if (error) {
+      setBookingLinkError(error.message);
+    } else {
+      setBookingLink(data);
+    }
+  };
+
+  const handleToggleBookingLink = async () => {
+    if (!bookingLink) return;
+    setBookingLinkLoading(true);
+    setBookingLinkError(null);
+    const newActive = !bookingLink.is_active;
+    const { error } = await supabase
+      .from("booking_links")
+      .update({ is_active: newActive })
+      .eq("id", bookingLink.id)
+      .eq("tutor_id", user.id);
+    setBookingLinkLoading(false);
+    if (error) {
+      setBookingLinkError(error.message);
+    } else {
+      setBookingLink((prev) => ({ ...prev, is_active: newActive }));
+    }
+  };
+
+  const handleCopyBookingLink = async (url) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast("Booking link copied!");
+    } catch {
+      showToast("Couldn't copy the link.", "error");
+    }
+  };
+
+  const handleShareBookingWhatsApp = (url) => {
+    const msg = `Hi! You can book a lesson with me here: ${url}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, "_blank");
   };
 
   if (loading) {
@@ -584,6 +645,85 @@ export default function StudentProfile() {
           </ul>
         )}
       </section>
+
+      {!isPractitioner && (
+        <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+          <h2 className="mb-4 text-base font-semibold text-gray-900">
+            Booking link
+          </h2>
+          {bookingLinkError && (
+            <p className="mb-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+              {bookingLinkError}
+            </p>
+          )}
+          {!bookingLink ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <p className="text-sm text-gray-500">
+                No booking link yet. Create one to let this student's parent book lessons directly.
+              </p>
+              <button
+                onClick={handleCreateBookingLink}
+                disabled={bookingLinkLoading}
+                className="min-h-11 shrink-0 rounded-md bg-[#1b2d4f] px-4 text-sm font-medium text-white transition hover:bg-[#15243f] disabled:opacity-50"
+              >
+                {bookingLinkLoading ? "Creating…" : "Create link"}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {(() => {
+                const url = `https://chopeandpay.com/book/${bookingLink.token}`;
+                return (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          bookingLink.is_active
+                            ? "bg-[#d6ede6] text-[#0f7a58]"
+                            : "bg-gray-100 text-gray-500"
+                        }`}
+                      >
+                        {bookingLink.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    <p className="break-all rounded-md bg-gray-50 px-3 py-2 text-sm font-mono text-gray-700">
+                      {url}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Parent booking page coming soon.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => handleCopyBookingLink(url)}
+                        className="min-h-11 rounded-md border border-gray-300 px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                      >
+                        Copy link
+                      </button>
+                      <button
+                        onClick={() => handleShareBookingWhatsApp(url)}
+                        className="min-h-11 rounded-md border border-gray-300 px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50"
+                      >
+                        💬 Share via WhatsApp
+                      </button>
+                      <button
+                        onClick={handleToggleBookingLink}
+                        disabled={bookingLinkLoading}
+                        className="min-h-11 rounded-md border border-gray-300 px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {bookingLinkLoading
+                          ? "Updating…"
+                          : bookingLink.is_active
+                            ? "Deactivate"
+                            : "Reactivate"}
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">

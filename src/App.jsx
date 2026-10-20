@@ -23,6 +23,7 @@ import About from "./pages/About";
 import Faq from "./pages/Faq";
 import PaymentSummary from "./pages/PaymentSummary";
 import AgencyDashboard from "./pages/AgencyDashboard";
+import Availability from "./pages/Availability";
 
 function App() {
   return (
@@ -88,6 +89,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Calendar />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/availability"
+              element={
+                <ProtectedRoute>
+                  <Availability />
                 </ProtectedRoute>
               }
             />
