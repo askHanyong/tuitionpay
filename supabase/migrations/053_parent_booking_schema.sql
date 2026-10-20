@@ -25,7 +25,8 @@ create table public.booking_links (
   id uuid primary key default gen_random_uuid(),
   tutor_id uuid not null references auth.users(id) on delete cascade,
   student_id uuid not null references public.students(id) on delete cascade,
-  token text not null unique default encode(gen_random_bytes(24), 'hex'),
+  token text not null unique default
+    replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', ''),
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   unique (student_id)
