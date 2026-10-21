@@ -299,32 +299,43 @@ export const handler = async (event) => {
       `booking_requests?tutor_id=eq.${tutor_id}&status=eq.pending` +
       `&start_at=lt.${encodeURIComponent(new Date(endMs).toISOString())}` +
       `&end_at=gt.${encodeURIComponent(new Date(startMs).toISOString())}` +
-      `&select=start_at,end_at`,
+      `&select=start_at,end_at,student_id`,
     );
   } catch (e) {
     console.error("booking-request: pending requests load", e.message);
     return err("Could not check for conflicts. Please try again.", 500);
   }
 
-  // ── 9. Overlap check ──────────────────────────────────────────────────────
-  const blocked = [];
-  for (const l of (blockingLessons ?? [])) {
-    const s = lessonToMs(l.lesson_date, l.lesson_time);
-    const e = s + l.duration_minutes * 60_000;
-    blocked.push([s, e]);
-  }
-  for (const r of (tutorPending ?? [])) {
-    blocked.push([parseTs(r.start_at), parseTs(r.end_at)]);
-  }
-
+  // ── 9. Overlap check — specific messages per conflict type ───────────────
   const ws = parseTs(containingWindow.start_at);
   const we = parseTs(containingWindow.end_at);
-  const freeInWindow = subtract([ws, we], blocked);
-  const requestFitsInFreeSlot = freeInWindow.some(
-    ([fs, fe]) => fs <= startMs && fe >= endMs,
-  );
 
-  if (!requestFitsInFreeSlot) {
+  const lessonBlocked = (blockingLessons ?? []).map((l) => {
+    const s = lessonToMs(l.lesson_date, l.lesson_time);
+    return [s, s + l.duration_minutes * 60_000];
+  });
+
+  // Split pending requests into this student's own vs. others' (for specific messages).
+  const ownPendingBlocked = (tutorPending ?? [])
+    .filter((r) => r.student_id === student_id)
+    .map((r) => [parseTs(r.start_at), parseTs(r.end_at)]);
+
+  const otherPendingBlocked = (tutorPending ?? [])
+    .filter((r) => r.student_id !== student_id)
+    .map((r) => [parseTs(r.start_at), parseTs(r.end_at)]);
+
+  const fits = (extraBlocked) =>
+    subtract([ws, we], [...lessonBlocked, ...extraBlocked])
+      .some(([fs, fe]) => fs <= startMs && fe >= endMs);
+
+  if (!fits([])) {
+    return err("That time overlaps with a scheduled lesson.");
+  }
+  if (!fits(ownPendingBlocked)) {
+    return err("You already have a pending request for this time.");
+  }
+  if (!fits([...ownPendingBlocked, ...otherPendingBlocked])) {
+    // Keep generic — do not reveal other students' requests.
     return err("That time is no longer available. Please choose another.");
   }
 
@@ -368,18 +379,29 @@ export const handler = async (event) => {
   }
 
   // ── 12. Return success ────────────────────────────────────────────────────
-  return {
-    statusCode: 200,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ok: true,
-      request: {
-        start:  startAtStr,
-        end:    endAtStr,
-        status: "pending",
-      },
-      expiryHours: settings.request_expiry_hours,
-      tutorName,
-    }),
-  };
+  // INSERT succeeded. Wrap response construction in its own try/catch so that
+  // no bug here can turn a successful save into a reported failure.
+  try {
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ok: true,
+        request: {
+          start:  startAtStr,
+          end:    endAtStr,
+          status: "pending",
+        },
+        expiryHours: settings.request_expiry_hours,
+        // tutorName intentionally omitted: BookingPage already has it from page load.
+      }),
+    };
+  } catch (e) {
+    console.error("booking-request: post-insert response error", e.message);
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ok: true }),
+    };
+  }
 };

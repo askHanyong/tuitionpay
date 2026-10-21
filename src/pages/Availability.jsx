@@ -45,7 +45,14 @@ function addDays(d, n) {
 }
 
 function isoDate(d) {
-  return d.toISOString().slice(0, 10);
+  // Use local-time methods (not toISOString which returns UTC) so that the
+  // date label matches the browser's local calendar day. weekStart() and
+  // addDays() also use local-time methods — this keeps them all consistent.
+  // On a Singapore browser the local date IS the SGT date.
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function formatDisplayDate(dateStr) {
@@ -124,6 +131,7 @@ export default function Availability() {
 
   // Settings
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settingsRowExists, setSettingsRowExists] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [settingsErrors, setSettingsErrors] = useState({});
@@ -161,6 +169,7 @@ export default function Availability() {
     if (error) {
       showToast("Could not load booking settings: " + error.message, "error");
     } else if (data) {
+      setSettingsRowExists(true);
       setSettings({
         min_notice_hours:     data.min_notice_hours,
         max_book_days_ahead:  data.max_book_days_ahead,
@@ -338,17 +347,43 @@ export default function Availability() {
     const errs = validateSettings();
     if (Object.keys(errs).length) { setSettingsErrors(errs); return; }
     setSettingsSaving(true);
-    const { error } = await supabase.from("booking_settings").upsert(
-      { tutor_id: user.id, ...settings, updated_at: new Date().toISOString() },
-      { onConflict: "tutor_id" },
-    );
+
+    const payload = { ...settings, updated_at: new Date().toISOString() };
+
+    // Use explicit INSERT vs UPDATE instead of upsert: upsert with onConflict
+    // on a PRIMARY KEY column can silently write nothing on some PostgREST
+    // versions, returning { data: [], error: null } which looked like success.
+    // .select().single() ensures we get the written row back, or a real error.
+    const { data: savedRow, error } = settingsRowExists
+      ? await supabase
+          .from("booking_settings")
+          .update(payload)
+          .eq("tutor_id", user.id)
+          .select()
+          .single()
+      : await supabase
+          .from("booking_settings")
+          .insert({ tutor_id: user.id, ...payload })
+          .select()
+          .single();
+
     setSettingsSaving(false);
+
     if (error) {
+      console.error("booking_settings save error:", error);
       showToast("Could not save settings: " + error.message, "error");
-    } else {
-      setSettingsDirty(false);
-      showToast("Booking settings saved.");
+      return;
     }
+    if (!savedRow) {
+      console.error("booking_settings save: no row returned (possible RLS block)");
+      showToast("Could not save settings. Please try again.", "error");
+      return;
+    }
+
+    // Confirmed written — show success only now.
+    setSettingsRowExists(true);
+    setSettingsDirty(false);
+    showToast("Booking settings saved.");
   };
 
   // ---- render ----

@@ -1,27 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatDate(dateStr) {
-  // "YYYY-MM-DD" → "Mon, 20 Oct 2026"
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-SG", {
-    weekday: "short", day: "numeric", month: "short", year: "numeric",
-  });
-}
-
-function formatTime(tsStr) {
-  // "2026-10-20T09:00:00+08:00" → "9:00 AM"
-  if (!tsStr) return "";
-  // Parse the hours/minutes from the +08:00 string directly (slice is safe here —
-  // it's only for display, not sent to the DB).
-  const timePart = tsStr.slice(11, 16);
-  const [h, min] = timePart.split(":").map(Number);
-  const ampm = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${h12}:${String(min).padStart(2, "0")} ${ampm}`;
-}
+import { formatSGTTime, formatSGTDate } from "../utils/sgt.js";
 
 function parseTsMs(s) { return new Date(s).getTime(); }
 
@@ -286,18 +265,29 @@ export default function BookingPage() {
 
   // ── Submit a booking request ───────────────────────────────────────────────
   const handleSubmitRequest = async ({ start, end, note }) => {
+    let res;
     try {
-      const res = await fetch("/.netlify/functions/booking-request", {
+      res = await fetch("/.netlify/functions/booking-request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // Token is sent as-is from useParams — it is the public booking token,
         // not a credential; the server re-validates it.
         body: JSON.stringify({ token, start, end, note }),
       });
-      const json = await res.json();
-      if (!json.ok) {
-        return { error: json.error ?? "Something went wrong. Please try again." };
-      }
+    } catch {
+      return { error: "Could not send your request. Please check your connection." };
+    }
+    let json;
+    try {
+      json = await res.json();
+    } catch {
+      console.error("booking-request: non-JSON response, HTTP", res.status);
+      return { error: "Something went wrong. Please try again." };
+    }
+    if (!json.ok) {
+      if (!res.ok) console.error("booking-request: error response, HTTP", res.status, json);
+      return { error: json.error ?? "Something went wrong. Please try again." };
+    }
       // Success: add the new request to the list and show confirmation screen.
       setData((prev) => ({
         ...prev,
@@ -310,9 +300,6 @@ export default function BookingPage() {
       setActiveIntervalKey(null);
       setState("confirmed");
       return null;
-    } catch {
-      return { error: "Could not send your request. Please check your connection." };
-    }
   };
 
   // ── Sorted dates with open intervals ──────────────────────────────────────
@@ -376,9 +363,9 @@ export default function BookingPage() {
               {confirmedRequest.expiryHours} hour{confirmedRequest.expiryHours === 1 ? "" : "s"}.
             </p>
             <p className="mt-2 text-sm text-emerald-800 font-medium">
-              {formatDate(confirmedRequest.start.slice(0, 10))}
+              {formatSGTDate(confirmedRequest.start.slice(0, 10))}
               {" · "}
-              {formatTime(confirmedRequest.start)} – {formatTime(confirmedRequest.end)}
+              {formatSGTTime(confirmedRequest.start)} – {formatSGTTime(confirmedRequest.end)}
             </p>
             <button
               onClick={() => setState("ready")}
@@ -397,11 +384,11 @@ export default function BookingPage() {
                 <li key={`lesson-${i}`} className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-sm font-medium text-gray-800">
-                      {formatDate(l.date)}
+                      {formatSGTDate(l.date)}
                       {l.startTime && (
                         <span className="ml-1 font-normal text-gray-500">
-                          · {formatTime(`${l.date}T${l.startTime}+08:00`)}
-                          {l.endTime && ` – ${formatTime(`${l.date}T${l.endTime}+08:00`)}`}
+                          · {formatSGTTime(`${l.date}T${l.startTime}+08:00`)}
+                          {l.endTime && ` – ${formatSGTTime(`${l.date}T${l.endTime}+08:00`)}`}
                         </span>
                       )}
                     </p>
@@ -418,9 +405,9 @@ export default function BookingPage() {
                 <li key={`req-${i}`} className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-sm font-medium text-gray-800">
-                      {formatDate(r.start.slice(0, 10))}
+                      {formatSGTDate(r.start.slice(0, 10))}
                       <span className="ml-1 font-normal text-gray-500">
-                        · {formatTime(r.start)} – {formatTime(r.end)}
+                        · {formatSGTTime(r.start)} – {formatSGTTime(r.end)}
                       </span>
                     </p>
                   </div>
@@ -446,7 +433,7 @@ export default function BookingPage() {
                 return (
                   <div key={date}>
                     <p className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      {formatDate(date)}
+                      {formatSGTDate(date)}
                     </p>
                     <div className="space-y-2">
                       {intervals.map((iv, idx) => {
@@ -460,7 +447,7 @@ export default function BookingPage() {
                               className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5 text-sm text-gray-400"
                             >
                               <span>
-                                {formatTime(iv.start)} – {formatTime(iv.end)}
+                                {formatSGTTime(iv.start)} – {formatSGTTime(iv.end)}
                               </span>
                               <span className="text-xs">{iv.reason}</span>
                             </div>
@@ -481,7 +468,7 @@ export default function BookingPage() {
                               }`}
                             >
                               <span>
-                                {formatTime(iv.start)} – {formatTime(iv.end)}
+                                {formatSGTTime(iv.start)} – {formatSGTTime(iv.end)}
                               </span>
                               <span className="text-xs">
                                 {isActive ? "▲ Close" : "Tap to book →"}

@@ -312,20 +312,22 @@ export const handler = async (event) => {
     const freeSegs = subtract([ws, we], windowBlocked);
 
     for (const [fs, fe] of freeSegs) {
-      if (fe - fs < minLenMs) continue; // too short overall — skip
+      if (fe <= nowMs) continue;        // entirely in the past — drop
+      const effectiveFs = Math.max(fs, nowMs); // trim any past portion
+      if (fe - effectiveFs < minLenMs) continue; // trimmed segment too short
 
-      // Split each free segment into three pieces:
-      //   [fs .. min(fe, earliestBookable)]  → too soon
-      //   [max(fs, earliestBookable) .. min(fe, latestBookable)]  → bookable
-      //   [max(fs, latestBookable) .. fe]  → too far ahead
+      // Split each free segment into three pieces using effectiveFs as the true start:
+      //   [effectiveFs .. min(fe, earliestBookable)]  → too soon
+      //   [max(effectiveFs, earliestBookable) .. min(fe, latestBookable)]  → bookable
+      //   [max(effectiveFs, latestBookable) .. fe]  → too far ahead
       const pieces = [];
 
-      if (fs < earliestBookable) {
+      if (effectiveFs < earliestBookable) {
         // There's a "too soon" prefix
         const tooSoonEnd = Math.min(fe, earliestBookable);
-        if (tooSoonEnd - fs >= minLenMs) {
+        if (tooSoonEnd - effectiveFs >= minLenMs) {
           pieces.push({
-            start: toSGTDisplay(fs),
+            start: toSGTDisplay(effectiveFs),
             end:   toSGTDisplay(tooSoonEnd),
             bookable: false,
             reason: "Too soon — book at least " + settings.min_notice_hours + "h ahead",
@@ -334,11 +336,10 @@ export const handler = async (event) => {
       }
 
       // Bookable core
-      const bookStart = Math.max(fs, earliestBookable);
+      const bookStart = Math.max(effectiveFs, earliestBookable);
       const bookEnd   = Math.min(fe, latestBookable);
       if (bookEnd > bookStart) {
-        // Snap bookStart up to the next step grid boundary (SGT midnight = 00:00+08:00 = UTC 16:00 prev day)
-        // Grid origin: SGT midnight of that day
+        // Snap bookStart up to the next step grid boundary (SGT midnight = 00:00+08:00)
         const sgtMidnightMs = new Date(sgtDateOf(bookStart) + "T00:00:00+08:00").getTime();
         const offsetIntoDay = bookStart - sgtMidnightMs;
         const stepsIn       = Math.ceil(offsetIntoDay / stepMs);
@@ -354,7 +355,7 @@ export const handler = async (event) => {
       }
 
       if (fe > latestBookable) {
-        const tooFarStart = Math.max(fs, latestBookable);
+        const tooFarStart = Math.max(effectiveFs, latestBookable);
         if (fe - tooFarStart >= minLenMs) {
           pieces.push({
             start: toSGTDisplay(tooFarStart),
@@ -389,9 +390,11 @@ export const handler = async (event) => {
     completed: l.is_completed,
   }));
 
+  // Convert to +08:00 strings so BookingPage.jsx can slice chars 11-16 for display.
+  // Supabase returns timestamptz as UTC; without this conversion times show in UTC.
   const upcomingRequests = (studentRequests ?? []).map((r) => ({
-    start:  r.start_at,
-    end:    r.end_at,
+    start:  toSGTDisplay(parseTs(r.start_at)),
+    end:    toSGTDisplay(parseTs(r.end_at)),
     status: r.status,
   }));
 
