@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTerms } from "../contexts/TerminologyContext";
+import { supabase } from "../lib/supabase";
 
 const ICONS = {
   dashboard: (
@@ -60,9 +61,17 @@ const ICONS = {
       d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
     />
   ),
+  inbox: (
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+    />
+  ),
 };
 
-function buildNavItems(terms) {
+function buildNavItems(terms, pendingBookings) {
   return [
     { to: "/dashboard", label: "Dashboard", icon: "dashboard" },
     { to: "/students", label: terms.students, icon: "students" },
@@ -70,6 +79,7 @@ function buildNavItems(terms) {
     { to: "/payments", label: "Payments", icon: "payments" },
     { to: "/calendar", label: "Calendar", icon: "calendar" },
     { to: "/availability", label: "Availability", icon: "availability" },
+    { to: "/booking-requests", label: "Requests", icon: "inbox", badge: pendingBookings > 0 ? pendingBookings : null },
     { to: "/settings", label: "Settings", icon: "settings" },
   ];
 }
@@ -165,8 +175,21 @@ export default function AppShell({ children }) {
   const { user, signOut } = useAuth();
   const { pathname } = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pendingBookings, setPendingBookings] = useState(0);
   const terms = useTerms();
-  const NAV_ITEMS = buildNavItems(terms);
+  const NAV_ITEMS = buildNavItems(terms, pendingBookings);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const now = new Date().toISOString();
+    supabase
+      .from("booking_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("tutor_id", user.id)
+      .eq("status", "pending")
+      .gt("expires_at", now)
+      .then(({ count }) => { if (count != null) setPendingBookings(count); });
+  }, [user?.id, pathname]);
 
   return (
     <div className="min-h-screen bg-gray-50 lg:flex">
@@ -194,7 +217,12 @@ export default function AppShell({ children }) {
                 }
               >
                 <NavIcon name={item.icon} className="h-5 w-5 flex-none" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.badge != null && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-white">
+                    {item.badge}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -275,7 +303,12 @@ export default function AppShell({ children }) {
                       }
                     >
                       <NavIcon name={item.icon} className="h-5 w-5 flex-none" />
-                      {item.label}
+                      <span className="flex-1">{item.label}</span>
+                      {item.badge != null && (
+                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-white">
+                          {item.badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

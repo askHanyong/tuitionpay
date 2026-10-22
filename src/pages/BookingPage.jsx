@@ -28,6 +28,7 @@ function Chip({ children, color = "gray" }) {
   const cls = {
     green:  "bg-emerald-100 text-emerald-800",
     amber:  "bg-amber-100 text-amber-800",
+    red:    "bg-red-100 text-red-700",
     gray:   "bg-gray-100 text-gray-500",
     blue:   "bg-blue-100 text-blue-800",
   }[color] ?? "bg-gray-100 text-gray-500";
@@ -401,7 +402,10 @@ export default function BookingPage() {
                   </Chip>
                 </li>
               ))}
-              {(upcomingRequests ?? []).map((r, i) => (
+              {(upcomingRequests ?? [])
+                // Skip confirmed requests — they already appear as upcoming lessons above.
+                .filter((r) => r.status !== "confirmed")
+                .map((r, i) => (
                 <li key={`req-${i}`} className="flex items-start justify-between gap-2">
                   <div>
                     <p className="text-sm font-medium text-gray-800">
@@ -410,9 +414,12 @@ export default function BookingPage() {
                         · {formatSGTTime(r.start)} – {formatSGTTime(r.end)}
                       </span>
                     </p>
+                    {r.status === "declined" && r.tutorNote && (
+                      <p className="text-xs text-gray-400 italic mt-0.5">{r.tutorNote}</p>
+                    )}
                   </div>
-                  <Chip color={r.status === "confirmed" ? "green" : "amber"}>
-                    {r.status === "confirmed" ? "Confirmed" : "Awaiting confirmation"}
+                  <Chip color={r.status === "declined" ? "red" : "amber"}>
+                    {r.status === "declined" ? "Not available" : "Awaiting confirmation"}
                   </Chip>
                 </li>
               ))}

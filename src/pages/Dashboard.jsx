@@ -185,6 +185,7 @@ export default function Dashboard() {
     try { return localStorage.getItem("chope_grandfathered_banner_dismissed") === "1"; } catch { return false; }
   });
   const [loading, setLoading] = useState(true);
+  const [pendingBookingCount, setPendingBookingCount] = useState(0);
   const [notifyPrefs, setNotifyPrefs] = useState({
     notify_lesson_reminders: true,
     notify_payment_due: true,
@@ -316,6 +317,16 @@ export default function Dashboard() {
       excludeDeleted(excludeArchived(overdueData)).filter(isInThePast),
     );
     setLoading(false);
+
+    // Load pending booking request count (unexpired only)
+    const now = new Date().toISOString();
+    const { count: bookingCount } = await supabase
+      .from("booking_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("tutor_id", user.id)
+      .eq("status", "pending")
+      .gt("expires_at", now);
+    setPendingBookingCount(bookingCount ?? 0);
   };
 
   useEffect(() => {
@@ -1393,6 +1404,22 @@ export default function Dashboard() {
 
         {/* ── RIGHT PANEL — Money (40%) ── */}
         <div className="space-y-6 md:flex-none md:w-[40%] md:self-start">
+          {/* Booking requests alert */}
+          {!loading && pendingBookingCount > 0 && (
+            <Link
+              to="/booking-requests"
+              className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm hover:bg-amber-100 transition"
+            >
+              <div>
+                <p className="text-sm font-semibold text-amber-900">
+                  📬 {pendingBookingCount} pending booking {pendingBookingCount === 1 ? "request" : "requests"}
+                </p>
+                <p className="text-xs text-amber-700">Tap to confirm or decline</p>
+              </div>
+              <span className="text-amber-500">→</span>
+            </Link>
+          )}
+
           {/* Monthly recap — desktop only (mobile version is in left panel) */}
           <div className="hidden md:block">
             <MonthlyRecapCard

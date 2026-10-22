@@ -266,10 +266,13 @@ export const handler = async (event) => {
       ),
       pgGet(
         supabaseUrl, serviceRoleKey,
+        // pending+confirmed: future start; declined: last 7 days (to show "Not available" note)
         `booking_requests?student_id=eq.${student_id}&tutor_id=eq.${tutor_id}` +
-        `&status=in.(pending,confirmed)` +
-        `&start_at=gte.${encodeURIComponent(new Date(nowMs).toISOString())}` +
-        `&select=start_at,end_at,status` +
+        `&or=(` +
+          `and(status.in.(pending,confirmed),start_at.gte.${encodeURIComponent(new Date(nowMs).toISOString())}),` +
+          `and(status.eq.declined,decided_at.gte.${encodeURIComponent(new Date(nowMs - 7 * 24 * 3600_000).toISOString())})` +
+        `)` +
+        `&select=start_at,end_at,status,tutor_note,expires_at` +
         `&order=start_at`,
       ),
     ]);
@@ -392,11 +395,17 @@ export const handler = async (event) => {
 
   // Convert to +08:00 strings so BookingPage.jsx can slice chars 11-16 for display.
   // Supabase returns timestamptz as UTC; without this conversion times show in UTC.
-  const upcomingRequests = (studentRequests ?? []).map((r) => ({
-    start:  toSGTDisplay(parseTs(r.start_at)),
-    end:    toSGTDisplay(parseTs(r.end_at)),
-    status: r.status,
-  }));
+  // pending requests whose expires_at has passed are shown as "expired" to the parent.
+  const upcomingRequests = (studentRequests ?? []).map((r) => {
+    const isExpiredPending = r.status === "pending" && parseTs(r.expires_at) <= nowMs;
+    return {
+      start:     toSGTDisplay(parseTs(r.start_at)),
+      end:       toSGTDisplay(parseTs(r.end_at)),
+      status:    isExpiredPending ? "expired" : r.status,
+      tutorNote: r.tutor_note ?? null,
+    };
+  // Hide expired pending from parent view — they can rebook
+  }).filter((r) => r.status !== "expired");
 
   // ── 13. Return shaped payload ─────────────────────────────────────────────
   return {

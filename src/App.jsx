@@ -25,6 +25,7 @@ import PaymentSummary from "./pages/PaymentSummary";
 import AgencyDashboard from "./pages/AgencyDashboard";
 import Availability from "./pages/Availability";
 import BookingPage from "./pages/BookingPage";
+import BookingRequests from "./pages/BookingRequests";
 
 function App() {
   return (
@@ -98,6 +99,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Availability />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/booking-requests"
+              element={
+                <ProtectedRoute>
+                  <BookingRequests />
                 </ProtectedRoute>
               }
             />
