@@ -9,17 +9,38 @@ import { buildWhatsAppLink, normalizeWhatsAppNumber } from "../lib/whatsapp";
 
 // ─── SGT helpers ─────────────────────────────────────────────────────────────
 
+// parseTs: any DB timestamp string (UTC "Z", "+00:00", fractional seconds, or "+08:00") → epoch ms
+function parseTs(s) { return new Date(s).getTime(); }
+
+// toSGT: epoch ms → "YYYY-MM-DDTHH:MM:SS+08:00" (no slicing of raw DB strings)
 function toSGT(ms) {
   const d = new Date(ms + 8 * 3600_000);
   return d.toISOString().slice(0, 19).replace("Z", "") + "+08:00";
 }
 
-function parseTs(s) {
-  return new Date(s).getTime();
+function nowSGT() { return toSGT(Date.now()); }
+
+// sgtParts: any DB timestamp → { str, date, time } all in Asia/Singapore.
+// Use this as the ONE entry point whenever a request's start_at/end_at is
+// displayed, used as lesson_date/lesson_time, or sliced for a date comparison.
+// Never slice a raw DB string directly — Supabase returns UTC, slicing gives UTC values.
+function sgtParts(s) {
+  const str = toSGT(parseTs(s)); // "YYYY-MM-DDTHH:MM:SS+08:00"
+  return {
+    str,                        // full +08:00 string for formatSGTTime/formatSGTDate
+    date: str.slice(0, 10),     // "YYYY-MM-DD" in SGT
+    time: str.slice(11, 19),    // "HH:MM:SS"   in SGT
+  };
 }
 
-function nowSGT() {
-  return toSGT(Date.now());
+// expiresInLabel: human-readable "expires in Xh" / "expires in Xm" from expires_at DB string
+function expiresInLabel(expiresAtStr) {
+  const msLeft = parseTs(expiresAtStr) - Date.now();
+  if (msLeft <= 0) return null;
+  const hours = Math.floor(msLeft / 3600_000);
+  if (hours >= 1) return `expires in ${hours}h`;
+  const mins = Math.ceil(msLeft / 60_000);
+  return `expires in ${mins}m`;
 }
 
 // ─── WhatsApp message builders ───────────────────────────────────────────────
@@ -136,8 +157,8 @@ function ConfirmModal({ request, tutorName, onClose, onDone }) {
     const durationMinutes = Math.round((endMs - startMs) / 60_000);
 
     // ── Step 2: check for an existing non-cancelled lesson (half-finished) ─
-    const lessonDate = reqRow.start_at.slice(0, 10);
-    const lessonTime = reqRow.start_at.slice(11, 19); // "HH:MM:SS"
+    // sgtParts converts UTC DB string → SGT date/time; never slice raw DB strings.
+    const { date: lessonDate, time: lessonTime } = sgtParts(reqRow.start_at);
 
     const { data: existingLesson } = await supabase
       .from("lessons")
@@ -154,6 +175,9 @@ function ConfirmModal({ request, tutorName, onClose, onDone }) {
 
     if (!reusingLesson) {
       // ── Step 3: re-check overlap against non-cancelled lessons ──────────
+      // lessonDate is already SGT (from sgtParts above), so the DB filter is correct.
+      // Lesson start times are built with explicit +08:00 → epoch ms for comparison.
+      // startMs/endMs come from parseTs (epoch ms), timezone-independent.
       const { data: overlapLessons } = await supabase
         .from("lessons")
         .select("lesson_date, lesson_time, duration_minutes, students(name)")
@@ -163,11 +187,13 @@ function ConfirmModal({ request, tutorName, onClose, onDone }) {
         .neq("status", "cancelled");
 
       for (const l of (overlapLessons ?? [])) {
+        // lesson_date + lesson_time are stored as SGT values; append +08:00 for correct epoch
         const ls = new Date(`${l.lesson_date}T${l.lesson_time}+08:00`).getTime();
         const le = ls + l.duration_minutes * 60_000;
         if (ls < endMs && le > startMs) {
           const name = l.students?.name ?? "another student";
-          setError(`This time overlaps with ${name}'s lesson at ${formatSGTTime(reqRow.start_at)}. Cannot confirm.`);
+          // sgtParts(reqRow.start_at).str is a +08:00 string — safe for formatSGTTime
+          setError(`This time overlaps with ${name}'s lesson at ${formatSGTTime(sgtParts(reqRow.start_at).str)}. Cannot confirm.`);
           setConfirming(false);
           return;
         }
@@ -266,17 +292,17 @@ function ConfirmModal({ request, tutorName, onClose, onDone }) {
     });
   }
 
-  const startStr = request.start_at;
-  const endStr   = request.end_at;
-  const dateStr  = startStr.slice(0, 10);
+  // sgtParts converts UTC DB strings → SGT; never slice raw request.start_at/end_at
+  const startSGT = sgtParts(request.start_at);
+  const endSGT   = sgtParts(request.end_at);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
         <h2 className="mb-1 text-base font-semibold text-[#0f1e35]">Confirm booking</h2>
         <p className="mb-4 text-sm text-gray-500">
-          {request.studentName} · {formatSGTDate(dateStr)},{" "}
-          {formatSGTTime(startStr)} – {formatSGTTime(endStr)}
+          {request.studentName} · {formatSGTDate(startSGT.date)},{" "}
+          {formatSGTTime(startSGT.str)} – {formatSGTTime(endSGT.str)}
         </p>
 
         {loadingSubjects ? (
@@ -313,7 +339,7 @@ function ConfirmModal({ request, tutorName, onClose, onDone }) {
                 {selectedSubject.rate_type === "per_session"
                   ? `$${selectedSubject.hourly_rate}/session`
                   : `$${selectedSubject.hourly_rate}/hr`}
-                {" · "}{Math.round((parseTs(endStr) - parseTs(startStr)) / 60_000)} min
+                {" · "}{Math.round((parseTs(request.end_at) - parseTs(request.start_at)) / 60_000)} min
               </div>
             )}
 
@@ -383,15 +409,17 @@ function DeclineModal({ request, onClose, onDone }) {
     onDone({ ...request, status: "declined", tutor_note: note.trim() || null });
   }
 
-  const dateStr = request.start_at.slice(0, 10);
+  // sgtParts converts UTC DB strings → SGT; never slice raw request.start_at/end_at
+  const startSGT = sgtParts(request.start_at);
+  const endSGT   = sgtParts(request.end_at);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
         <h2 className="mb-1 text-base font-semibold text-[#0f1e35]">Decline request</h2>
         <p className="mb-4 text-sm text-gray-500">
-          {request.studentName} · {formatSGTDate(dateStr)},{" "}
-          {formatSGTTime(request.start_at)} – {formatSGTTime(request.end_at)}
+          {request.studentName} · {formatSGTDate(startSGT.date)},{" "}
+          {formatSGTTime(startSGT.str)} – {formatSGTTime(endSGT.str)}
         </p>
 
         <div className="mb-4">
@@ -476,26 +504,31 @@ function ContactButton({ message, phone, label }) {
 // ─── Request row ──────────────────────────────────────────────────────────────
 
 function RequestRow({ req, tutorName, onConfirm, onDecline, isExpired }) {
-  const dateStr  = req.start_at.slice(0, 10);
+  // sgtParts converts UTC DB strings → SGT; single entry point, no raw slicing below.
+  const startSGT = sgtParts(req.start_at);
+  const endSGT   = sgtParts(req.end_at);
   const nowMs    = Date.now();
   const expired  = isExpired || parseTs(req.expires_at) <= nowMs;
+  const expiryLabel = !expired && req.status === "pending"
+    ? expiresInLabel(req.expires_at)
+    : null;
 
   const showConfirmDecline = req.status === "pending" && !expired;
 
-  // WhatsApp message for post-action
+  // WhatsApp message builders receive +08:00 strings and SGT date string
   const confirmMsg = buildConfirmMessage({
     studentName: req.studentName,
     tutorName,
-    dateStr,
-    startStr: req.start_at,
-    endStr:   req.end_at,
+    dateStr:  startSGT.date,
+    startStr: startSGT.str,
+    endStr:   endSGT.str,
   });
   const declineMsg = buildDeclineMessage({
     studentName: req.studentName,
     tutorName,
-    dateStr,
-    startStr: req.start_at,
-    endStr:   req.end_at,
+    dateStr:  startSGT.date,
+    startStr: startSGT.str,
+    endStr:   endSGT.str,
     note:     req.tutor_note,
   });
 
@@ -505,8 +538,11 @@ function RequestRow({ req, tutorName, onConfirm, onDecline, isExpired }) {
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-[#0f1e35]">{req.studentName}</p>
           <p className="text-xs text-gray-500">
-            {formatSGTDate(dateStr)}, {formatSGTTime(req.start_at)} – {formatSGTTime(req.end_at)}
+            {formatSGTDate(startSGT.date)}, {formatSGTTime(startSGT.str)} – {formatSGTTime(endSGT.str)}
           </p>
+          {expiryLabel && (
+            <p className="text-xs text-amber-600">{expiryLabel}</p>
+          )}
           {req.parent_note && (
             <p className="mt-1 text-xs italic text-gray-400">"{req.parent_note}"</p>
           )}
