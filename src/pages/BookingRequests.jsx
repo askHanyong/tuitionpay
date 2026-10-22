@@ -100,21 +100,32 @@ function ConfirmModal({ request, tutorName, onClose, onDone }) {
   const { showToast } = useToast();
   const [subjects, setSubjects] = useState([]);
   const [subjectId, setSubjectId] = useState("");
+  const [studentFallback, setStudentFallback] = useState(null); // { subject, hourly_rate }
   const [loadingSubjects, setLoadingSubjects] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase
-        .from("student_subjects")
-        .select("id, subject, hourly_rate, rate_type, lesson_duration_hours")
-        .eq("student_id", request.student_id)
-        .eq("tutor_id", user.id)
-        .order("created_at", { ascending: true });
-      const rows = data ?? [];
+      // Fetch student_subjects and the student row in parallel.
+      // The student row is the ScheduleLessonsModal fallback when no subjects exist.
+      const [{ data: subjectRows }, { data: stuRow }] = await Promise.all([
+        supabase
+          .from("student_subjects")
+          .select("id, subject, hourly_rate, rate_type, lesson_duration_hours")
+          .eq("student_id", request.student_id)
+          .eq("tutor_id", user.id)
+          .order("created_at", { ascending: true }),
+        supabase
+          .from("students")
+          .select("subject, hourly_rate")
+          .eq("id", request.student_id)
+          .single(),
+      ]);
+      const rows = subjectRows ?? [];
       setSubjects(rows);
       setSubjectId(rows[0]?.id ?? "");
+      setStudentFallback(stuRow ?? null);
       setLoadingSubjects(false);
     }
     load();
@@ -200,10 +211,19 @@ function ConfirmModal({ request, tutorName, onClose, onDone }) {
       }
 
       // ── Step 4: insert lesson ────────────────────────────────────────────
-      const rate     = selectedSubject?.hourly_rate ?? null;
+      // If no student_subjects row exists, fall back to the student row itself
+      // (same cascade as ScheduleLessonsModal). If the student has no rate either,
+      // refuse — a lesson without a rate would silently break billing.
+      const rate     = selectedSubject?.hourly_rate ?? studentFallback?.hourly_rate ?? null;
       const rateType = selectedSubject?.rate_type   ?? "hourly";
-      const subjectText = selectedSubject?.subject  ?? null;
+      const subjectText = selectedSubject?.subject  ?? studentFallback?.subject ?? null;
       const studentSubjectId = selectedSubject?.id  ?? null;
+
+      if (rate == null) {
+        setError("Set a rate for this student before confirming.");
+        setConfirming(false);
+        return;
+      }
 
       const { data: newLesson, error: insertErr } = await supabase
         .from("lessons")
@@ -328,7 +348,9 @@ function ConfirmModal({ request, tutorName, onClose, onDone }) {
 
             {subjects.length === 0 && (
               <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                No subject configured for this student. The lesson will be created without a subject or rate. You can edit it afterwards.
+                {studentFallback?.hourly_rate != null
+                  ? `No subject set. Using student rate: $${studentFallback.hourly_rate}/hr${studentFallback.subject ? ` · ${studentFallback.subject}` : ""}.`
+                  : "No rate set for this student. Set a rate on the student's profile before confirming."}
               </p>
             )}
 
