@@ -219,7 +219,9 @@ function ConfirmModal({ request, tutorName, onClose, onDone }) {
       const subjectText = selectedSubject?.subject  ?? studentFallback?.subject ?? null;
       const studentSubjectId = selectedSubject?.id  ?? null;
 
-      if (rate == null) {
+      // Hard guard — catches null, undefined and 0. Runs both as the user-facing error
+      // and as the final check before the DB insert, so no lesson can be created without a rate.
+      if (!rate || Number(rate) <= 0) {
         setError("Set a rate for this student before confirming.");
         setConfirming(false);
         return;
@@ -349,7 +351,7 @@ function ConfirmModal({ request, tutorName, onClose, onDone }) {
             {subjects.length === 0 && (
               <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
                 {studentFallback?.hourly_rate != null
-                  ? `No subject set. Using student rate: $${studentFallback.hourly_rate}/hr${studentFallback.subject ? ` · ${studentFallback.subject}` : ""}.`
+                  ? `No subject set. Using student rate: $${studentFallback.hourly_rate}/hr`
                   : "No rate set for this student. Set a rate on the student's profile before confirming."}
               </p>
             )}
