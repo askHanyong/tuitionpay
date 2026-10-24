@@ -5,6 +5,7 @@ import {
   RATING_OPTIONS,
   defaultShowAhl,
   groupByTopic,
+  isIbMaa,
   loadSyllabusTopics,
   resolveLessonSubject,
 } from "../lib/lessonTopics";
@@ -17,7 +18,7 @@ export default function LessonTopicsPanel({ lessonId, studentId }) {
   const [status, setStatus] = useState("loading"); // loading | off | ready | error
   const [errorMsg, setErrorMsg] = useState(null);
   const [topics, setTopics] = useState([]);
-  const [subjectText, setSubjectText] = useState("");
+  const [slOnly, setSlOnly] = useState(false);
   // topic_code -> rating (1/2/3) or null (covered, not rated yet)
   const [selected, setSelected] = useState({});
   const [showAhl, setShowAhl] = useState(true);
@@ -53,13 +54,14 @@ export default function LessonTopicsPanel({ lessonId, studentId }) {
         if (cancelled) return;
 
         const subject = resolveLessonSubject(subjectsRes.data, lessonRes.data ?? {});
-        if (!subject || subject.syllabus !== "ib_maa") {
+        if (!subject || !isIbMaa(subject.syllabus)) {
           setStatus("off");
           return;
         }
         setTopics(allTopics);
-        setSubjectText(subject.subject ?? "");
-        setShowAhl(defaultShowAhl(subject.subject));
+        const showHl = defaultShowAhl(subject.syllabus, subject.subject);
+        setSlOnly(!showHl);
+        setShowAhl(showHl);
         setSelected(
           Object.fromEntries((savedRes.data ?? []).map((r) => [r.topic_code, r.rating])),
         );
@@ -223,7 +225,7 @@ export default function LessonTopicsPanel({ lessonId, studentId }) {
 
       {picking && (
         <div className="mt-3 border-t border-gray-100 pt-3">
-          {!defaultShowAhl(subjectText) && (
+          {slOnly && (
             <label className="mb-2 flex items-center gap-2 text-xs text-gray-500">
               <input
                 type="checkbox"

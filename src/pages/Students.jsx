@@ -15,7 +15,7 @@ import {
   TIER_BADGE_CLASSES,
 } from "../lib/paymentStatus";
 import { CLIENT_TYPE_OPTIONS, CLIENT_TYPE_LABEL } from "../lib/practitioner";
-import { SYLLABUS_OPTIONS } from "../lib/lessonTopics";
+import { SYLLABUS_OPTIONS, normalizeSyllabus } from "../lib/lessonTopics";
 
 const emptySubjectRow = () => ({
   id: null,
@@ -420,7 +420,7 @@ export default function Students() {
       rate_type: row.rate_type ?? "hourly",
       hourly_rate: row.hourly_rate ?? "",
       lesson_duration_hours: row.lesson_duration_hours ?? "",
-      syllabus: row.syllabus ?? "",
+      syllabus: normalizeSyllabus(row.syllabus, row.subject),
     }));
     setForm({
       name: student.name ?? "",

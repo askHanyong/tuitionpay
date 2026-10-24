@@ -4,8 +4,27 @@ import { supabase } from "./supabase";
 // Only IB Math AA has topic data for now.
 export const SYLLABUS_OPTIONS = [
   { value: "", label: "Off (no topic tracking)" },
-  { value: "ib_maa", label: "IB Math AA (SL/HL)" },
+  { value: "ib_maa_hl", label: "IB Math AA – HL" },
+  { value: "ib_maa_sl", label: "IB Math AA – SL" },
 ];
+
+// Any IB Math AA value ("ib_maa" is the older, level-less one).
+export function isIbMaa(syllabus) {
+  return typeof syllabus === "string" && syllabus.startsWith("ib_maa");
+}
+
+// SL-only if the subject text says SL and not HL (e.g. "IBDP MAA SL").
+function textSaysSlOnly(subjectText) {
+  const text = subjectText ?? "";
+  return /\bSL\b/i.test(text) && !/\bHL\b/i.test(text);
+}
+
+// Turns the older level-less "ib_maa" into HL or SL using the subject text,
+// so the form dropdown always shows a real choice.
+export function normalizeSyllabus(syllabus, subjectText) {
+  if (syllabus !== "ib_maa") return syllabus ?? "";
+  return textSaysSlOnly(subjectText) ? "ib_maa_sl" : "ib_maa_hl";
+}
 
 // 1 / 2 / 3 rating the tutor gives for a topic in a lesson.
 export const RATING_OPTIONS = [
@@ -56,10 +75,13 @@ export function resolveLessonSubject(subjects, lesson) {
   return subjects.length === 1 ? subjects[0] : null;
 }
 
-// "MAA SL" -> only SL topics by default. Anything else (HL, plain "MAA") -> all.
-export function defaultShowAhl(subjectText) {
-  const text = subjectText ?? "";
-  return !(/\bSL\b/i.test(text) && !/\bHL\b/i.test(text));
+// SL students see SL topics by default; HL students see everything.
+// The dropdown choice decides; subject text is only a fallback for the older
+// level-less "ib_maa" value.
+export function defaultShowAhl(syllabus, subjectText) {
+  if (syllabus === "ib_maa_sl") return false;
+  if (syllabus === "ib_maa_hl") return true;
+  return !textSaysSlOnly(subjectText);
 }
 
 // [{ topic_number, topic_name, items: [...] }] in syllabus order.
