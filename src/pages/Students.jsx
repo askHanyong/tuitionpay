@@ -15,6 +15,7 @@ import {
   TIER_BADGE_CLASSES,
 } from "../lib/paymentStatus";
 import { CLIENT_TYPE_OPTIONS, CLIENT_TYPE_LABEL } from "../lib/practitioner";
+import { SYLLABUS_OPTIONS } from "../lib/lessonTopics";
 
 const emptySubjectRow = () => ({
   id: null,
@@ -23,6 +24,7 @@ const emptySubjectRow = () => ({
   rate_type: "hourly",
   hourly_rate: "",
   lesson_duration_hours: "",
+  syllabus: "",
 });
 
 // Preset avatar colors — bg is the circle fill, text is the initial color.
@@ -418,6 +420,7 @@ export default function Students() {
       rate_type: row.rate_type ?? "hourly",
       hourly_rate: row.hourly_rate ?? "",
       lesson_duration_hours: row.lesson_duration_hours ?? "",
+      syllabus: row.syllabus ?? "",
     }));
     setForm({
       name: student.name ?? "",
@@ -432,6 +435,7 @@ export default function Students() {
                 rate_type: "hourly",
                 hourly_rate: student.hourly_rate ?? "",
                 lesson_duration_hours: student.lesson_duration_hours ?? "",
+                syllabus: "",
               },
             ],
       client_type: "",
@@ -685,6 +689,7 @@ export default function Students() {
             row.lesson_duration_hours === ""
               ? null
               : Number(row.lesson_duration_hours),
+          syllabus: row.syllabus || null,
         };
         if (row.id) {
           const { error: updateError } = await supabase
@@ -1093,6 +1098,24 @@ export default function Students() {
                     }
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
                   />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">
+                    Topic tracking
+                  </label>
+                  <select
+                    value={row.syllabus ?? ""}
+                    onChange={(e) =>
+                      handleSubjectRowChange(index, "syllabus", e.target.value)
+                    }
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
+                  >
+                    {SYLLABUS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <button
                   type="button"

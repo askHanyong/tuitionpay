@@ -5,6 +5,7 @@ import { buildGoogleMapsUrl } from "../lib/maps";
 import { formatSGD } from "../lib/paymentNotice";
 import { lessonAmount } from "../lib/paymentMode";
 import { useTerms } from "../contexts/TerminologyContext";
+import LessonTopicsPanel from "./LessonTopicsPanel";
 
 export default function LessonDetailModal({
   lesson,
@@ -47,7 +48,7 @@ export default function LessonDetailModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+        className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between">
@@ -97,6 +98,10 @@ export default function LessonDetailModal({
 
         {lesson.notes && (
           <p className="mt-3 text-sm italic text-gray-500">{lesson.notes}</p>
+        )}
+
+        {lesson.student_id && (
+          <LessonTopicsPanel lessonId={lesson.id} studentId={lesson.student_id} />
         )}
 
         {isDone && lesson.students?.payment_mode === "per_lesson" && (

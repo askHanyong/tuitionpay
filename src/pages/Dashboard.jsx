@@ -32,6 +32,8 @@ import GettingStartedChecklist from "../components/GettingStartedChecklist";
 import MonthlyRecapCard from "../components/MonthlyRecapCard";
 import NotificationPrompt from "../components/NotificationPrompt";
 import LessonDetailModal from "../components/LessonDetailModal";
+import LessonTopicsModal from "../components/LessonTopicsModal";
+import { useTopicTrackedStudents } from "../hooks/useTopicTrackedStudents";
 import MessagePreviewModal from "../components/MessagePreviewModal";
 
 const todayKey = () => toDateKey(new Date());
@@ -175,6 +177,8 @@ export default function Dashboard() {
   const [scheduledLessons, setScheduledLessons] = useState([]);
   const [overdueLessons, setOverdueLessons] = useState([]);
   const [detailOverdueLesson, setDetailOverdueLesson] = useState(null);
+  const [topicsLesson, setTopicsLesson] = useState(null);
+  const topicTrackedStudentIds = useTopicTrackedStudents(user?.id);
   const [checklistDismissed, setChecklistDismissed] = useState(true);
   const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
@@ -1081,6 +1085,14 @@ export default function Dashboard() {
                           <span className="rounded-md bg-[#d1fae5] px-3 py-1.5 text-xs font-semibold text-[#065f46]">
                             ✓ Done
                           </span>
+                          {topicTrackedStudentIds.has(l.student_id) && (
+                            <button
+                              onClick={() => setTopicsLesson(l)}
+                              className="min-h-9 rounded-md border border-[#5ecfaa] px-2.5 text-xs font-medium text-[#0f7a58] hover:bg-white"
+                            >
+                              Topics
+                            </button>
+                          )}
                           <button
                             onClick={() => handleUndoDone(l.id)}
                             className="text-xs text-gray-400 hover:text-gray-600 underline"
@@ -1604,6 +1616,14 @@ export default function Dashboard() {
           mode={preview.mode}
           phone={preview.phone}
           onClose={() => setPreview(null)}
+        />
+      )}
+
+      {topicsLesson && (
+        <LessonTopicsModal
+          key={topicsLesson.id}
+          lesson={topicsLesson}
+          onClose={() => setTopicsLesson(null)}
         />
       )}
 
