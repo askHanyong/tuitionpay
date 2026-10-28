@@ -41,12 +41,15 @@ const todayKey = () => toDateKey(new Date());
 // Update this in one place to ship a new "What's new" banner -- bumping
 // the id makes it reappear for everyone even if they dismissed a past one.
 const ANNOUNCEMENT = {
-  id: "whats-new-2026-10-09",
+  id: "whats-new-2026-10-28",
   headline: "What's New in ChopeAndPay",
   bullets: [
-    "💳 Bill now — need to collect before a cycle completes, say after 3 of 4 lessons? Open the student's profile, go to Payment history and tap Bill now to bill the lessons done so far. Later lessons carry on as normal, and you can Undo while it's still unpaid.",
-    "📅 Cleaner calendar — lessons from students you've deleted no longer linger on your Calendar and Lessons pages.",
-    "📊 Monthly recap fix — unpaid amounts from past months now stay in Pending on the recap card, so nothing slips through the cracks.",
+    "📆 Parent booking — set your open slots on the Availability page, share a private link from each student's profile, and parents can request a lesson. You confirm or decline from your booking inbox.",
+    "🏢 Agency statements — if some students pay through an agency, build a monthly claim statement with your share, expenses and placement fees, then download it as Excel. Find it from the Payments page.",
+    "📊 Smarter monthly recap — see how each month splits between your take-home and what each agency earns. Tap an agency to see exactly how its amount is worked out.",
+    "💬 Easier parent messages — WhatsApp opens the parent's chat directly, greets them by name, and overdue payments now have a one-tap Remind button.",
+    "📝 Lesson topics — for IB Math AA students, log the topics covered in each lesson (HL or SL).",
+    "✨ Fresher dashboard — today's lessons now sit at the top, and Bill now also works for monthly-billed students.",
   ],
 };
 
