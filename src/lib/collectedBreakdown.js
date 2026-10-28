@@ -1,19 +1,17 @@
-// Splits a month's "Collected" total into who actually received the money:
-// each agency vs. you.
+// Splits a month's earnings (lessons TAUGHT in that month, same basis as the
+// agency statements) into what you keep and what each agency earns.
 //
-// Every paid cycle is placed in exactly ONE bucket (or split into two for a
-// one-off placement fee), so the buckets always add up to the cycle total.
+// Per completed lesson taught in the month:
+//  1. Placement fee: the part that is a one-off referral fee (e.g. Mindflex)
+//     is earned 100% by that referral agency. It comes off the student's
+//     earliest lessons first -- same rule as src/lib/statement.js.
+//  2. The rest ("counted") belongs to you and, if the student is linked to an
+//     agency, is shared with it: the agency keeps (100 - share_percent)%.
+//     Rounding follows the statement: the agency-collected and
+//     you-collected pots are rounded separately.
 //
-// Rules, per paid cycle:
-//  1. Placement fee: the part of the cycle that is a one-off referral fee
-//     (e.g. Mindflex) counts as collected by that referral agency. Uses the
-//     same "comes off the earliest lessons first" rule as the agency
-//     statements (src/lib/statement.js).
-//  2. The rest: if the student is linked to an agency and that agency
-//     collects the fee ("payee"), it counts as collected by that agency.
-//     Otherwise (no agency, or "I collect") it counts as collected by you.
-//
-// All maths is done in whole cents to avoid rounding drift.
+// What you keep = total - agencies' earnings, so the two halves always add up.
+// All maths is in whole cents.
 
 import { lessonAmount } from "./paymentMode";
 
@@ -25,98 +23,85 @@ const lessonOrder = (a, b) =>
     `${b.lesson_date} ${b.lesson_time ?? ""} ${b.id}`,
   );
 
-// lesson id -> cents of that lesson that went to the student's placement
-// (referral) agency.
-function placementCentsByLesson(students, lessons) {
-  const result = new Map();
+const monthPrefix = (monthDate) =>
+  `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
+
+// lessons: ALL completed lessons known (needed to know how much of a
+// placement fee was already used before this month).
+export function buildEarningsBreakdown({ monthDate, students, payees, lessons }) {
+  const prefix = monthPrefix(monthDate);
+  const payeesById = new Map((payees ?? []).map((p) => [p.id, p]));
+
+  let totalCents = 0;
+  const placement = new Map(); // key -> { name, cents }
+  // payeeId -> { collectedByPayee (cents), collectedByMe (cents) } of counted fees
+  const pots = new Map();
+
   for (const student of students) {
-    let feeLeft = toCents(student.placement_fee_amount);
-    if (feeLeft <= 0) continue;
-    const feeStart = student.placement_fee_start || null;
-    const sorted = lessons
+    const studentLessons = lessons
       .filter((l) => l.student_id === student.id && l.is_completed)
       .sort(lessonOrder);
-    for (const l of sorted) {
-      if (feeLeft <= 0) break;
-      if (feeStart && l.lesson_date < feeStart) continue;
-      const take = Math.min(feeLeft, toCents(lessonAmount(l, student)));
-      if (take > 0) {
-        result.set(l.id, take);
-        feeLeft -= take;
+    if (studentLessons.length === 0) continue;
+
+    let feeLeft = toCents(student.placement_fee_amount);
+    const feeStart = student.placement_fee_start || null;
+    const payee = student.payee_id ? payeesById.get(student.payee_id) : null;
+    const byMe = student.fee_collected_by === "me";
+
+    for (const l of studentLessons) {
+      const amount = toCents(lessonAmount(l, student));
+      let fee = 0;
+      if (feeLeft > 0 && (!feeStart || l.lesson_date >= feeStart)) {
+        fee = Math.min(feeLeft, amount);
+        feeLeft -= fee;
+      }
+      if (!l.lesson_date.startsWith(prefix)) continue; // only this month counts
+
+      totalCents += amount;
+      if (fee > 0) {
+        const name = (student.placement_fee_agency || "Referral agency").trim();
+        const key = name.toLowerCase();
+        const row = placement.get(key) ?? { name, cents: 0 };
+        row.cents += fee;
+        placement.set(key, row);
+      }
+      const counted = amount - fee;
+      if (payee && counted > 0) {
+        const pot = pots.get(payee.id) ?? { payee, byPayee: 0, byMe: 0 };
+        if (byMe) pot.byMe += counted;
+        else pot.byPayee += counted;
+        pots.set(payee.id, pot);
       }
     }
   }
-  return result;
-}
 
-// paidCycles: the paid payment_cycles that make up this month's "Collected".
-// students / payees / lessons: full lists (lessons = all lessons before
-// today, so the placement fee can be tracked from the student's first lesson).
-export function buildCollectedBreakdown({ paidCycles, students, payees, lessons }) {
-  const studentsById = new Map(students.map((s) => [s.id, s]));
-  const payeesById = new Map((payees ?? []).map((p) => [p.id, p]));
-  const placementByLesson = placementCentsByLesson(students, lessons);
-
-  const lessonsByCycle = new Map();
-  for (const l of lessons) {
-    if (!l.payment_cycle_id) continue;
-    if (!lessonsByCycle.has(l.payment_cycle_id))
-      lessonsByCycle.set(l.payment_cycle_id, []);
-    lessonsByCycle.get(l.payment_cycle_id).push(l);
-  }
-
-  // Same agency typed two ways ("Mindflex" / "mindflex ") is one agency.
-  const agencies = new Map(); // key -> { name, cents }
-  const addAgency = (name, cents) => {
+  // Agency earnings, merged by name (a payee and a referral fee can be the
+  // same agency).
+  const earned = new Map(); // key -> { name, cents }
+  const addEarned = (name, cents) => {
     if (cents <= 0) return;
-    const clean = (name ?? "").trim() || "Other agency";
-    const key = clean.toLowerCase();
-    const row = agencies.get(key) ?? { name: clean, cents: 0 };
+    const key = name.trim().toLowerCase();
+    const row = earned.get(key) ?? { name: name.trim(), cents: 0 };
     row.cents += cents;
-    agencies.set(key, row);
+    earned.set(key, row);
   };
-
-  let meCents = 0;
-  let totalCents = 0;
-
-  for (const cycle of paidCycles) {
-    const cycleCents = toCents(cycle.amount_due);
-    totalCents += cycleCents;
-    const student = studentsById.get(cycle.student_id);
-
-    // 1. Placement-fee portion -> referral agency.
-    let placementCents = 0;
-    if (student) {
-      const fromLessons = (lessonsByCycle.get(cycle.id) ?? []).reduce(
-        (sum, l) => sum + (placementByLesson.get(l.id) ?? 0),
-        0,
-      );
-      // Never take more than the cycle itself.
-      placementCents = Math.min(fromLessons, cycleCents);
-      addAgency(student.placement_fee_agency || "Referral agency", placementCents);
-    }
-
-    // 2. The rest -> the collecting agency, or you.
-    const restCents = cycleCents - placementCents;
-    const payee = student?.payee_id ? payeesById.get(student.payee_id) : null;
-    if (payee && student.fee_collected_by !== "me") {
-      addAgency(payee.name, restCents);
-    } else {
-      meCents += restCents;
-    }
+  for (const p of placement.values()) addEarned(p.name, p.cents);
+  for (const { payee, byPayee, byMe } of pots.values()) {
+    const share = Number(payee.share_percent ?? 80);
+    const youGetFromAgency = Math.round((byPayee * share) / 100);
+    const youOweAgency = Math.round((byMe * (100 - share)) / 100);
+    addEarned(payee.name, byPayee - youGetFromAgency + youOweAgency);
   }
 
-  const agencyRows = [...agencies.values()]
+  const agencies = [...earned.values()]
     .sort((a, b) => b.cents - a.cents || a.name.localeCompare(b.name))
     .map((a) => ({ name: a.name, amount: fromCents(a.cents) }));
-  const agencyCents = [...agencies.values()].reduce((s, a) => s + a.cents, 0);
+  const agencyCents = [...earned.values()].reduce((s, a) => s + a.cents, 0);
 
   return {
     total: fromCents(totalCents),
-    me: fromCents(meCents),
+    mine: fromCents(totalCents - agencyCents),
     agencyTotal: fromCents(agencyCents),
-    agencies: agencyRows,
-    // Always true by construction; handy for a quick test.
-    matches: meCents + agencyCents === totalCents,
+    agencies,
   };
 }

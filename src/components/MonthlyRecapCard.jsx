@@ -9,7 +9,7 @@ import { downloadMonthlyReportImage } from "../lib/imageReport";
 import MonthlyReportTemplate from "./MonthlyReportTemplate";
 import { formatMonth } from "../utils/dateFormat";
 import { lessonAmount } from "../lib/paymentMode";
-import { buildCollectedBreakdown } from "../lib/collectedBreakdown";
+import { buildEarningsBreakdown } from "../lib/collectedBreakdown";
 
 function isSameMonth(dateStr, monthDate) {
   if (!dateStr) return false;
@@ -217,7 +217,7 @@ export default function MonthlyRecapCard({
     let cancelled = false;
     supabase
       .from("payees")
-      .select("id, name")
+      .select("id, name, share_percent")
       .eq("tutor_id", user.id)
       .then(({ data, error }) => {
         if (!cancelled && !error) setPayees(data ?? []);
@@ -256,20 +256,23 @@ export default function MonthlyRecapCard({
     currentMonthPendingOverride,
   ]);
 
-  // Who received this month's "Collected" money. Uses exactly the same paid
-  // cycles as `collected` above, so the parts add up to the total.
+  // What you keep vs what each agency earns, from lessons TAUGHT this month
+  // (same basis as the agency statements). `lessons` only covers before today,
+  // so today's completed lessons are added from `scheduledLessons`; the two
+  // sets never overlap.
   const breakdown = useMemo(() => {
     if (payees === null) return null;
-    const paidCycles = paymentCycles.filter(
-      (c) => c.status === "paid" && isSameMonth(c.period_end, monthDate),
-    );
-    return buildCollectedBreakdown({
-      paidCycles,
+    const completed = [
+      ...lessons,
+      ...scheduledLessons.filter((l) => l.is_completed),
+    ].filter((l) => l.is_completed);
+    return buildEarningsBreakdown({
+      monthDate,
       students,
       payees,
-      lessons,
+      lessons: completed,
     });
-  }, [payees, paymentCycles, students, lessons, monthDate]);
+  }, [payees, students, lessons, scheduledLessons, monthDate]);
 
   const message =
     current.projectedEarnings > 3000
@@ -362,16 +365,16 @@ export default function MonthlyRecapCard({
       {breakdown && breakdown.agencyTotal > 0 && (
         <div className="mt-4 rounded-lg border border-[#b8e8d9] bg-white/70 p-3 text-sm">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Collected — who received it
+            {terms.lessons} taught — who earns what
           </p>
           <div className="flex items-center justify-between py-0.5">
-            <span className="text-gray-700">Collected by me</span>
-            <span className="font-semibold text-gray-900">
-              {formatSGD(breakdown.me)}
+            <span className="text-gray-700">My take-home</span>
+            <span className="font-semibold text-[#0f7a58]">
+              {formatSGD(breakdown.mine)}
             </span>
           </div>
           <div className="flex items-center justify-between py-0.5">
-            <span className="text-gray-700">Collected by agencies</span>
+            <span className="text-gray-700">Agencies earn</span>
             <span className="font-semibold text-gray-900">
               {formatSGD(breakdown.agencyTotal)}
             </span>
@@ -386,8 +389,8 @@ export default function MonthlyRecapCard({
             </div>
           ))}
           <div className="mt-1 flex items-center justify-between border-t border-[#b8e8d9] pt-1.5">
-            <span className="font-medium text-gray-700">Total collected</span>
-            <span className="font-semibold text-[#0f7a58]">
+            <span className="font-medium text-gray-700">Total billed</span>
+            <span className="font-semibold text-gray-900">
               {formatSGD(breakdown.total)}
             </span>
           </div>
