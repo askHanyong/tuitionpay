@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useTerms } from "../contexts/TerminologyContext";
 import { formatSGD } from "../lib/paymentNotice";
@@ -8,6 +9,7 @@ import { downloadMonthlyReportImage } from "../lib/imageReport";
 import MonthlyReportTemplate from "./MonthlyReportTemplate";
 import { formatMonth } from "../utils/dateFormat";
 import { lessonAmount } from "../lib/paymentMode";
+import { buildCollectedBreakdown } from "../lib/collectedBreakdown";
 
 function isSameMonth(dateStr, monthDate) {
   if (!dateStr) return false;
@@ -206,6 +208,24 @@ export default function MonthlyRecapCard({
   );
   const [generating, setGenerating] = useState(false);
   const reportRef = useRef(null);
+  // null until loaded. If the load fails we hide the breakdown rather than
+  // show wrong numbers (agency-collected money would look like "mine").
+  const [payees, setPayees] = useState(null);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    supabase
+      .from("payees")
+      .select("id, name")
+      .eq("tutor_id", user.id)
+      .then(({ data, error }) => {
+        if (!cancelled && !error) setPayees(data ?? []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const current = useMemo(() => {
     const computed = computeForMonth(
@@ -235,6 +255,22 @@ export default function MonthlyRecapCard({
     scheduledLessons,
     currentMonthPendingOverride,
   ]);
+
+  // Who received this month's "Collected" money. Uses exactly the same paid
+  // cycles as `collected` above, so the parts add up to the total.
+  const breakdown = useMemo(() => {
+    if (payees === null) return null;
+    const paidCycles = paymentCycles.filter(
+      (c) => c.status === "paid" && isSameMonth(c.period_end, monthDate),
+    );
+    return buildCollectedBreakdown({
+      paidCycles,
+      students,
+      payees,
+      lessons,
+    });
+  }, [payees, paymentCycles, students, lessons, monthDate]);
+
   const message =
     current.projectedEarnings > 3000
       ? "🔥 Amazing month! You're on fire!"
@@ -322,6 +358,41 @@ export default function MonthlyRecapCard({
           </p>
         </div>
       </div>
+
+      {breakdown && breakdown.agencyTotal > 0 && (
+        <div className="mt-4 rounded-lg border border-[#b8e8d9] bg-white/70 p-3 text-sm">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            Collected — who received it
+          </p>
+          <div className="flex items-center justify-between py-0.5">
+            <span className="text-gray-700">Collected by me</span>
+            <span className="font-semibold text-gray-900">
+              {formatSGD(breakdown.me)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between py-0.5">
+            <span className="text-gray-700">Collected by agencies</span>
+            <span className="font-semibold text-gray-900">
+              {formatSGD(breakdown.agencyTotal)}
+            </span>
+          </div>
+          {breakdown.agencies.map((a) => (
+            <div
+              key={a.name}
+              className="flex items-center justify-between py-0.5 pl-4 text-xs text-gray-600"
+            >
+              <span>{a.name}</span>
+              <span>{formatSGD(a.amount)}</span>
+            </div>
+          ))}
+          <div className="mt-1 flex items-center justify-between border-t border-[#b8e8d9] pt-1.5">
+            <span className="font-medium text-gray-700">Total collected</span>
+            <span className="font-semibold text-[#0f7a58]">
+              {formatSGD(breakdown.total)}
+            </span>
+          </div>
+        </div>
+      )}
 
       <p className="mt-4 text-center text-sm font-medium text-gray-700">
         {message}
