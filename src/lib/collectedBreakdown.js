@@ -1,16 +1,16 @@
 // Splits a month's earnings (lessons TAUGHT in that month, same basis as the
-// agency statements) into what you keep and what each agency earns.
+// agency statements) into what you keep and what each agency earns, and keeps
+// the per-student lines behind every agency figure so they can be shown.
 //
 // Per completed lesson taught in the month:
 //  1. Placement fee: the part that is a one-off referral fee (e.g. Mindflex)
 //     is earned 100% by that referral agency. It comes off the student's
 //     earliest lessons first -- same rule as src/lib/statement.js.
-//  2. The rest ("counted") belongs to you and, if the student is linked to an
-//     agency, is shared with it: the agency keeps (100 - share_percent)%.
-//     Rounding follows the statement: the agency-collected and
-//     you-collected pots are rounded separately.
+//  2. The rest ("counted") is shared with the student's agency, if any: the
+//     agency keeps (100 - share_percent)% of it, whoever collected the fee.
 //
-// What you keep = total - agencies' earnings, so the two halves always add up.
+// An agency's total is the sum of its per-student lines, and what you keep is
+// total - agencies' earnings, so everything always adds up.
 // All maths is in whole cents.
 
 import { lessonAmount } from "./paymentMode";
@@ -33,9 +33,24 @@ export function buildEarningsBreakdown({ monthDate, students, payees, lessons })
   const payeesById = new Map((payees ?? []).map((p) => [p.id, p]));
 
   let totalCents = 0;
-  const placement = new Map(); // key -> { name, cents }
-  // payeeId -> { collectedByPayee (cents), collectedByMe (cents) } of counted fees
-  const pots = new Map();
+  // Agency name (lowercase) -> { name, payeeId, sharePct, lines: [] }
+  const agencies = new Map();
+  const agencyFor = (name, payee) => {
+    const clean = name.trim();
+    const key = clean.toLowerCase();
+    const row = agencies.get(key) ?? {
+      name: clean,
+      payeeId: null,
+      sharePct: null,
+      lines: [],
+    };
+    if (payee) {
+      row.payeeId = payee.id;
+      row.sharePct = Number(payee.share_percent ?? 80);
+    }
+    agencies.set(key, row);
+    return row;
+  };
 
   for (const student of students) {
     const studentLessons = lessons
@@ -45,63 +60,83 @@ export function buildEarningsBreakdown({ monthDate, students, payees, lessons })
 
     let feeLeft = toCents(student.placement_fee_amount);
     const feeStart = student.placement_fee_start || null;
-    const payee = student.payee_id ? payeesById.get(student.payee_id) : null;
-    const byMe = student.fee_collected_by === "me";
 
+    // This student's totals for the month.
+    let billed = 0;
+    let fee = 0;
+    let lessonCount = 0;
     for (const l of studentLessons) {
       const amount = toCents(lessonAmount(l, student));
-      let fee = 0;
+      let take = 0;
       if (feeLeft > 0 && (!feeStart || l.lesson_date >= feeStart)) {
-        fee = Math.min(feeLeft, amount);
-        feeLeft -= fee;
+        take = Math.min(feeLeft, amount);
+        feeLeft -= take;
       }
       if (!l.lesson_date.startsWith(prefix)) continue; // only this month counts
+      billed += amount;
+      fee += take;
+      lessonCount += 1;
+    }
+    if (lessonCount === 0) continue;
+    totalCents += billed;
+    const counted = billed - fee;
 
-      totalCents += amount;
-      if (fee > 0) {
-        const name = (student.placement_fee_agency || "Referral agency").trim();
-        const key = name.toLowerCase();
-        const row = placement.get(key) ?? { name, cents: 0 };
-        row.cents += fee;
-        placement.set(key, row);
-      }
-      const counted = amount - fee;
-      if (payee && counted > 0) {
-        const pot = pots.get(payee.id) ?? { payee, byPayee: 0, byMe: 0 };
-        if (byMe) pot.byMe += counted;
-        else pot.byPayee += counted;
-        pots.set(payee.id, pot);
-      }
+    if (fee > 0) {
+      agencyFor(student.placement_fee_agency || "Referral agency").lines.push({
+        kind: "placement",
+        student: student.name,
+        billed,
+        cents: fee,
+      });
+    }
+
+    const payee = student.payee_id ? payeesById.get(student.payee_id) : null;
+    if (payee && counted > 0) {
+      const share = Number(payee.share_percent ?? 80);
+      const byMe = student.fee_collected_by === "me";
+      // Same rounding as the statement: agency-collected fees round the
+      // tutor's share; tutor-collected fees round the agency's share.
+      const cents = byMe
+        ? Math.round((counted * (100 - share)) / 100)
+        : counted - Math.round((counted * share) / 100);
+      agencyFor(payee.name, payee).lines.push({
+        kind: "share",
+        student: student.name,
+        collectedBy: byMe ? "me" : "agency",
+        billed: counted, // after any placement fee
+        cents,
+        lessonCount,
+      });
     }
   }
 
-  // Agency earnings, merged by name (a payee and a referral fee can be the
-  // same agency).
-  const earned = new Map(); // key -> { name, cents }
-  const addEarned = (name, cents) => {
-    if (cents <= 0) return;
-    const key = name.trim().toLowerCase();
-    const row = earned.get(key) ?? { name: name.trim(), cents: 0 };
-    row.cents += cents;
-    earned.set(key, row);
-  };
-  for (const p of placement.values()) addEarned(p.name, p.cents);
-  for (const { payee, byPayee, byMe } of pots.values()) {
-    const share = Number(payee.share_percent ?? 80);
-    const youGetFromAgency = Math.round((byPayee * share) / 100);
-    const youOweAgency = Math.round((byMe * (100 - share)) / 100);
-    addEarned(payee.name, byPayee - youGetFromAgency + youOweAgency);
-  }
+  const rows = [...agencies.values()]
+    .map((a) => {
+      const cents = a.lines.reduce((s, l) => s + l.cents, 0);
+      return {
+        name: a.name,
+        payeeId: a.payeeId,
+        sharePct: a.sharePct,
+        cents,
+        amount: fromCents(cents),
+        lines: a.lines
+          .filter((l) => l.cents > 0)
+          .sort((x, y) => y.cents - x.cents || x.student.localeCompare(y.student))
+          .map((l) => ({
+            ...l,
+            billed: fromCents(l.billed),
+            amount: fromCents(l.cents),
+          })),
+      };
+    })
+    .filter((a) => a.cents > 0)
+    .sort((a, b) => b.cents - a.cents || a.name.localeCompare(b.name));
 
-  const agencies = [...earned.values()]
-    .sort((a, b) => b.cents - a.cents || a.name.localeCompare(b.name))
-    .map((a) => ({ name: a.name, amount: fromCents(a.cents) }));
-  const agencyCents = [...earned.values()].reduce((s, a) => s + a.cents, 0);
-
+  const agencyCents = rows.reduce((s, a) => s + a.cents, 0);
   return {
     total: fromCents(totalCents),
     mine: fromCents(totalCents - agencyCents),
     agencyTotal: fromCents(agencyCents),
-    agencies,
+    agencies: rows,
   };
 }

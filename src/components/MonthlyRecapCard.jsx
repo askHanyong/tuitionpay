@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useTerms } from "../contexts/TerminologyContext";
@@ -211,6 +212,8 @@ export default function MonthlyRecapCard({
   // null until loaded. If the load fails we hide the breakdown rather than
   // show wrong numbers (agency-collected money would look like "mine").
   const [payees, setPayees] = useState(null);
+  // Which agency's per-student breakdown is open (lowercased name).
+  const [openAgency, setOpenAgency] = useState(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -379,15 +382,67 @@ export default function MonthlyRecapCard({
               {formatSGD(breakdown.agencyTotal)}
             </span>
           </div>
-          {breakdown.agencies.map((a) => (
-            <div
-              key={a.name}
-              className="flex items-center justify-between py-0.5 pl-4 text-xs text-gray-600"
-            >
-              <span>{a.name}</span>
-              <span>{formatSGD(a.amount)}</span>
-            </div>
-          ))}
+          {breakdown.agencies.map((a) => {
+            const isOpen = openAgency === a.name.toLowerCase();
+            const monthStr = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
+            return (
+              <div key={a.name}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenAgency(isOpen ? null : a.name.toLowerCase())
+                  }
+                  aria-expanded={isOpen}
+                  className="flex min-h-8 w-full items-center justify-between rounded py-0.5 pl-4 text-xs text-gray-600 hover:bg-[#edf6f3]"
+                >
+                  <span>
+                    {isOpen ? "▾" : "▸"} {a.name}
+                  </span>
+                  <span className="font-medium underline decoration-dotted underline-offset-2">
+                    {formatSGD(a.amount)}
+                  </span>
+                </button>
+                {isOpen && (
+                  <div className="mb-1 ml-4 rounded-md bg-[#edf6f3] p-2 text-xs text-gray-600">
+                    {a.lines.map((l) => (
+                      <div
+                        key={`${l.kind}-${l.student}`}
+                        className="flex items-start justify-between gap-2 py-0.5"
+                      >
+                        <span>
+                          {l.student}
+                          <span className="block text-[11px] text-gray-500">
+                            {l.kind === "placement"
+                              ? "Placement fee (100%)"
+                              : `${100 - a.sharePct}% of ${formatSGD(l.billed)}${
+                                  l.collectedBy === "me"
+                                    ? " · you collected"
+                                    : " · agency collected"
+                                }`}
+                          </span>
+                        </span>
+                        <span className="font-medium text-gray-800">
+                          {formatSGD(l.amount)}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="mt-1 flex items-center justify-between border-t border-[#b8e8d9] pt-1 font-semibold text-gray-800">
+                      <span>{a.name} earns</span>
+                      <span>{formatSGD(a.amount)}</span>
+                    </div>
+                    {a.payeeId && (
+                      <Link
+                        to={`/statements?payee=${a.payeeId}&month=${monthStr}`}
+                        className="mt-1 inline-block font-medium text-[#0f7a58] hover:underline"
+                      >
+                        Open {a.name} statement →
+                      </Link>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
           <div className="mt-1 flex items-center justify-between border-t border-[#b8e8d9] pt-1.5">
             <span className="font-medium text-gray-700">Total billed</span>
             <span className="font-semibold text-gray-900">

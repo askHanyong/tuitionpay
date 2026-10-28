@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
@@ -35,8 +35,13 @@ export default function Statements() {
   const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [payeeId, setPayeeId] = useState("");
-  const [monthStr, setMonthStr] = useState(currentMonthStr());
+  // The dashboard recap links here with ?payee=<id>&month=YYYY-MM.
+  const [searchParams] = useSearchParams();
+  const [payeeId, setPayeeId] = useState(() => searchParams.get("payee") || "");
+  const [monthStr, setMonthStr] = useState(() => {
+    const m = searchParams.get("month");
+    return m && /^\d{4}-\d{2}$/.test(m) ? m : currentMonthStr();
+  });
   const [form, setForm] = useState({ id: null, name: "", share_percent: "80" });
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
