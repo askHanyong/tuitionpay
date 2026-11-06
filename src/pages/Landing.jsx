@@ -77,24 +77,6 @@ const TRUST_POINTS = [
   },
 ];
 
-const TESTIMONIALS = [
-  {
-    name: "Rachel Tan",
-    subject: "Sec Math & A Math",
-    quote: "I used to lose track of who owed me what. Now it's all automatic.",
-  },
-  {
-    name: "Wei Jie Koh",
-    subject: "JC H2 Chemistry",
-    quote: "Sending payment reminders takes seconds instead of an evening.",
-  },
-  {
-    name: "Aisha Rahman",
-    subject: "Primary English",
-    quote: "Finally something built for how Singapore tutors actually work.",
-  },
-];
-
 function PhoneMockup() {
   return (
     <div className="hidden flex-none lg:block">
@@ -291,28 +273,6 @@ export default function Landing() {
                   {f.title}
                 </h3>
                 <p className="mt-1.5 text-sm text-gray-600">{f.description}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-gray-50 py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <h2 className="text-center text-2xl font-bold text-gray-900 sm:text-3xl">
-            Loved by tutors across Singapore
-          </h2>
-          <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
-            {TESTIMONIALS.map((t) => (
-              <div
-                key={t.name}
-                className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm"
-              >
-                <p className="text-sm italic text-gray-700">“{t.quote}”</p>
-                <p className="mt-4 text-sm font-semibold text-gray-900">
-                  {t.name}
-                </p>
-                <p className="text-xs text-gray-500">{t.subject}</p>
               </div>
             ))}
           </div>

@@ -6,7 +6,11 @@ import { supabase } from "../lib/supabase";
 export default function Auth() {
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState(
-    searchParams.get("mode") === "signup" ? "signup" : "login",
+    searchParams.get("mode") === "signup"
+      ? "signup"
+      : searchParams.get("mode") === "forgot"
+        ? "forgot"
+        : "login",
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,6 +44,22 @@ export default function Auth() {
     setSubmitting(true);
 
     try {
+      if (mode === "forgot") {
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+          email.trim(),
+          { redirectTo: `${window.location.origin}/reset-password` },
+        );
+        if (resetError) {
+          const msg = (resetError.message ?? "").toLowerCase();
+          if (resetError.status === 429 || msg.includes("rate")) {
+            throw new Error("Too many requests. Please wait a minute and try again.");
+          }
+          throw new Error("Could not send the reset email. Please try again.");
+        }
+        // Same message whether or not the email has an account.
+        setInfo("If an account exists for that email, we've sent a link to reset your password. Check your inbox (and spam).");
+        return;
+      }
       if (mode === "signup") {
         if (!userType) {
           setError("Please select whether you're a tutor or a practitioner.");
@@ -150,12 +170,18 @@ export default function Auth() {
           ChopeAndPay
         </Link>
         <h1 className="mt-3 text-lg font-semibold text-gray-900">
-          {mode === "login" ? "Welcome back" : "Create your free account"}
+          {mode === "login"
+            ? "Welcome back"
+            : mode === "forgot"
+              ? "Reset your password"
+              : "Create your free account"}
         </h1>
         <p className="mb-6 mt-1 text-sm text-gray-500">
           {mode === "login"
             ? "Log in to see today's lessons and who owes you."
-            : "Chope your slots. Track every session. Get paid on time."}
+            : mode === "forgot"
+              ? "Enter your email and we'll send you a reset link."
+              : "Chope your slots. Track every session. Get paid on time."}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -251,6 +277,7 @@ export default function Auth() {
             />
           </div>
 
+          {mode !== "forgot" && (
           <div>
             <label htmlFor="auth-password" className="mb-1 block text-sm font-medium text-gray-700">
               Password
@@ -268,7 +295,21 @@ export default function Auth() {
             {mode === "signup" && (
               <p className="mt-1 text-xs text-gray-500">At least 6 characters.</p>
             )}
+            {mode === "login" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("forgot");
+                  setError(null);
+                  setInfo(null);
+                }}
+                className="mt-2 text-xs font-medium text-[#0f7a58] hover:text-[#1b2d4f]"
+              >
+                Forgot password?
+              </button>
+            )}
           </div>
+          )}
 
           {error && <p className="text-sm text-red-600">{error}</p>}
           {info && <p className="text-sm text-[#0f7a58]">{info}</p>}
@@ -282,7 +323,9 @@ export default function Auth() {
               ? "Please wait..."
               : mode === "login"
                 ? "Log in"
-                : "Sign up"}
+                : mode === "forgot"
+                  ? "Send reset link"
+                  : "Sign up"}
           </button>
 
           {mode === "signup" && (
@@ -307,20 +350,37 @@ export default function Auth() {
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-500">
-          {mode === "login"
-            ? "Don't have an account?"
-            : "Already have an account?"}{" "}
-          <button
-            type="button"
-            onClick={() => {
-              setMode(mode === "login" ? "signup" : "login");
-              setError(null);
-              setInfo(null);
-            }}
-            className="font-medium text-[#0f7a58] hover:text-[#1b2d4f]"
-          >
-            {mode === "login" ? "Sign up free" : "Log in"}
-          </button>
+          {mode === "forgot" ? (
+            <>
+              Remembered it?{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  setError(null);
+                  setInfo(null);
+                }}
+                className="font-medium text-[#0f7a58] hover:text-[#1b2d4f]"
+              >
+                Back to log in
+              </button>
+            </>
+          ) : (
+            <>
+              {mode === "login" ? "Don't have an account?" : "Already have an account?"}{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setMode(mode === "login" ? "signup" : "login");
+                  setError(null);
+                  setInfo(null);
+                }}
+                className="font-medium text-[#0f7a58] hover:text-[#1b2d4f]"
+              >
+                {mode === "login" ? "Sign up free" : "Log in"}
+              </button>
+            </>
+          )}
         </p>
       </div>
     </div>
