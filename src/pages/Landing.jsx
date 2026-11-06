@@ -12,6 +12,9 @@ import {
   User,
   Lock,
   AlertCircle,
+  Link2,
+  Building2,
+    Check,
 } from "lucide-react";
 
 const PROBLEMS = [
@@ -24,22 +27,38 @@ const FEATURES = [
   {
     Icon: CalendarCheck,
     title: "Schedule recurring lessons",
-    description: "Set it once, never forget.",
+    description:
+      "Set a weekly slot once. Hourly or flat per-session rates, synced to Google Calendar if you like.",
   },
   {
     Icon: Wallet,
-    title: "Track payments automatically",
-    description: "Know exactly which lesson and when payment is due.",
+    title: "Know who owes you",
+    description:
+      "Payment cycles your way: every few lessons, end of month, or a fixed date. Overdue payments are flagged automatically.",
   },
   {
     Icon: MessageSquare,
-    title: "Send WhatsApp receipts",
-    description: "Professional payment confirmations in one tap.",
+    title: "WhatsApp reminders in one tap",
+    description:
+      "A pre-filled message with lesson dates and the amount due opens straight in the parent's chat.",
+  },
+  {
+    Icon: Link2,
+    title: "Parent booking and payment links",
+    description:
+      "Share a private link so parents can request an open slot or see what's due, with your PayNow number on it.",
+  },
+  {
+    Icon: Building2,
+    title: "Agency statements",
+    description:
+      "Students through an agency? Build the monthly claim with your share, expenses and placement fees, then download it as Excel.",
   },
   {
     Icon: TrendingUp,
-    title: "Monthly earnings reports",
-    description: "See your income at a glance.",
+    title: "Monthly recap",
+    description:
+      "Collected, pending and projected earnings at a glance, including your take-home after agencies.",
   },
 ];
 
@@ -100,7 +119,7 @@ function PhoneMockup() {
             </div>
             <div className="rounded-lg border border-gray-100 bg-white p-3">
               <p className="text-[10px] font-medium text-gray-500">
-                September recap
+                This month
               </p>
               <p className="mt-1 text-sm font-bold text-[#0f7a58]">
                 $3,150 collected
@@ -160,6 +179,12 @@ export default function Landing() {
             ChopeAndPay
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
+            <a
+              href="#pricing"
+              className="hidden min-h-11 rounded-md px-3 text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white sm:flex items-center"
+            >
+              Pricing
+            </a>
             <Link
               to="/about"
               className="min-h-11 rounded-md px-3 text-sm font-medium text-white/80 transition hover:bg-white/10 hover:text-white flex items-center"
@@ -197,14 +222,29 @@ export default function Landing() {
             <p className="mt-5 text-lg text-gray-600">
               Chope your slots. Track every session. Get paid on time.
             </p>
-            <div className="mt-8 flex justify-center lg:justify-start">
+            <p className="mt-3 text-base text-gray-600">
+              Built for Singapore tutors and session-based freelancers: lessons,
+              parent bookings, payment tracking and WhatsApp reminders in one
+              simple app.
+            </p>
+            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row lg:justify-start justify-center">
               <Link
                 to="/login?mode=signup"
                 className="flex min-h-12 items-center rounded-md bg-[#1b2d4f] px-8 text-base font-semibold text-white shadow-lg transition hover:bg-[#15243f] hover:shadow-xl"
               >
                 Sign up free
               </Link>
+              <a
+                href="#features"
+                className="flex min-h-12 items-center rounded-md px-4 text-base font-medium text-[#1b2d4f] hover:underline"
+              >
+                See what's inside
+              </a>
             </div>
+            <p className="mt-3 text-sm text-gray-500 text-center lg:text-left">
+              Free for up to 3 students · No credit card needed · Works on any
+              phone
+            </p>
           </div>
           <PhoneMockup />
         </div>
@@ -233,12 +273,12 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-16 sm:py-20">
+      <section id="features" className="py-16 sm:py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <h2 className="text-center text-2xl font-bold text-gray-900 sm:text-3xl">
             Everything you need, built in
           </h2>
-          <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f) => (
               <div
                 key={f.title}
@@ -279,19 +319,60 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="py-16 sm:py-20">
-        <div className="mx-auto max-w-xl px-4 text-center sm:px-6">
-          <div className="rounded-2xl border border-[#b8e8d9] bg-[#edf6f3] p-8 shadow-sm">
-            <h2 className="text-2xl font-bold text-gray-900">Start free</h2>
-            <p className="mt-2 text-sm text-gray-700">
-              No credit card needed. Free for up to 3 students — upgrade anytime.
-            </p>
-            <Link
-              to="/login?mode=signup"
-              className="mt-6 flex min-h-12 items-center justify-center rounded-md bg-[#1b2d4f] px-8 text-base font-semibold text-white shadow-lg transition hover:bg-[#15243f] hover:shadow-xl"
-            >
-              Sign up free
-            </Link>
+      <section id="pricing" className="py-16 sm:py-20">
+        <div className="mx-auto max-w-4xl px-4 sm:px-6">
+          <h2 className="text-center text-2xl font-bold text-gray-900 sm:text-3xl">
+            Simple pricing
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Start free. Upgrade only when you have more than 3 students.
+          </p>
+          <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="rounded-2xl border border-[#b8e8d9] bg-[#edf6f3] p-8 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-900">Free</h3>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                SGD 0
+              </p>
+              <p className="text-sm text-gray-600">No credit card needed</p>
+              <ul className="mt-5 space-y-2 text-sm text-gray-700">
+                {["Up to 3 students", "Lessons, payments and reminders", "Parent booking and payment links"].map((t) => (
+                  <li key={t} className="flex items-start gap-2">
+                    <Check className="mt-0.5 h-4 w-4 flex-none text-[#0f7a58]" aria-hidden="true" />
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                to="/login?mode=signup"
+                className="mt-6 flex min-h-12 items-center justify-center rounded-md bg-[#1b2d4f] px-8 text-base font-semibold text-white shadow-lg transition hover:bg-[#15243f] hover:shadow-xl"
+              >
+                Sign up free
+              </Link>
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-900">Unlimited</h3>
+              <p className="mt-1 text-3xl font-bold text-gray-900">
+                SGD 9.99
+                <span className="text-base font-medium text-gray-500"> / month</span>
+              </p>
+              <p className="text-sm text-gray-600">
+                or SGD 59.99 / year (save about 50%)
+              </p>
+              <ul className="mt-5 space-y-2 text-sm text-gray-700">
+                {["Unlimited students", "Everything in Free", "Cancel anytime"].map((t) => (
+                  <li key={t} className="flex items-start gap-2">
+                    <Check className="mt-0.5 h-4 w-4 flex-none text-[#0f7a58]" aria-hidden="true" />
+                    {t}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                to="/login?mode=signup"
+                className="mt-6 flex min-h-12 items-center justify-center rounded-md border border-[#1b2d4f] px-8 text-base font-semibold text-[#1b2d4f] transition hover:bg-gray-50"
+              >
+                Start free, upgrade anytime
+              </Link>
+            </div>
           </div>
         </div>
       </section>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 
@@ -142,25 +142,33 @@ export default function Auth() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow">
-        <h1 className="mb-1 flex items-center gap-2 text-2xl font-semibold text-gray-900">
-          <span aria-hidden="true">🌿</span>
+        <Link
+          to="/"
+          className="mb-1 flex items-center gap-2 text-2xl font-semibold text-gray-900"
+        >
+          <span aria-hidden="true">🍀</span>
           ChopeAndPay
+        </Link>
+        <h1 className="mt-3 text-lg font-semibold text-gray-900">
+          {mode === "login" ? "Welcome back" : "Create your free account"}
         </h1>
-        <p className="mb-6 text-sm text-gray-500">
+        <p className="mb-6 mt-1 text-sm text-gray-500">
           {mode === "login"
-            ? "Log in to your account"
-            : "Create your account"}
+            ? "Log in to see today's lessons and who owes you."
+            : "Chope your slots. Track every session. Get paid on time."}
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === "signup" && (
             <>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label htmlFor="auth-name" className="mb-1 block text-sm font-medium text-gray-700">
                   Full name
                 </label>
                 <input
+                  id="auth-name"
                   type="text"
+                  autoComplete="name"
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
@@ -229,11 +237,13 @@ export default function Auth() {
           )}
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="auth-email" className="mb-1 block text-sm font-medium text-gray-700">
               Email
             </label>
             <input
+              id="auth-email"
               type="email"
+              autoComplete="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -242,21 +252,26 @@ export default function Auth() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="auth-password" className="mb-1 block text-sm font-medium text-gray-700">
               Password
             </label>
             <input
+              id="auth-password"
               type="password"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
               required
               minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-[#5ecfaa] focus:outline-none focus:ring-1 focus:ring-[#5ecfaa]"
             />
+            {mode === "signup" && (
+              <p className="mt-1 text-xs text-gray-500">At least 6 characters.</p>
+            )}
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
-          {info && <p className="text-sm text-[#5ecfaa]">{info}</p>}
+          {info && <p className="text-sm text-[#0f7a58]">{info}</p>}
 
           <button
             type="submit"
@@ -271,10 +286,23 @@ export default function Auth() {
           </button>
 
           {mode === "signup" && (
-            <p className="text-center text-xs text-gray-500">
-              <span aria-hidden="true">🔒</span> Free · Your data is private ·
-              No credit card needed
-            </p>
+            <>
+              <p className="text-center text-xs text-gray-500">
+                <span aria-hidden="true">🔒</span> Free for up to 3 students ·
+                No credit card needed · Your data stays private
+              </p>
+              <p className="text-center text-xs text-gray-400">
+                By signing up you agree to our{" "}
+                <Link to="/terms" className="underline hover:text-gray-600">
+                  Terms
+                </Link>{" "}
+                and{" "}
+                <Link to="/privacy" className="underline hover:text-gray-600">
+                  Privacy Policy
+                </Link>
+                .
+              </p>
+            </>
           )}
         </form>
 
@@ -289,9 +317,9 @@ export default function Auth() {
               setError(null);
               setInfo(null);
             }}
-            className="font-medium text-[#5ecfaa] hover:text-[#1b2d4f]"
+            className="font-medium text-[#0f7a58] hover:text-[#1b2d4f]"
           >
-            {mode === "login" ? "Sign up" : "Log in"}
+            {mode === "login" ? "Sign up free" : "Log in"}
           </button>
         </p>
       </div>
