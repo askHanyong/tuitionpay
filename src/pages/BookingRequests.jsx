@@ -237,11 +237,12 @@ function ConfirmModal({ request, tutorName, onClose, onDone }) {
           lesson_date:        lessonDate,
           lesson_time:        lessonTime,
           duration_minutes:   durationMinutes,
-          rate:               rate,
-          rate_type:          rateType,
-          lesson_mode:        "f2f",
-          status:             "scheduled",
-          is_completed:       false,
+          rate:                   rate,
+          rate_type:              rateType,
+          lesson_mode:            "f2f",
+          status:                 "scheduled",
+          is_completed:           false,
+          student_name_snapshot:  request.studentName ?? null,
         })
         .select("id")
         .single();

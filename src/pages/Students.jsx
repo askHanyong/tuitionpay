@@ -8,6 +8,7 @@ import { useTerms } from "../contexts/TerminologyContext";
 import AppShell from "../components/AppShell";
 import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
 import { formatDate } from "../utils/dateFormat";
+import { formatSGD } from "../lib/paymentNotice";
 import { LEVEL_OPTIONS } from "../lib/levels";
 import {
   computeStudentPaymentStatus,
@@ -77,7 +78,7 @@ const SORT_OPTIONS = [
   { value: "rate_low", label: "Lowest hourly rate" },
 ];
 
-function StudentActionsMenu({ student, onEdit, onArchive, onDelete }) {
+function StudentActionsMenu({ student, onEdit, onArchive, onDelete, paymentStatus, unpaidLessonCount }) {
   const [open, setOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [menuPos, setMenuPos] = useState(null);
@@ -134,24 +135,29 @@ function StudentActionsMenu({ student, onEdit, onArchive, onDelete }) {
         >
           {confirmDelete ? (
             <div className="px-3 py-2">
+              {paymentStatus?.amountDue > 0 && (
+                <p className="mb-1.5 text-sm font-medium text-red-700">
+                  {student.name} has {formatSGD(paymentStatus.amountDue)} unpaid
+                  {unpaidLessonCount > 0 ? ` across ${unpaidLessonCount} lesson${unpaidLessonCount === 1 ? "" : "s"}` : ""}.
+                </p>
+              )}
               <p className="mb-2 text-sm text-gray-700">
-                Delete <span className="font-semibold">{student.name}</span>?{" "}
-                <span className="text-gray-500">Can be recovered within 30 days.</span>
+                <span className="font-semibold">{student.name}</span> will be hidden from your lists. Their lessons and payments stay in your earnings history. You can restore them from Settings within 30 days.
               </p>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => { close(); onDelete(student); }}
-                  className="flex-1 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
-                >
-                  Delete
-                </button>
                 <button
                   type="button"
                   onClick={() => setConfirmDelete(false)}
                   className="flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100"
                 >
                   Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { close(); onDelete(student); }}
+                  className="flex-1 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                >
+                  Delete
                 </button>
               </div>
             </div>
@@ -211,6 +217,7 @@ export default function Students() {
   const [sortBy, setSortBy] = useState("payment_due");
   const [lastLessonByStudent, setLastLessonByStudent] = useState({});
   const [paymentStatusByStudent, setPaymentStatusByStudent] = useState({});
+  const [unpaidLessonCountByStudent, setUnpaidLessonCountByStudent] = useState({});
   const [view, setView] = useState("active");
   const [attentionFilter, setAttentionFilter] = useState("needs_attention");
   const [undoDelete, setUndoDelete] = useState(null); // { id, name, timer }
@@ -257,7 +264,7 @@ export default function Students() {
     const [{ data: cyclesData }, { data: lessonsData }] = await Promise.all([
       supabase
         .from("payment_cycles")
-        .select("student_id, status, period_start, period_end, amount_due")
+        .select("id, student_id, status, period_start, period_end, amount_due")
         .eq("tutor_id", user.id)
         .order("period_end", { ascending: true }),
       supabase
@@ -309,6 +316,20 @@ export default function Students() {
         );
       }
     }
+
+    const pendingCycleIdSet = new Set(
+      (cyclesData ?? []).filter((c) => c.status === "pending").map((c) => c.id),
+    );
+    const unpaidCountMap = {};
+    for (const l of lessonsData ?? []) {
+      const effectivelyCompleted = l.is_completed || l.lesson_date < todayStr;
+      if (!effectivelyCompleted) continue;
+      const isUnpaid = l.payment_cycle_id == null || pendingCycleIdSet.has(l.payment_cycle_id);
+      if (isUnpaid) {
+        unpaidCountMap[l.student_id] = (unpaidCountMap[l.student_id] ?? 0) + 1;
+      }
+    }
+    setUnpaidLessonCountByStudent(unpaidCountMap);
 
     const now = new Date();
     const statusMap = {};
@@ -1618,6 +1639,8 @@ export default function Students() {
                           onEdit={handleEdit}
                           onArchive={handleArchive}
                           onDelete={handleDelete}
+                          paymentStatus={paymentStatusByStudent[s.id]}
+                          unpaidLessonCount={unpaidLessonCountByStudent[s.id] ?? 0}
                         />
                       </div>
                     )}
@@ -1733,6 +1756,8 @@ export default function Students() {
                                 onEdit={handleEdit}
                                 onArchive={handleArchive}
                                 onDelete={handleDelete}
+                                paymentStatus={paymentStatusByStudent[s.id]}
+                                unpaidLessonCount={unpaidLessonCountByStudent[s.id] ?? 0}
                               />
                             </div>
                           )}

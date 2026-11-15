@@ -83,6 +83,7 @@ export default function Onboarding({ onDismiss, onDone }) {
         duration_minutes: Math.round(durationHours * 60),
         rate: student.hourly_rate ?? null,
         is_completed: true,
+        student_name_snapshot: student.name ?? null,
       });
       if (error) throw error;
       setStep(3);

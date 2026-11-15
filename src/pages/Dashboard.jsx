@@ -174,8 +174,11 @@ export default function Dashboard() {
   const terms = useTerms();
   const isPractitioner = user?.user_metadata?.user_type === "practitioner";
   const [students, setStudents] = useState([]);
+  const [recapStudents, setRecapStudents] = useState([]);
   const [lessons, setLessons] = useState([]);
+  const [recapLessons, setRecapLessons] = useState([]);
   const [paymentCycles, setPaymentCycles] = useState([]);
+  const [recapPaymentCycles, setRecapPaymentCycles] = useState([]);
   const [todayLessons, setTodayLessons] = useState([]);
   const [scheduledLessons, setScheduledLessons] = useState([]);
   const [overdueLessons, setOverdueLessons] = useState([]);
@@ -311,8 +314,11 @@ export default function Dashboard() {
     }
 
     setStudents(nonDeletedStudents.filter((s) => !s.archived));
+    setRecapStudents(studentsData ?? []);
     setLessons(excludeDeleted(excludeArchived(lessonsData)));
+    setRecapLessons(lessonsData ?? []);
     setPaymentCycles(excludeDeleted(excludeArchived(cyclesData)));
+    setRecapPaymentCycles(cyclesData ?? []);
     setTodayLessons(excludeDeleted(excludeArchived(todayData)));
     setScheduledLessons(excludeDeleted(excludeArchived(scheduledData)));
     const nowTimeKey = new Date().toTimeString().slice(0, 5);
@@ -1222,9 +1228,9 @@ export default function Dashboard() {
           {/* Monthly recap — mobile only (desktop version lives in right panel) */}
           <div className="md:hidden">
             <MonthlyRecapCard
-              lessons={lessons}
-              paymentCycles={paymentCycles}
-              students={students}
+              lessons={recapLessons}
+              paymentCycles={recapPaymentCycles}
+              students={recapStudents}
               scheduledLessons={scheduledLessons}
               tutorName={user?.user_metadata?.full_name}
               currentMonthPendingOverride={allPendingAmount}
@@ -1438,9 +1444,9 @@ export default function Dashboard() {
           {/* Monthly recap — desktop only (mobile version is in left panel) */}
           <div className="hidden md:block">
             <MonthlyRecapCard
-              lessons={lessons}
-              paymentCycles={paymentCycles}
-              students={students}
+              lessons={recapLessons}
+              paymentCycles={recapPaymentCycles}
+              students={recapStudents}
               scheduledLessons={scheduledLessons}
               tutorName={user?.user_metadata?.full_name}
               currentMonthPendingOverride={allPendingAmount}

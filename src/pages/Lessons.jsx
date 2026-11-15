@@ -1041,6 +1041,7 @@ export default function Lessons() {
           consultation_type: form.consultation_type || null,
           status,
           is_completed,
+          student_name_snapshot: students.find((s) => s.id === form.student_id)?.name ?? null,
         })
         .select()
         .single();

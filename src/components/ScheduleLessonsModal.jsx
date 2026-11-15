@@ -135,6 +135,7 @@ export default function ScheduleLessonsModal({
     lesson_mode: "f2f",
     status: date > todayKey() ? "scheduled" : "completed",
     is_completed: false,
+    student_name_snapshot: student.name ?? null,
   });
 
   const getTutorGoogleTokens = async () => {
