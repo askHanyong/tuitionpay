@@ -449,7 +449,7 @@ export default function Lessons() {
       if (statusFilter === "completed" && !l.is_completed) return false;
       if (statusFilter === "scheduled" && l.is_completed) return false;
       if (q) {
-        const name = l.students?.name?.toLowerCase() ?? "";
+        const name = (l.students?.name ?? l.student_name_snapshot ?? "").toLowerCase();
         const dateLabel = formatDate(l.lesson_date).toLowerCase();
         if (
           !name.includes(q) &&
@@ -481,14 +481,14 @@ export default function Lessons() {
   const handleAddToCalendar = (lesson) => {
     const ics = buildLessonIcs({
       lesson,
-      studentName: lesson.students?.name ?? "Lesson",
+      studentName: lesson.students?.name ?? lesson.student_name_snapshot ?? "Lesson",
       subject: lesson.subject ?? lesson.students?.subject,
       lessonNumber: lessonPosition.get(lesson.id) ?? 1,
       rate: lesson.rate ?? lesson.students?.hourly_rate ?? null,
       rateType: lesson.rate_type ?? "hourly",
     });
     downloadIcs(
-      `${lesson.students?.name ?? "lesson"}-${lesson.lesson_date}.ics`,
+      `${lesson.students?.name ?? lesson.student_name_snapshot ?? "lesson"}-${lesson.lesson_date}.ics`,
       ics,
     );
   };
@@ -2015,7 +2015,7 @@ export default function Lessons() {
                 >
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <span className="flex flex-wrap items-center gap-2 font-medium text-gray-900">
-                      <span>{l.students?.name}</span>
+                      <span>{l.students?.name ?? l.student_name_snapshot}</span>
                       {completed ? (
                         <span className="inline-block rounded-full bg-[#d6ede6] px-2 py-0.5 text-xs font-medium text-[#1b2d4f]">
                           Completed
@@ -2126,7 +2126,7 @@ export default function Lessons() {
                         {formatDateTime(l.lesson_date, l.lesson_time)}
                       </td>
                       <td className="px-4 py-3 text-gray-700">
-                        {l.students?.name}
+                        {l.students?.name ?? l.student_name_snapshot}
                       </td>
                       <td className="px-4 py-3">
                         {completed ? (

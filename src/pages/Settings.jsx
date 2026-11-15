@@ -1207,7 +1207,7 @@ if (codeErr || !codeRow?.active) {
                   >
                     <div>
                       <span className="font-medium text-gray-900">
-                        {l.students?.name ?? "—"}
+                        {l.students?.name ?? l.student_name_snapshot ?? "—"}
                       </span>
                       <span className="ml-2 text-xs text-gray-500">
                         {formatDate(l.lesson_date)} · {l.student_subjects.subject}
