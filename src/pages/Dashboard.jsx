@@ -779,13 +779,6 @@ export default function Dashboard() {
       const openLessons = (recapLessonsByStudent.get(stu.id) ?? []).filter(
         (l) => l.is_completed && !l.payment_cycle_id,
       );
-      // DEBUG — remove before merging
-      if (!loading)
-        console.log(
-          `[stalled] ${stu.name} openLessons=${openLessons.length}`,
-          openLessons.map((l) => ({ date: l.lesson_date, done: l.is_completed, cycle: l.payment_cycle_id })),
-          `scheduled=${scheduledStudentIds.has(stu.id)}`,
-        );
       if (openLessons.length === 0) continue;
       const lastLesson = openLessons.reduce(
         (latest, l) =>
@@ -796,9 +789,6 @@ export default function Dashboard() {
       const daysSinceLast = Math.floor(
         (now - new Date(`${lastLesson}T00:00:00`)) / (1000 * 60 * 60 * 24),
       );
-      // DEBUG — remove before merging
-      if (!loading)
-        console.log(`[stalled] ${stu.name} lastLesson=${lastLesson} daysSinceLast=${daysSinceLast} threshold=${STALLED_CYCLE_THRESHOLD_DAYS}`);
       if (daysSinceLast <= STALLED_CYCLE_THRESHOLD_DAYS) continue;
       if (scheduledStudentIds.has(stu.id)) continue;
       const amount = openLessons.reduce((s, l) => s + lessonAmount(l, stu), 0);
@@ -810,8 +800,6 @@ export default function Dashboard() {
         count: openLessons.length,
       });
     }
-    // DEBUG — remove before merging
-    if (!loading) console.log("[stalled] final items:", items.length, items.map((i) => i.student.name));
     return items;
   })();
 
@@ -1722,6 +1710,19 @@ export default function Dashboard() {
                   );
                 })}
               </ul>
+            )}
+            {!loading && !isPractitioner && stalledItems.length > visibleStalledItems.length && (
+              <div className={unpaidCycles.length > 0 || visibleStalledItems.length > 0 ? "mt-3 border-t border-gray-100 pt-2" : "mt-1"}>
+                <button
+                  onClick={() => {
+                    setStalledDismissed({});
+                    try { localStorage.removeItem("chopeandpay_stalled_dismissed"); } catch {}
+                  }}
+                  className="text-xs text-gray-400 hover:text-gray-600 underline decoration-dotted underline-offset-2"
+                >
+                  Show {stalledItems.length - visibleStalledItems.length} dismissed
+                </button>
+              </div>
             )}
             {!loading && !isPractitioner && visibleStalledItems.length > 0 && (
               <div className={unpaidCycles.length > 0 ? "mt-3 border-t border-gray-100 pt-3" : ""}>

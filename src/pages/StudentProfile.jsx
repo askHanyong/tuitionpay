@@ -19,6 +19,7 @@ import StatusBadge from "../components/StatusBadge";
 import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
 import MessagePreviewModal from "../components/MessagePreviewModal";
 import ProgressReportModal from "../components/ProgressReportModal";
+import ArchiveDeletePromptModal from "../components/ArchiveDeletePromptModal";
 
 export default function StudentProfile() {
   const { id } = useParams();
@@ -43,19 +44,15 @@ export default function StudentProfile() {
   const [billNowOpen, setBillNowOpen] = useState(false);
   const [billNowLoading, setBillNowLoading] = useState(false);
   const [billNowError, setBillNowError] = useState(null);
+  const [archivePrompt, setArchivePrompt] = useState(null); // { pendingAmount, unbilledAmount }
+  const [archiveLoading, setArchiveLoading] = useState(false);
 
   // Booking link
   const [bookingLink, setBookingLink] = useState(null);
   const [bookingLinkLoading, setBookingLinkLoading] = useState(false);
   const [bookingLinkError, setBookingLinkError] = useState(null);
 
-  const handleArchive = async () => {
-    if (
-      !window.confirm(
-        `Archive ${student.name}? They won't appear in your active list but their history is preserved.`,
-      )
-    )
-      return;
+  const executeArchive = async () => {
     const { error } = await supabase
       .from("students")
       .update({ archived: true })
@@ -63,10 +60,85 @@ export default function StudentProfile() {
       .eq("tutor_id", user.id);
     if (error) {
       showToast(error.message, "error");
-      return;
+      return false;
     }
     showToast(`${terms.student} archived.`);
     navigate("/students");
+    return true;
+  };
+
+  const handleArchive = async () => {
+    if (!student) return;
+    const [{ data: cycles }, { data: openLessons }] = await Promise.all([
+      supabase
+        .from("payment_cycles")
+        .select("amount_due")
+        .eq("tutor_id", user.id)
+        .eq("student_id", student.id)
+        .in("status", ["pending", "overdue"]),
+      supabase
+        .from("lessons")
+        .select("rate, rate_type, duration_minutes")
+        .eq("tutor_id", user.id)
+        .eq("student_id", student.id)
+        .eq("is_completed", true)
+        .is("payment_cycle_id", null),
+    ]);
+    const pendingAmount = (cycles ?? []).reduce((s, c) => s + Number(c.amount_due), 0);
+    const unbilledAmount = (openLessons ?? []).reduce((s, l) => s + lessonAmount(l, student), 0);
+    if (pendingAmount > 0 || unbilledAmount > 0) {
+      setArchivePrompt({ pendingAmount, unbilledAmount });
+      return;
+    }
+    if (!window.confirm(`Archive ${student.name}? They won't appear in your active list but their history is preserved.`)) return;
+    await executeArchive();
+  };
+
+  const handleArchivePromptBillNow = async () => {
+    setArchiveLoading(true);
+    const { error } = await supabase.rpc("create_manual_closeout_cycle", { p_student_id: student.id });
+    if (error) { showToast(error.message, "error"); setArchiveLoading(false); return; }
+    await executeArchive();
+    setArchiveLoading(false);
+    setArchivePrompt(null);
+  };
+
+  const handleArchivePromptWriteOffAll = async () => {
+    setArchiveLoading(true);
+    if (archivePrompt?.unbilledAmount > 0) {
+      const { error: rpcErr } = await supabase.rpc("create_manual_closeout_cycle", { p_student_id: student.id });
+      if (rpcErr) { showToast(rpcErr.message, "error"); setArchiveLoading(false); return; }
+    }
+    const waivedAt = new Date().toISOString();
+    const { data: pendingCycles, error: fetchErr } = await supabase
+      .from("payment_cycles")
+      .select("id, status")
+      .eq("tutor_id", user.id)
+      .eq("student_id", student.id)
+      .in("status", ["pending", "overdue"]);
+    if (fetchErr) { showToast(fetchErr.message, "error"); setArchiveLoading(false); return; }
+    if (pendingCycles && pendingCycles.length > 0) {
+      const overdueIds = pendingCycles.filter((c) => c.status === "overdue").map((c) => c.id);
+      const pendingIds = pendingCycles.filter((c) => c.status === "pending").map((c) => c.id);
+      if (overdueIds.length > 0) {
+        const { error: e1 } = await supabase.from("payment_cycles").update({ status: "waived", waived_from_status: "overdue", waived_at: waivedAt }).in("id", overdueIds).eq("tutor_id", user.id);
+        if (e1) { showToast(e1.message, "error"); setArchiveLoading(false); return; }
+      }
+      if (pendingIds.length > 0) {
+        const { error: e2 } = await supabase.from("payment_cycles").update({ status: "waived", waived_from_status: "pending", waived_at: waivedAt }).in("id", pendingIds).eq("tutor_id", user.id);
+        if (e2) { showToast(e2.message, "error"); setArchiveLoading(false); return; }
+      }
+    }
+    await executeArchive();
+    setArchiveLoading(false);
+    setArchivePrompt(null);
+  };
+
+  const handleArchivePromptKeepAsOwed = async () => {
+    setArchiveLoading(true);
+    await executeArchive();
+    setArchiveLoading(false);
+    setArchivePrompt(null);
   };
 
   const handleSharePaymentSummary = async () => {
@@ -902,6 +974,20 @@ export default function StudentProfile() {
           currentCycleProgress={currentCycleProgress}
           lessonsThisMonth={lessonsThisMonth}
           onClose={() => setReporting(false)}
+        />
+      )}
+
+      {archivePrompt && student && (
+        <ArchiveDeletePromptModal
+          student={student}
+          action="archive"
+          pendingAmount={archivePrompt.pendingAmount}
+          unbilledAmount={archivePrompt.unbilledAmount}
+          onBillNow={handleArchivePromptBillNow}
+          onWriteOffAll={handleArchivePromptWriteOffAll}
+          onKeepAsOwed={handleArchivePromptKeepAsOwed}
+          onCancel={() => setArchivePrompt(null)}
+          loading={archiveLoading}
         />
       )}
     </AppShell>
