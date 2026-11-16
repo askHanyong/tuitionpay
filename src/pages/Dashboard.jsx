@@ -635,11 +635,7 @@ export default function Dashboard() {
           (s, l) => s + lessonAmount(l, stu),
           0,
         );
-        const expectedAmount =
-          openCount === cycleCount - 1
-            ? (cycleAmount / openCount) * cycleCount
-            : cycleAmount;
-        return sum + expectedAmount;
+        return sum + cycleAmount;
       }, 0);
     return fromCycles + fromMidCycle;
   })();
