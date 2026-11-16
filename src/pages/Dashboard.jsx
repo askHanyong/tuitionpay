@@ -41,15 +41,14 @@ const todayKey = () => toDateKey(new Date());
 // Update this in one place to ship a new "What's new" banner -- bumping
 // the id makes it reappear for everyone even if they dismissed a past one.
 const ANNOUNCEMENT = {
-  id: "whats-new-2026-10-28",
+  id: "whats-new-2026-11-waive",
   headline: "What's New in ChopeAndPay",
   bullets: [
-    "📆 Parent booking — set your open slots on the Availability page, share a private link from each student's profile, and parents can request a lesson. You confirm or decline from your booking inbox.",
-    "🏢 Agency statements — if some students pay through an agency, build a monthly claim statement with your share, expenses and placement fees, then download it as Excel. Find it from the Payments page.",
-    "📊 Smarter monthly recap — see how each month splits between your take-home and what each agency earns. Tap an agency to see exactly how its amount is worked out.",
-    "💬 Easier parent messages — WhatsApp opens the parent's chat directly, greets them by name, and overdue payments now have a one-tap Remind button.",
-    "📝 Lesson topics — for IB Math AA students, log the topics covered in each lesson (HL or SL).",
-    "✨ Fresher dashboard — today's lessons now sit at the top, and Bill now also works for monthly-billed students.",
+    "💸 Write off unpaid amounts — use the new Write off button on the Payments page to remove amounts you won't collect. It won't count as Collected. Undo anytime from the Written off section.",
+    "📋 Pending now includes archived and deleted students — money they owe still shows up under Pending so you can write it off. Find their cycles on the Payments page.",
+    "📆 Parent booking — set your open slots on the Availability page, share a private link from each student's profile, and parents can request a lesson.",
+    "🏢 Agency statements — build a monthly claim statement with your share, expenses and placement fees, then download it as Excel. Find it from the Payments page.",
+    "📊 Smarter monthly recap — see how each month splits between your take-home and what each agency earns.",
   ],
 };
 
@@ -554,7 +553,7 @@ export default function Dashboard() {
   const paidCyclesByStudent = new Map();
   for (const c of paymentCycles) {
     const map =
-      c.status === "pending"
+      c.status === "pending" || c.status === "overdue"
         ? pendingCyclesByStudent
         : c.status === "paid"
           ? paidCyclesByStudent
@@ -597,27 +596,32 @@ export default function Dashboard() {
   ).length;
   const overdueCount = overdueStudents.length;
   const upToDateCount = students.length - overdueCount - dueSoonCount;
-  // Compute all outstanding pending using the same projection the Payments
-  // page uses: actual payment_cycles rows first, then mid-cycle lessons-mode
-  // students who are 1 lesson away from completion, projecting their full
-  // cycle amount so the figure matches what the Payments page shows.
+  // Compute all outstanding pending using recapPaymentCycles (includes archived
+  // and deleted students) so their owed money counts. Both 'pending' and
+  // 'overdue' cycles are owed; 'waived' cycles are excluded.
   const allPendingAmount = (() => {
-    const pendingStudentIds = new Set(
-      paymentCycles
-        .filter((c) => c.status === "pending")
-        .map((c) => c.student_id),
+    const owedCycles = recapPaymentCycles.filter(
+      (c) => c.status === "pending" || c.status === "overdue",
     );
-    const fromCycles = paymentCycles
-      .filter((c) => c.status === "pending")
-      .reduce((sum, c) => sum + Number(c.amount_due), 0);
+    const owedStudentIds = new Set(owedCycles.map((c) => c.student_id));
+    const fromCycles = owedCycles.reduce(
+      (sum, c) => sum + Number(c.amount_due),
+      0,
+    );
+    const recapLessonsByStudentForPending = new Map();
+    for (const l of recapLessons) {
+      if (!recapLessonsByStudentForPending.has(l.student_id))
+        recapLessonsByStudentForPending.set(l.student_id, []);
+      recapLessonsByStudentForPending.get(l.student_id).push(l);
+    }
     const fromMidCycle = students
       .filter(
         (stu) =>
           (stu.payment_mode ?? "lessons") === "lessons" &&
-          !pendingStudentIds.has(stu.id),
+          !owedStudentIds.has(stu.id),
       )
       .reduce((sum, stu) => {
-        const openLessons = (lessonsByStudent.get(stu.id) ?? []).filter(
+        const openLessons = (recapLessonsByStudentForPending.get(stu.id) ?? []).filter(
           (l) => !l.payment_cycle_id,
         );
         const openCount = openLessons.length;
@@ -631,11 +635,7 @@ export default function Dashboard() {
           (s, l) => s + lessonAmount(l, stu),
           0,
         );
-        const expectedAmount =
-          openCount === cycleCount - 1
-            ? (cycleAmount / openCount) * cycleCount
-            : cycleAmount;
-        return sum + expectedAmount;
+        return sum + cycleAmount;
       }, 0);
     return fromCycles + fromMidCycle;
   })();
@@ -657,7 +657,7 @@ export default function Dashboard() {
     }
   }
   const unpaidCycles = paymentCycles
-    .filter((c) => c.status === "pending")
+    .filter((c) => c.status === "pending" || c.status === "overdue")
     .sort(
       (a, b) =>
         (overdueReasonByCycleId.has(b.id) ? 1 : 0) -
@@ -822,6 +822,33 @@ export default function Dashboard() {
       ),
     );
     showToast("Marked as paid.");
+  };
+
+  const handleWaiveCycle = async (cycleId, currentStatus) => {
+    const cycle = unpaidCycles.find((c) => c.id === cycleId);
+    const name = cycle?.students?.name ?? "this student";
+    const amount = cycle ? formatSGD(Number(cycle.amount_due)) : "";
+    if (
+      !window.confirm(
+        `Write off ${amount} from ${name}? This removes it from Pending. It won't count as Collected.`,
+      )
+    )
+      return;
+    const { error } = await supabase
+      .from("payment_cycles")
+      .update({
+        status: "waived",
+        waived_from_status: currentStatus,
+        waived_at: new Date().toISOString(),
+      })
+      .eq("id", cycleId)
+      .eq("tutor_id", user.id);
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    await loadAll();
+    showToast("Written off.");
   };
 
   // Best-effort: deleting the Google Calendar event must never block
@@ -1412,6 +1439,12 @@ export default function Dashboard() {
                             className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
                           >
                             Mark as paid
+                          </button>
+                          <button
+                            onClick={() => handleWaiveCycle(c.id, c.status)}
+                            className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-500 transition hover:bg-gray-100"
+                          >
+                            Write off
                           </button>
                         </div>
                       )}

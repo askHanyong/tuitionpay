@@ -28,7 +28,10 @@ export default function Payments() {
   const terms = useTerms();
   const isPractitioner = user?.user_metadata?.user_type === "practitioner";
   const [cycles, setCycles] = useState([]);
+  const [allStudents, setAllStudents] = useState([]);
   const [undoingCycleId, setUndoingCycleId] = useState(null);
+  const [waivingCycleId, setWaivingCycleId] = useState(null);
+  const [undoingWaiveId, setUndoingWaiveId] = useState(null);
   const [practitionerCompanies, setPractitionerCompanies] = useState([]);
   const [lessonDatesByCycle, setLessonDatesByCycle] = useState({});
   const [tutorProfile, setTutorProfile] = useState({});
@@ -59,19 +62,14 @@ export default function Payments() {
       ]);
     if (companiesData) setPractitionerCompanies(companiesData);
     if (error) setError(error.message);
-    const excludedStudentIds = new Set(
-      (studentsData ?? [])
-        .filter((s) => s.archived || s.deleted_at)
-        .map((s) => s.id),
-    );
-    const activeCycles = (data ?? []).filter(
-      (c) => !excludedStudentIds.has(c.student_id),
-    );
-    setCycles(activeCycles);
+    // All cycles (including archived/deleted students) are kept so they
+    // can be written off from the Payments page.
+    setCycles(data ?? []);
+    setAllStudents(studentsData ?? []);
     setTutorProfile(tutorData ?? {});
 
     const studentIds = [
-      ...new Set(activeCycles.map((c) => c.student_id)),
+      ...new Set((data ?? []).map((c) => c.student_id)),
     ];
     if (studentIds.length > 0) {
       const { data: lessonsData } = await supabase
@@ -82,7 +80,7 @@ export default function Payments() {
         .eq("is_completed", true)
         .order("lesson_date", { ascending: true });
       const map = {};
-      for (const c of activeCycles) {
+      for (const c of (data ?? [])) {
         map[c.id] = (lessonsData ?? [])
           .filter(
             (l) =>
@@ -102,8 +100,8 @@ export default function Payments() {
     // only gets a row once the whole cycle has landed.
     const students = (studentsData ?? []).filter((s) => !s.archived && !s.deleted_at);
     const pendingStudentIds = new Set(
-      activeCycles
-        .filter((c) => c.status === "pending")
+      (data ?? [])
+        .filter((c) => c.status === "pending" || c.status === "overdue")
         .map((c) => c.student_id),
     );
     if (students.length > 0) {
@@ -406,6 +404,59 @@ export default function Payments() {
     showToast("Cycle undone.");
   };
 
+  const handleWaiveCycle = async (cycleId) => {
+    const cycle = cycles.find((c) => c.id === cycleId);
+    const name = cycle?.students?.name ?? "this student";
+    const amount = cycle ? formatSGD(Number(cycle.amount_due)) : "";
+    if (
+      !window.confirm(
+        `Write off ${amount} from ${name}? This removes it from Pending. It won't count as Collected.`,
+      )
+    )
+      return;
+    setWaivingCycleId(cycleId);
+    const { error } = await supabase
+      .from("payment_cycles")
+      .update({
+        status: "waived",
+        waived_from_status: cycle.status,
+        waived_at: new Date().toISOString(),
+      })
+      .eq("id", cycleId)
+      .eq("tutor_id", user.id);
+    setWaivingCycleId(null);
+    if (error) {
+      setError(error.message);
+      showToast(error.message, "error");
+      return;
+    }
+    await load();
+    showToast("Written off.");
+  };
+
+  const handleUndoWaive = async (cycleId, waivedFromStatus) => {
+    if (
+      !window.confirm(
+        "Undo write-off? This will restore the cycle to its previous status.",
+      )
+    )
+      return;
+    setUndoingWaiveId(cycleId);
+    const { error } = await supabase
+      .from("payment_cycles")
+      .update({ status: waivedFromStatus, waived_at: null, waived_from_status: null })
+      .eq("id", cycleId)
+      .eq("tutor_id", user.id);
+    setUndoingWaiveId(null);
+    if (error) {
+      setError(error.message);
+      showToast(error.message, "error");
+      return;
+    }
+    await load();
+    showToast("Write-off undone.");
+  };
+
   const handleSendReceipt = (cycle) => {
     const message = buildPaidReceiptMessage({
       studentName: cycle.students?.name,
@@ -423,9 +474,13 @@ export default function Payments() {
     });
   };
 
-  const pending = cycles.filter((c) => c.status === "pending");
-  const settled = cycles.filter((c) => c.status !== "pending");
+  const pending = cycles.filter((c) => c.status === "pending" || c.status === "overdue");
+  const settled = cycles.filter((c) => c.status === "paid");
+  const writtenOff = cycles.filter((c) => c.status === "waived");
   const companiesById = Object.fromEntries(practitionerCompanies.map((c) => [c.id, c.name]));
+  const studentStatusById = new Map(
+    allStudents.map((s) => [s.id, { archived: !!s.archived, deleted: !!s.deleted_at }]),
+  );
   const fullyDue = cycleProgress.filter((p) => p.isFullyDue);
   const dueSoon = cycleProgress.filter(
     (p) => !p.isFullyDue && p.cycleCount != null && p.isLessonsDueSoon,
@@ -443,6 +498,7 @@ export default function Payments() {
   );
   const noticesCount =
     pending.length + fullyDue.length + dueSoon.length + monthlyDueSoon.length + monthlyOverdue.length;
+  const hasHistory = settled.length > 0 || writtenOff.length > 0;
 
   return (
     <AppShell>
@@ -462,7 +518,7 @@ export default function Payments() {
         </h2>
         {loading ? (
           <p className="text-sm text-gray-500">Loading...</p>
-        ) : noticesCount === 0 && settled.length === 0 ? (
+        ) : noticesCount === 0 && !hasHistory ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-white px-6 py-12 text-center shadow-sm">
             <p className="mb-4 text-5xl">💰</p>
             <p className="max-w-sm text-sm text-gray-600">
@@ -559,66 +615,89 @@ export default function Payments() {
                 <p className="text-sm text-gray-600">{p.overdueLabel}</p>
               </li>
             ))}
-            {pending.map((c) => (
-              <li
-                key={c.id}
-                className="rounded-md border border-amber-200 bg-amber-50 p-4 transition hover:shadow-md"
-              >
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="flex items-center gap-2 font-medium text-gray-900">
-                    {c.students?.name}
-                    <StatusBadge status={c.status} />
-                    {c.is_manual_closeout && (
-                      <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
-                        Partial cycle
-                      </span>
-                    )}
-                  </span>
-                  <span className="font-semibold text-gray-900">
-                    {formatSGD(c.amount_due)}
-                  </span>
-                </div>
-                {isPractitioner && c.students?.company_id && (
-                  <p className="mb-1 text-xs text-gray-500">
-                    {companiesById[c.students.company_id] ?? "—"}
-                  </p>
-                )}
-                <p className="mb-3 text-sm text-gray-600">
-                  {formatDate(c.period_start)} to {formatDate(c.period_end)}
-                  {c.students?.guardian_name &&
-                    ` · ${c.students.guardian_name}${
-                      c.students.guardian_relationship
-                        ? ` (${c.students.guardian_relationship.charAt(0).toUpperCase()}${c.students.guardian_relationship.slice(1)})`
-                        : ""
-                    }`}
-                  {c.students?.guardian_contact &&
-                    ` · Contact: ${c.students.guardian_contact}`}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => handleMarkPaid(c.id)}
-                    className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
-                  >
-                    Mark as paid
-                  </button>
-                  <button
-                    onClick={() => handleRequestPayment(c)}
-                    className="min-h-11 rounded-md bg-orange-500 px-3 text-sm font-medium text-white transition hover:bg-orange-600 hover:shadow"
-                  >
-                    💬 Request Payment
-                  </button>
-                  {c.is_manual_closeout && (
-                    <button
-                      onClick={() => handleUndoCycle(c.id)}
-                      disabled={undoingCycleId === c.id}
-                      className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
-                    >
-                      {undoingCycleId === c.id ? "Undoing..." : "Undo"}
-                    </button>
+            {pending.map((c) => {
+              const stuStatus = studentStatusById.get(c.student_id);
+              const borderClass = c.status === "overdue"
+                ? "border-red-200 bg-red-50"
+                : "border-amber-200 bg-amber-50";
+              return (
+                <li
+                  key={c.id}
+                  className={`rounded-md border p-4 transition hover:shadow-md ${borderClass}`}
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="flex flex-wrap items-center gap-2 font-medium text-gray-900">
+                      {c.students?.name}
+                      <StatusBadge status={c.status} />
+                      {stuStatus?.deleted && (
+                        <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                          Deleted
+                        </span>
+                      )}
+                      {!stuStatus?.deleted && stuStatus?.archived && (
+                        <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                          Archived
+                        </span>
+                      )}
+                      {c.is_manual_closeout && (
+                        <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
+                          Partial cycle
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-semibold text-gray-900">
+                      {formatSGD(c.amount_due)}
+                    </span>
+                  </div>
+                  {isPractitioner && c.students?.company_id && (
+                    <p className="mb-1 text-xs text-gray-500">
+                      {companiesById[c.students.company_id] ?? "—"}
+                    </p>
                   )}
-                </div>
-              </li>
-            ))}
+                  <p className="mb-3 text-sm text-gray-600">
+                    {formatDate(c.period_start)} to {formatDate(c.period_end)}
+                    {c.students?.guardian_name &&
+                      ` · ${c.students.guardian_name}${
+                        c.students.guardian_relationship
+                          ? ` (${c.students.guardian_relationship.charAt(0).toUpperCase()}${c.students.guardian_relationship.slice(1)})`
+                          : ""
+                      }`}
+                    {c.students?.guardian_contact &&
+                      ` · Contact: ${c.students.guardian_contact}`}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleMarkPaid(c.id)}
+                      className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100"
+                    >
+                      Mark as paid
+                    </button>
+                    <button
+                      onClick={() => handleRequestPayment(c)}
+                      className="min-h-11 rounded-md bg-orange-500 px-3 text-sm font-medium text-white transition hover:bg-orange-600 hover:shadow"
+                    >
+                      💬 Request Payment
+                    </button>
+                    {c.is_manual_closeout && (
+                      <button
+                        onClick={() => handleUndoCycle(c.id)}
+                        disabled={undoingCycleId === c.id}
+                        className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+                      >
+                        {undoingCycleId === c.id ? "Undoing..." : "Undo"}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleWaiveCycle(c.id)}
+                      disabled={waivingCycleId === c.id}
+                      className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-500 transition hover:bg-gray-100 disabled:opacity-50"
+                    >
+                      {waivingCycleId === c.id ? "Writing off…" : "Write off"}
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -653,6 +732,59 @@ export default function Payments() {
                 </p>
               </li>
             ))}
+          </ul>
+        </section>
+      )}
+
+      {writtenOff.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-base font-semibold text-gray-900">
+            Written off ({writtenOff.length})
+          </h2>
+          <ul className="space-y-3">
+            {writtenOff.map((c) => {
+              const stuStatus = studentStatusById.get(c.student_id);
+              return (
+                <li
+                  key={c.id}
+                  className="rounded-md border border-gray-200 bg-gray-50 p-4"
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="flex flex-wrap items-center gap-2 font-medium text-gray-500">
+                      {c.students?.name}
+                      <span className="inline-block rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
+                        ✕ Written off
+                      </span>
+                      {stuStatus?.deleted && (
+                        <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                          Deleted
+                        </span>
+                      )}
+                      {!stuStatus?.deleted && stuStatus?.archived && (
+                        <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+                          Archived
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-semibold text-gray-400 line-through">
+                      {formatSGD(c.amount_due)}
+                    </span>
+                  </div>
+                  <p className="mb-3 text-sm text-gray-500">
+                    {formatDate(c.period_start)} to {formatDate(c.period_end)}
+                    {c.waived_at &&
+                      ` · Written off ${formatDate(c.waived_at.slice(0, 10))}`}
+                  </p>
+                  <button
+                    onClick={() => handleUndoWaive(c.id, c.waived_from_status)}
+                    disabled={undoingWaiveId === c.id}
+                    className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-100 disabled:opacity-50"
+                  >
+                    {undoingWaiveId === c.id ? "Undoing…" : "Undo write-off"}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

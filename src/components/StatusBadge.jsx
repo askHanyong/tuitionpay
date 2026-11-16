@@ -2,6 +2,7 @@ const STYLES = {
   pending: 'bg-amber-100 text-amber-800',
   paid: 'bg-[#d6ede6] text-[#1b2d4f]',
   overdue: 'bg-red-100 text-red-800',
+  waived: 'bg-gray-100 text-gray-500',
 }
 
 export default function StatusBadge({ status }) {
