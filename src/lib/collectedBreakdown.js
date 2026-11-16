@@ -15,10 +15,10 @@
 
 import { lessonAmount } from "./paymentMode";
 
-const toCents = (n) => Math.round((Number(n) || 0) * 100);
-const fromCents = (c) => c / 100;
+export const toCents = (n) => Math.round((Number(n) || 0) * 100);
+export const fromCents = (c) => c / 100;
 
-const lessonOrder = (a, b) =>
+export const lessonOrder = (a, b) =>
   `${a.lesson_date} ${a.lesson_time ?? ""} ${a.id}`.localeCompare(
     `${b.lesson_date} ${b.lesson_time ?? ""} ${b.id}`,
   );

@@ -1,159 +1,133 @@
 import { useEffect, useState, useMemo } from "react";
-import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { formatSGD } from "../lib/paymentNotice";
 import { lessonAmount } from "../lib/paymentMode";
-import { buildEarningsBreakdown } from "../lib/collectedBreakdown";
 import { formatMonth } from "../utils/dateFormat";
+import {
+  buildChecks,
+  computeMonthlyBreakdowns,
+  computePerStudentRows,
+  sgtInYear,
+  sgtMonth,
+} from "../lib/yearEndReport";
 import AppShell from "../components/AppShell";
 
 const PAGE_SIZE = 900;
 const THIS_YEAR = new Date().getFullYear();
 const AVAILABLE_YEARS = Array.from({ length: THIS_YEAR - 2019 }, (_, i) => THIS_YEAR - i);
+const LESSON_COLS =
+  "id, student_id, lesson_date, lesson_time, is_completed, rate, rate_type, duration_minutes, payment_cycle_id";
+const SETUP_LABEL = {
+  direct: "Direct",
+  A: "Agency collects",
+  B: "You collect, pay agency",
+};
 
-async function fetchAllLessons(tutorId, fromDate) {
-  let all = [];
-  let from = 0;
-  while (true) {
-    const { data, error } = await supabase
-      .from("lessons")
-      .select("id, student_id, lesson_date, is_completed, rate, rate_type, duration_minutes, payment_cycle_id")
-      .eq("tutor_id", tutorId)
-      .eq("is_completed", true)
-      .gte("lesson_date", fromDate)
-      .order("lesson_date", { ascending: true })
-      .order("created_at", { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
+// Supabase caps a query at 1,000 rows; keep paging until a short page comes back.
+async function fetchPaged(makeQuery) {
+  const rows = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await makeQuery().range(from, from + PAGE_SIZE - 1);
     if (error) throw error;
-    all = all.concat(data ?? []);
+    rows.push(...(data ?? []));
     if (!data || data.length < PAGE_SIZE) break;
-    from += PAGE_SIZE;
   }
-  return all;
+  return rows;
 }
 
-function computeMonthlyBreakdowns({ year, students, payees, lessons }) {
-  const months = [];
-  for (let m = 0; m < 12; m++) {
-    const monthDate = new Date(year, m, 1);
-    const bd = buildEarningsBreakdown({ monthDate, students, payees, lessons });
-    let commissionB = 0;
-    for (const agency of bd.agencies) {
-      for (const line of agency.lines) {
-        if (line.collectedBy === "me") commissionB += line.amount;
-      }
-    }
-    const monthPrefix = `${year}-${String(m + 1).padStart(2, "0")}`;
-    const lessonCount = lessons.filter(
-      (l) => l.lesson_date.startsWith(monthPrefix),
-    ).length;
-    months.push({
-      monthDate,
-      monthPrefix,
-      bd,
-      commissionB,
-      revenue: bd.mine + commissionB,
-      gross: bd.total,
-      agencyShare: bd.agencyTotal,
-      mine: bd.mine,
-      lessonCount,
-    });
-  }
-  return months;
-}
-
-function computePerStudentRows({ year, students, payees, lessons, cycles }) {
+async function loadReportData({ tutorId, year }) {
   const yearStart = `${year}-01-01`;
   const yearEnd = `${year + 1}-01-01`;
-  const payeesById = new Map((payees ?? []).map((p) => [p.id, p]));
-  const cyclesByStudent = new Map();
-  for (const c of cycles) {
-    if (!cyclesByStudent.has(c.student_id)) cyclesByStudent.set(c.student_id, []);
-    cyclesByStudent.get(c.student_id).push(c);
-  }
-  const lessonsByStudent = new Map();
-  for (const l of lessons) {
-    if (!lessonsByStudent.has(l.student_id)) lessonsByStudent.set(l.student_id, []);
-    lessonsByStudent.get(l.student_id).push(l);
-  }
+  // paid_at / waived_at are filtered in UTC by the database, so the lower bound
+  // is Singapore midnight on 1 Jan expressed in UTC.
+  const yearStartUtc = new Date(`${yearStart}T00:00:00+08:00`).toISOString();
 
-  const rows = [];
-  for (const student of students) {
-    const allLessons = (lessonsByStudent.get(student.id) ?? []).sort((a, b) =>
-      a.lesson_date.localeCompare(b.lesson_date),
+  const { data: studentsData, error: studentsErr } = await supabase
+    .from("students")
+    .select(
+      "id, name, hourly_rate, payment_mode, payment_cycle_count, payee_id, fee_collected_by, placement_fee_agency, placement_fee_amount, placement_fee_start, archived, deleted_at",
+    )
+    .eq("tutor_id", tutorId);
+  if (studentsErr) throw studentsErr;
+  const students = studentsData ?? [];
+
+  const { data: payeesData, error: payeesErr } = await supabase
+    .from("payees")
+    .select("id, name, share_percent")
+    .eq("tutor_id", tutorId);
+  if (payeesErr) throw payeesErr;
+  const payees = payeesData ?? [];
+
+  const lessonsBase = () =>
+    supabase
+      .from("lessons")
+      .select(LESSON_COLS)
+      .eq("tutor_id", tutorId)
+      .eq("is_completed", true);
+  const ordered = (q) =>
+    q
+      .order("lesson_date", { ascending: true })
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true });
+
+  const yearLessons = await fetchPaged(() =>
+    ordered(lessonsBase().gte("lesson_date", yearStart).lt("lesson_date", yearEnd)),
+  );
+
+  // A placement fee drains from the student's earliest lessons, possibly in
+  // earlier years. Without a start date we cannot know where it began, so load
+  // all of that student's earlier lessons; with one, load from the earliest start.
+  const feeStudents = students.filter((s) => Number(s.placement_fee_amount) > 0);
+  let priorLessons = [];
+  if (feeStudents.length > 0) {
+    const missingStart = feeStudents.some((s) => !s.placement_fee_start);
+    const earliestStart = feeStudents.reduce(
+      (min, s) =>
+        s.placement_fee_start && (!min || s.placement_fee_start < min)
+          ? s.placement_fee_start
+          : min,
+      null,
     );
-    const yearLessons = allLessons.filter(
-      (l) => l.lesson_date >= yearStart && l.lesson_date < yearEnd,
-    );
-    if (yearLessons.length === 0) continue;
-
-    // Track placement fee consumption across ALL lessons (from start)
-    let feeLeft = Number(student.placement_fee_amount) || 0;
-    const feeStart = student.placement_fee_start || null;
-    let placementFeeYear = 0;
-
-    for (const l of allLessons) {
-      if (feeLeft <= 0) break;
-      if (feeStart && l.lesson_date < feeStart) continue;
-      const amt = lessonAmount(l, student);
-      const take = Math.min(feeLeft, amt);
-      feeLeft -= take;
-      if (l.lesson_date >= yearStart && l.lesson_date < yearEnd) {
-        placementFeeYear += take;
-      }
+    if (missingStart || earliestStart < yearStart) {
+      priorLessons = await fetchPaged(() => {
+        let q = lessonsBase()
+          .in("student_id", feeStudents.map((s) => s.id))
+          .lt("lesson_date", yearStart);
+        if (!missingStart) q = q.gte("lesson_date", earliestStart);
+        return ordered(q);
+      });
     }
-
-    let gross = 0;
-    for (const l of yearLessons) gross += lessonAmount(l, student);
-
-    const counted = gross - placementFeeYear;
-    const payee = student.payee_id ? payeesById.get(student.payee_id) : null;
-    let agencyShareA = 0;
-    let commissionB = 0;
-    if (payee && counted > 0) {
-      const share = Number(payee.share_percent ?? 80);
-      const byMe = student.fee_collected_by === "me";
-      const agencyAmt = byMe
-        ? Math.round((counted * (100 - share)) / 100 * 100) / 100
-        : Math.round((counted * (100 - share)) / 100 * 100) / 100;
-      if (byMe) commissionB = agencyAmt;
-      else agencyShareA = agencyAmt;
-    }
-
-    // revenue: gross - placementFee - agencyShareA
-    // (commissionB is a separate deduction; gross for set-up B includes commission)
-    const revenue = gross - placementFeeYear - agencyShareA;
-
-    // paid and written-off from cycles
-    const studentCycles = cyclesByStudent.get(student.id) ?? [];
-    let paid = 0;
-    let writtenOff = 0;
-    for (const c of studentCycles) {
-      if (c.status === "paid" && c.paid_at && c.paid_at >= yearStart && c.paid_at < yearEnd) {
-        paid += Number(c.amount_due);
-      }
-      if (c.status === "waived" && c.waived_at && c.waived_at >= yearStart && c.waived_at < yearEnd) {
-        writtenOff += Number(c.amount_due);
-      }
-    }
-    const outstanding = Math.max(0, revenue - paid - writtenOff);
-
-    rows.push({
-      student,
-      lessonCount: yearLessons.length,
-      gross,
-      placementFee: placementFeeYear,
-      agencyShareA,
-      commissionB,
-      revenue,
-      paid,
-      writtenOff,
-      outstanding,
-    });
   }
 
-  return rows.sort((a, b) => a.student.name.localeCompare(b.student.name));
+  const cycles = await fetchPaged(() =>
+    supabase
+      .from("payment_cycles")
+      .select(
+        "id, student_id, amount_due, status, period_start, period_end, paid_at, waived_at, waived_from_status",
+      )
+      .eq("tutor_id", tutorId)
+      .or(
+        `period_end.gte.${yearStart},paid_at.gte.${yearStartUtc},waived_at.gte.${yearStartUtc}`,
+      )
+      .order("id", { ascending: true }),
+  );
+
+  const { data: placementsData } = await supabase
+    .from("agency_placements")
+    .select("id")
+    .eq("tutor_id", tutorId)
+    .is("ended_at", null)
+    .limit(5);
+
+  return {
+    year,
+    students,
+    payees,
+    lessons: [...priorLessons, ...yearLessons],
+    cycles,
+    agencyPlacements: placementsData ?? [],
+  };
 }
 
 function downloadCSV({ year, perStudentRows, annualRevenue, annualCommissionB, writtenOffInYear, outstandingAtYearEnd }) {
@@ -211,6 +185,7 @@ function StatTile({ label, value, sub, accent }) {
 
 export default function YearEndReport() {
   const { user } = useAuth();
+  const tutorId = user?.id;
   const isPractitioner = user?.user_metadata?.user_type === "practitioner";
 
   const [year, setYear] = useState(THIS_YEAR - 1);
@@ -220,101 +195,46 @@ export default function YearEndReport() {
   const [studentsOpen, setStudentsOpen] = useState(false);
 
   useEffect(() => {
-    if (!user || isPractitioner) return;
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year, user]);
-
-  async function load() {
-    setLoading(true);
-    setError(null);
-    setRawData(null);
-    try {
-      const tutorId = user.id;
-      const yearStart = `${year}-01-01`;
-      const yearEnd = `${year + 1}-01-01`;
-
-      // Students (all including archived/deleted)
-      const { data: studentsData, error: studentsErr } = await supabase
-        .from("students")
-        .select("id, name, hourly_rate, payment_mode, payment_cycle_count, payee_id, fee_collected_by, placement_fee_agency, placement_fee_amount, placement_fee_start, archived, deleted_at")
-        .eq("tutor_id", tutorId);
-      if (studentsErr) throw studentsErr;
-      const students = studentsData ?? [];
-
-      // Payees
-      const { data: payeesData, error: payeesErr } = await supabase
-        .from("payees")
-        .select("id, name, share_percent")
-        .eq("tutor_id", tutorId);
-      if (payeesErr) throw payeesErr;
-      const payees = payeesData ?? [];
-
-      // Determine earliest lesson fetch date (placement fees may need history before year start)
-      let fromDate = yearStart;
-      for (const s of students) {
-        if (s.placement_fee_amount && Number(s.placement_fee_amount) > 0 && s.placement_fee_start) {
-          if (s.placement_fee_start < fromDate) fromDate = s.placement_fee_start;
-        }
+    if (!tutorId || isPractitioner) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      setRawData(null);
+      try {
+        const data = await loadReportData({ tutorId, year });
+        if (!cancelled) setRawData(data);
+      } catch (e) {
+        if (!cancelled) setError(e.message ?? "Failed to load report data.");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-
-      // Lessons (paged)
-      const lessons = await fetchAllLessons(tutorId, fromDate);
-
-      // Payment cycles for the year (wider window to capture paid_at / waived_at)
-      const { data: cyclesData, error: cyclesErr } = await supabase
-        .from("payment_cycles")
-        .select("id, student_id, amount_due, status, period_start, period_end, paid_at, waived_at, waived_from_status")
-        .eq("tutor_id", tutorId)
-        .or(`period_end.gte.${yearStart},paid_at.gte.${yearStart},waived_at.gte.${yearStart}`);
-      if (cyclesErr) throw cyclesErr;
-      const cycles = cyclesData ?? [];
-
-      // Agency placements check
-      const { data: placementsData } = await supabase
-        .from("agency_placements")
-        .select("id")
-        .eq("tutor_id", tutorId)
-        .is("ended_at", null)
-        .limit(5);
-      const agencyPlacements = placementsData ?? [];
-
-      setRawData({ students, payees, lessons, cycles, agencyPlacements });
-    } catch (e) {
-      setError(e.message ?? "Failed to load report data.");
-    } finally {
-      setLoading(false);
-    }
-  }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [year, tutorId, isPractitioner]);
 
   const report = useMemo(() => {
     if (!rawData) return null;
-    const { students, payees, lessons, cycles } = rawData;
-    const yearStart = `${year}-01-01`;
-    const yearEnd = `${year + 1}-01-01`;
+    const { year: dataYear, students, payees, lessons, cycles } = rawData;
+    const yearStart = `${dataYear}-01-01`;
+    const yearEnd = `${dataYear + 1}-01-01`;
+    const sum = (arr, f) => arr.reduce((s, x) => s + f(x), 0);
 
-    const months = computeMonthlyBreakdowns({ year, students, payees, lessons });
+    const baseMonths = computeMonthlyBreakdowns({ year: dataYear, students, payees, lessons });
+    const annualRevenue = sum(baseMonths, (m) => m.revenue);
+    const annualCommissionB = sum(baseMonths, (m) => m.commissionB);
+    const annualGross = sum(baseMonths, (m) => m.gross);
+    const annualAgencyShare = sum(baseMonths, (m) => m.agencyShare);
+    const annualMine = sum(baseMonths, (m) => m.mine);
+    const annualLessons = sum(baseMonths, (m) => m.lessonCount);
 
-    const annualRevenue = months.reduce((s, m) => s + m.revenue, 0);
-    const annualCommissionB = months.reduce((s, m) => s + m.commissionB, 0);
-    const annualGross = months.reduce((s, m) => s + m.gross, 0);
-    const annualAgencyShare = months.reduce((s, m) => s + m.agencyShare, 0);
-    const annualMine = months.reduce((s, m) => s + m.mine, 0);
-    const annualLessons = months.reduce((s, m) => s + m.lessonCount, 0);
-
-    // Dev check
-    const sumOfMonths = months.reduce((s, m) => s + m.revenue, 0);
-    if (Math.abs(sumOfMonths - annualRevenue) > 0.01) {
-      console.error("[YearEndReport] Monthly sum mismatch", sumOfMonths, annualRevenue);
-    }
-
-    const writtenOffInYear = cycles
-      .filter((c) => c.status === "waived" && c.waived_at && c.waived_at >= yearStart && c.waived_at < yearEnd)
-      .reduce((s, c) => s + Number(c.amount_due), 0);
-
-    const collectedInYear = cycles
-      .filter((c) => c.status === "paid" && c.paid_at && c.paid_at >= yearStart && c.paid_at < yearEnd)
-      .reduce((s, c) => s + Number(c.amount_due), 0);
+    const paidCycles = cycles.filter((c) => c.status === "paid" && c.paid_at);
+    const waivedCycles = cycles.filter((c) => c.status === "waived" && c.waived_at);
+    const amountSum = (list) => sum(list, (c) => Number(c.amount_due));
+    const collectedInYear = amountSum(paidCycles.filter((c) => sgtInYear(c.paid_at, dataYear)));
+    const writtenOffInYear = amountSum(waivedCycles.filter((c) => sgtInYear(c.waived_at, dataYear)));
 
     // Outstanding: pending/overdue cycles with period_end in year
     const outstandingCycles = cycles
@@ -330,35 +250,45 @@ export default function YearEndReport() {
     const yearLessons = lessons.filter(
       (l) => l.lesson_date >= yearStart && l.lesson_date < yearEnd,
     );
-    const unbilledStudentIds = new Set(
-      yearLessons.filter((l) => !l.payment_cycle_id).map((l) => l.student_id),
-    );
+    const studentsById = new Map(students.map((s) => [s.id, s]));
     let unbilledAmount = 0;
-    for (const stuId of unbilledStudentIds) {
-      const stu = students.find((s) => s.id === stuId);
-      if (!stu) continue;
-      const stuUnbilled = yearLessons.filter(
-        (l) => l.student_id === stuId && !l.payment_cycle_id,
-      );
-      unbilledAmount += stuUnbilled.reduce((s, l) => s + lessonAmount(l, stu), 0);
+    for (const l of yearLessons) {
+      if (l.payment_cycle_id) continue;
+      const stu = studentsById.get(l.student_id);
+      if (stu) unbilledAmount += lessonAmount(l, stu);
     }
     const outstandingAtYearEnd = outstandingCycles + unbilledAmount;
 
-    // Add collected/writtenOff per month from cycles
-    const monthsWithCash = months.map((m) => {
-      const collected = cycles
-        .filter((c) => c.status === "paid" && c.paid_at && c.paid_at.startsWith(m.monthPrefix))
-        .reduce((s, c) => s + Number(c.amount_due), 0);
-      const writtenOff = cycles
-        .filter((c) => c.status === "waived" && c.waived_at && c.waived_at.startsWith(m.monthPrefix))
-        .reduce((s, c) => s + Number(c.amount_due), 0);
-      return { ...m, collected, writtenOff };
+    const months = baseMonths.map((m) => ({
+      ...m,
+      collected: amountSum(paidCycles.filter((c) => sgtMonth(c.paid_at) === m.monthPrefix)),
+      writtenOff: amountSum(waivedCycles.filter((c) => sgtMonth(c.waived_at) === m.monthPrefix)),
+    }));
+
+    const perStudentRows = computePerStudentRows({
+      year: dataYear,
+      students,
+      payees,
+      lessons,
+      cycles,
     });
 
-    const perStudentRows = computePerStudentRows({ year, students, payees, lessons, cycles });
+    const checks = buildChecks({
+      months,
+      perStudentRows,
+      annualRevenue,
+      annualGross,
+      annualAgencyShare,
+      annualCommissionB,
+      annualLessons,
+      collectedInYear,
+      writtenOffInYear,
+      monthsCollected: sum(months, (m) => m.collected),
+      monthsWrittenOff: sum(months, (m) => m.writtenOff),
+    });
 
     return {
-      year,
+      year: dataYear,
       annualRevenue,
       annualCommissionB,
       annualGross,
@@ -368,10 +298,19 @@ export default function YearEndReport() {
       writtenOffInYear,
       collectedInYear,
       outstandingAtYearEnd,
-      months: monthsWithCash,
+      months,
       perStudentRows,
+      checks,
+      failedChecks: checks.filter((c) => !c.ok),
     };
-  }, [rawData, year]);
+  }, [rawData]);
+
+  useEffect(() => {
+    if (!report) return;
+    for (const c of report.failedChecks) {
+      console.error("[YearEndReport] Check failed:", c.label, c.a, c.b);
+    }
+  }, [report]);
 
   if (isPractitioner) {
     return (
@@ -443,6 +382,22 @@ export default function YearEndReport() {
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             You have {rawData.agencyPlacements.length} active agency placement
             {rawData.agencyPlacements.length !== 1 ? "s" : ""}. Income from those students via the agency platform isn't included in this report yet. Check with your agency for a separate statement.
+          </div>
+        )}
+
+        {r && r.failedChecks.length > 0 && (
+          <div role="alert" className="rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <p className="font-semibold">
+              Some figures in this report don't add up. Don't rely on it until this is resolved.
+            </p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              {r.failedChecks.map((c) => (
+                <li key={c.label}>
+                  {c.label}: {c.unit === "count" ? c.a : formatSGD(c.a)} vs{" "}
+                  {c.unit === "count" ? c.b : formatSGD(c.b)}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -596,6 +551,9 @@ export default function YearEndReport() {
                         {!row.student.deleted_at && row.student.archived && (
                           <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">Archived</span>
                         )}
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
+                          {SETUP_LABEL[row.setup]}
+                        </span>
                       </div>
                       <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
                         <div>
@@ -641,6 +599,12 @@ export default function YearEndReport() {
               )}
             </div>
           </>
+        )}
+
+        {r && r.failedChecks.length === 0 && (
+          <p className="no-print text-center text-xs text-gray-400">
+            Consistency checks passed ({r.checks.length}/{r.checks.length})
+          </p>
         )}
 
         {/* Footer */}
