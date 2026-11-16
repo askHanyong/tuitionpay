@@ -35,8 +35,11 @@ import LessonDetailModal from "../components/LessonDetailModal";
 import LessonTopicsModal from "../components/LessonTopicsModal";
 import { useTopicTrackedStudents } from "../hooks/useTopicTrackedStudents";
 import MessagePreviewModal from "../components/MessagePreviewModal";
+import PendingBreakdownModal from "../components/PendingBreakdownModal";
 
 const todayKey = () => toDateKey(new Date());
+
+const STALLED_CYCLE_THRESHOLD_DAYS = 21;
 
 // Update this in one place to ship a new "What's new" banner -- bumping
 // the id makes it reappear for everyone even if they dismissed a past one.
@@ -190,6 +193,22 @@ export default function Dashboard() {
   const [checkoutLoading, setCheckoutLoading] = useState(null); // "monthly" | "annual" | null
   const [preview, setPreview] = useState(null); // WhatsApp message preview
   const [remindingStudentId, setRemindingStudentId] = useState(null);
+  const [pendingBreakdownState, setPendingBreakdownState] = useState(null);
+  const [stalledDismissed, setStalledDismissed] = useState(() => {
+    try {
+      const raw = localStorage.getItem("chopeandpay_stalled_dismissed");
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      const now = Date.now();
+      const valid = {};
+      for (const [id, until] of Object.entries(parsed)) {
+        if (until > now) valid[id] = until;
+      }
+      return valid;
+    } catch {
+      return {};
+    }
+  });
   const [grandfatheredBannerDismissed, setGrandfatheredBannerDismissed] = useState(() => {
     try { return localStorage.getItem("chope_grandfathered_banner_dismissed") === "1"; } catch { return false; }
   });
@@ -640,6 +659,154 @@ export default function Dashboard() {
     return fromCycles + fromMidCycle;
   })();
 
+  // Pending breakdown rows — computed only when the modal is open.
+  const pendingBreakdownRows = (() => {
+    if (!pendingBreakdownState) return [];
+    const { monthDate, isCurrentMonth } = pendingBreakdownState;
+
+    function isSameMonthLocal(dateStr, ref) {
+      if (!dateStr) return false;
+      const d = new Date(`${dateStr}T00:00:00`);
+      return (
+        d.getFullYear() === ref.getFullYear() && d.getMonth() === ref.getMonth()
+      );
+    }
+
+    const rows = [];
+
+    if (isCurrentMonth) {
+      const owedCycles = recapPaymentCycles.filter(
+        (c) => c.status === "pending" || c.status === "overdue",
+      );
+      const owedStudentIds = new Set(owedCycles.map((c) => c.student_id));
+
+      for (const c of owedCycles) {
+        const student = recapStudents.find((s) => s.id === c.student_id) ?? null;
+        rows.push({
+          type: "cycle",
+          studentId: c.student_id,
+          studentName: student?.name ?? c.students?.name ?? "—",
+          amount: Number(c.amount_due),
+          tag: c.status === "overdue" ? "Overdue" : "Pending",
+          archived: student ? !!student.archived : false,
+          deleted: student ? !!student.deleted_at : false,
+          cycleId: c.id,
+          cycleStatus: c.status,
+          cycle: c,
+          student,
+        });
+      }
+
+      const recapLessonsByStudent = new Map();
+      for (const l of recapLessons) {
+        if (!recapLessonsByStudent.has(l.student_id))
+          recapLessonsByStudent.set(l.student_id, []);
+        recapLessonsByStudent.get(l.student_id).push(l);
+      }
+
+      for (const stu of students) {
+        if ((stu.payment_mode ?? "lessons") !== "lessons") continue;
+        if (owedStudentIds.has(stu.id)) continue;
+        const openLessons = (recapLessonsByStudent.get(stu.id) ?? []).filter(
+          (l) => !l.payment_cycle_id,
+        );
+        const openCount = openLessons.length;
+        if (openCount === 0) continue;
+        const cycleCount = stu.payment_cycle_count ?? 4;
+        if (openCount < cycleCount - 1) continue;
+        const cycleLessons = [...openLessons]
+          .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1))
+          .slice(-cycleCount);
+        const amount = cycleLessons.reduce((s, l) => s + lessonAmount(l, stu), 0);
+        rows.push({
+          type: "mid_cycle",
+          studentId: stu.id,
+          studentName: stu.name,
+          amount,
+          tag: "Not yet billed",
+          archived: !!stu.archived,
+          deleted: !!stu.deleted_at,
+          cycleId: null,
+          cycleStatus: null,
+          cycle: null,
+          student: stu,
+        });
+      }
+    } else {
+      const owedCycles = recapPaymentCycles.filter(
+        (c) =>
+          (c.status === "pending" || c.status === "overdue") &&
+          isSameMonthLocal(c.period_end, monthDate),
+      );
+      for (const c of owedCycles) {
+        const student = recapStudents.find((s) => s.id === c.student_id) ?? null;
+        rows.push({
+          type: "cycle",
+          studentId: c.student_id,
+          studentName: student?.name ?? c.students?.name ?? "—",
+          amount: Number(c.amount_due),
+          tag: c.status === "overdue" ? "Overdue" : "Pending",
+          archived: student ? !!student.archived : false,
+          deleted: student ? !!student.deleted_at : false,
+          cycleId: c.id,
+          cycleStatus: c.status,
+          cycle: c,
+          student,
+        });
+      }
+    }
+
+    return rows;
+  })();
+
+  // Stalled cycles: lessons-mode students with open unbilled lessons, last
+  // lesson > STALLED_CYCLE_THRESHOLD_DAYS ago, no scheduled future lessons.
+  // Include archived; exclude deleted.
+  const stalledItems = (() => {
+    const now = new Date();
+    const recapLessonsByStudent = new Map();
+    for (const l of recapLessons) {
+      if (!recapLessonsByStudent.has(l.student_id))
+        recapLessonsByStudent.set(l.student_id, []);
+      recapLessonsByStudent.get(l.student_id).push(l);
+    }
+    const scheduledStudentIds = new Set(scheduledLessons.map((l) => l.student_id));
+
+    const items = [];
+    for (const stu of recapStudents) {
+      if (stu.deleted_at) continue;
+      if ((stu.payment_mode ?? "lessons") !== "lessons") continue;
+      const openLessons = (recapLessonsByStudent.get(stu.id) ?? []).filter(
+        (l) => l.is_completed && !l.payment_cycle_id,
+      );
+      if (openLessons.length === 0) continue;
+      const lastLesson = openLessons.reduce(
+        (latest, l) =>
+          !latest || l.lesson_date > latest ? l.lesson_date : latest,
+        null,
+      );
+      if (!lastLesson) continue;
+      const daysSinceLast = Math.floor(
+        (now - new Date(`${lastLesson}T00:00:00`)) / (1000 * 60 * 60 * 24),
+      );
+      if (daysSinceLast <= STALLED_CYCLE_THRESHOLD_DAYS) continue;
+      if (scheduledStudentIds.has(stu.id)) continue;
+      const amount = openLessons.reduce((s, l) => s + lessonAmount(l, stu), 0);
+      items.push({
+        student: stu,
+        openLessons,
+        lastLesson,
+        amount,
+        count: openLessons.length,
+      });
+    }
+    return items;
+  })();
+
+  const visibleStalledItems = stalledItems.filter(
+    (item) => !stalledDismissed[item.student.id],
+  );
+
   // "Needs your attention" lists every unpaid cycle once. For tutors, a cycle
   // that belongs to an overdue student is flagged red with the reason from the
   // student's payment status (e.g. "September unpaid") and sorted first.
@@ -846,6 +1013,96 @@ export default function Dashboard() {
     if (error) {
       showToast(error.message, "error");
       return;
+    }
+    await loadAll();
+    showToast("Written off.");
+  };
+
+  const handlePendingTap = (monthDate, isCurrentMonth) => {
+    setPendingBreakdownState({ monthDate, isCurrentMonth });
+  };
+
+  const handleBillNowMidCycle = async (student) => {
+    const { error } = await supabase.rpc("create_manual_closeout_cycle", {
+      p_student_id: student.id,
+    });
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    setPendingBreakdownState(null);
+    await loadAll();
+    showToast("Invoice created.");
+  };
+
+  const handleDismissStalled = (studentId) => {
+    const until = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    setStalledDismissed((prev) => {
+      const next = { ...prev, [studentId]: until };
+      try {
+        localStorage.setItem(
+          "chopeandpay_stalled_dismissed",
+          JSON.stringify(next),
+        );
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleBillNowStalled = async (student) => {
+    const { error } = await supabase.rpc("create_manual_closeout_cycle", {
+      p_student_id: student.id,
+    });
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    await loadAll();
+    showToast("Invoice created.");
+  };
+
+  const handleWriteOffStalled = async (student) => {
+    const { error: rpcErr } = await supabase.rpc("create_manual_closeout_cycle", {
+      p_student_id: student.id,
+    });
+    if (rpcErr) {
+      showToast(rpcErr.message, "error");
+      return;
+    }
+    const { data: pendingCycles, error: fetchErr } = await supabase
+      .from("payment_cycles")
+      .select("id, status")
+      .eq("tutor_id", user.id)
+      .eq("student_id", student.id)
+      .in("status", ["pending", "overdue"]);
+    if (fetchErr) {
+      showToast(fetchErr.message, "error");
+      return;
+    }
+    if (pendingCycles && pendingCycles.length > 0) {
+      const waivedAt = new Date().toISOString();
+      const overdueCycleIds = pendingCycles
+        .filter((c) => c.status === "overdue")
+        .map((c) => c.id);
+      const pendingCycleIds = pendingCycles
+        .filter((c) => c.status === "pending")
+        .map((c) => c.id);
+      if (overdueCycleIds.length > 0) {
+        const { error: e1 } = await supabase
+          .from("payment_cycles")
+          .update({ status: "waived", waived_from_status: "overdue", waived_at: waivedAt })
+          .in("id", overdueCycleIds)
+          .eq("tutor_id", user.id);
+        if (e1) { showToast(e1.message, "error"); return; }
+      }
+      if (pendingCycleIds.length > 0) {
+        const { error: e2 } = await supabase
+          .from("payment_cycles")
+          .update({ status: "waived", waived_from_status: "pending", waived_at: waivedAt })
+          .in("id", pendingCycleIds)
+          .eq("tutor_id", user.id);
+        if (e2) { showToast(e2.message, "error"); return; }
+      }
     }
     await loadAll();
     showToast("Written off.");
@@ -1261,6 +1518,7 @@ export default function Dashboard() {
               scheduledLessons={scheduledLessons}
               tutorName={user?.user_metadata?.full_name}
               currentMonthPendingOverride={allPendingAmount}
+              onPendingTap={handlePendingTap}
             />
           </div>
 
@@ -1453,6 +1711,60 @@ export default function Dashboard() {
                 })}
               </ul>
             )}
+            {!loading && !isPractitioner && visibleStalledItems.length > 0 && (
+              <div className={unpaidCycles.length > 0 ? "mt-3 border-t border-gray-100 pt-3" : ""}>
+                {visibleStalledItems.map((item) => (
+                  <div
+                    key={item.student.id}
+                    className="flex flex-col gap-2 rounded-lg px-2 py-3 hover:bg-gray-50 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="text-sm font-medium text-gray-900">
+                          {item.student.name}
+                        </span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {formatSGD(item.amount)}
+                        </span>
+                        <span className="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                          Not yet billed
+                        </span>
+                        {item.student.archived && (
+                          <span className="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                            Archived
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-xs text-gray-500">
+                        {item.count}{" "}
+                        {item.count === 1 ? "lesson" : "lessons"} unbilled ·
+                        last lesson {formatDate(item.lastLesson)}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => handleBillNowStalled(item.student)}
+                        className="min-h-11 rounded-md bg-[#1b2d4f] px-3 text-xs font-medium text-white transition hover:bg-[#15243f] hover:shadow"
+                      >
+                        Bill now
+                      </button>
+                      <button
+                        onClick={() => handleWriteOffStalled(item.student)}
+                        className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-500 transition hover:bg-gray-100"
+                      >
+                        Write off
+                      </button>
+                      <button
+                        onClick={() => handleDismissStalled(item.student.id)}
+                        className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-400 transition hover:bg-gray-100"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         </div>
 
@@ -1483,6 +1795,7 @@ export default function Dashboard() {
               scheduledLessons={scheduledLessons}
               tutorName={user?.user_metadata?.full_name}
               currentMonthPendingOverride={allPendingAmount}
+              onPendingTap={handlePendingTap}
             />
           </div>
 
@@ -1681,6 +1994,25 @@ export default function Dashboard() {
           onMarkDone={() => handleMarkOverdueLessonDone(detailOverdueLesson)}
           onMarkPaid={() => {}}
           onDelete={handleDeleteOverdueLesson}
+        />
+      )}
+
+      {pendingBreakdownState && (
+        <PendingBreakdownModal
+          monthDate={pendingBreakdownState.monthDate}
+          isCurrentMonth={pendingBreakdownState.isCurrentMonth}
+          rows={pendingBreakdownRows}
+          onClose={() => setPendingBreakdownState(null)}
+          onMarkPaid={async (cycleId) => {
+            await handleCollectPayment(cycleId);
+          }}
+          onWriteOff={async (cycleId, status) => {
+            await handleWaiveCycle(cycleId, status);
+          }}
+          onBillNow={handleBillNowMidCycle}
+          onRemind={handleRemind}
+          remindingStudentId={remindingStudentId}
+          isPractitioner={isPractitioner}
         />
       )}
     </AppShell>

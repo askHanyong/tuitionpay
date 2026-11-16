@@ -202,6 +202,7 @@ export default function MonthlyRecapCard({
   scheduledLessons = [],
   tutorName,
   currentMonthPendingOverride,
+  onPendingTap,
 }) {
   const { user } = useAuth();
   const isPractitioner = user?.user_metadata?.user_type === "practitioner";
@@ -352,9 +353,24 @@ export default function MonthlyRecapCard({
           <p className="mt-1 text-xs font-medium text-gray-600">✅ Collected</p>
         </div>
         <div className="text-center">
-          <p className="text-xl font-semibold text-amber-700">
-            {formatSGD(current.pending)}
-          </p>
+          {onPendingTap && current.pending > 0 ? (
+            <button
+              onClick={() => {
+                const now = new Date();
+                const isCurrentMonth =
+                  monthDate.getFullYear() === now.getFullYear() &&
+                  monthDate.getMonth() === now.getMonth();
+                onPendingTap(monthDate, isCurrentMonth);
+              }}
+              className="text-xl font-semibold text-amber-700 underline decoration-dotted underline-offset-2 cursor-pointer"
+            >
+              {formatSGD(current.pending)}
+            </button>
+          ) : (
+            <p className="text-xl font-semibold text-amber-700">
+              {formatSGD(current.pending)}
+            </p>
+          )}
           <p className="mt-1 text-xs font-medium text-gray-600">⏳ Pending</p>
         </div>
         <div className="text-center">

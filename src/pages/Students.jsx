@@ -17,6 +17,8 @@ import {
 } from "../lib/paymentStatus";
 import { CLIENT_TYPE_OPTIONS, CLIENT_TYPE_LABEL } from "../lib/practitioner";
 import { SYLLABUS_OPTIONS, normalizeSyllabus } from "../lib/lessonTopics";
+import { lessonAmount } from "../lib/paymentMode";
+import ArchiveDeletePromptModal from "../components/ArchiveDeletePromptModal";
 
 const emptySubjectRow = () => ({
   id: null,
@@ -221,6 +223,8 @@ export default function Students() {
   const [view, setView] = useState("active");
   const [attentionFilter, setAttentionFilter] = useState("needs_attention");
   const [undoDelete, setUndoDelete] = useState(null); // { id, name, timer }
+  const [archiveDeletePrompt, setArchiveDeletePrompt] = useState(null);
+  const [archiveDeleteLoading, setArchiveDeleteLoading] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const [partnerStudentLimit, setPartnerStudentLimit] = useState(null);
@@ -738,8 +742,158 @@ export default function Students() {
     }
   };
 
+  const checkStudentOwed = async (student) => {
+    const [{ data: cycles }, { data: openLessons }] = await Promise.all([
+      supabase
+        .from("payment_cycles")
+        .select("amount_due")
+        .eq("tutor_id", user.id)
+        .eq("student_id", student.id)
+        .in("status", ["pending", "overdue"]),
+      supabase
+        .from("lessons")
+        .select("rate, rate_type, duration_minutes")
+        .eq("tutor_id", user.id)
+        .eq("student_id", student.id)
+        .eq("is_completed", true)
+        .is("payment_cycle_id", null),
+    ]);
+    const pendingAmount = (cycles ?? []).reduce(
+      (s, c) => s + Number(c.amount_due),
+      0,
+    );
+    const unbilledAmount = (openLessons ?? []).reduce(
+      (s, l) => s + lessonAmount(l, student),
+      0,
+    );
+    return { pendingAmount, unbilledAmount };
+  };
+
+  const executeArchiveOrDelete = async (student, action) => {
+    if (action === "archive") {
+      const { error } = await supabase
+        .from("students")
+        .update({ archived: true })
+        .eq("id", student.id)
+        .eq("tutor_id", user.id);
+      if (error) {
+        showToast(error.message, "error");
+        return false;
+      }
+      if (editingId === student.id) resetForm();
+      await loadStudents();
+      showToast(`${terms.student} archived.`);
+    } else {
+      const { error } = await supabase
+        .from("students")
+        .update({ deleted_at: new Date().toISOString() })
+        .eq("id", student.id)
+        .eq("tutor_id", user.id);
+      if (error) {
+        showToast(error.message, "error");
+        return false;
+      }
+      if (editingId === student.id) resetForm();
+      setStudents((prev) => prev.filter((s) => s.id !== student.id));
+      setUndoDelete((prev) => {
+        if (prev?.timer) clearTimeout(prev.timer);
+        return null;
+      });
+      const timer = setTimeout(() => setUndoDelete(null), 7000);
+      setUndoDelete({ id: student.id, name: student.name, timer });
+    }
+    return true;
+  };
+
+  const handlePromptBillNow = async () => {
+    if (!archiveDeletePrompt) return;
+    const { student, action } = archiveDeletePrompt;
+    setArchiveDeleteLoading(true);
+    const { error } = await supabase.rpc("create_manual_closeout_cycle", {
+      p_student_id: student.id,
+    });
+    if (error) {
+      showToast(error.message, "error");
+      setArchiveDeleteLoading(false);
+      return;
+    }
+    await executeArchiveOrDelete(student, action);
+    setArchiveDeleteLoading(false);
+    setArchiveDeletePrompt(null);
+  };
+
+  const handlePromptWriteOffAll = async () => {
+    if (!archiveDeletePrompt) return;
+    const { student, action } = archiveDeletePrompt;
+    setArchiveDeleteLoading(true);
+    if (archiveDeletePrompt.unbilledAmount > 0) {
+      const { error: rpcErr } = await supabase.rpc("create_manual_closeout_cycle", {
+        p_student_id: student.id,
+      });
+      if (rpcErr) {
+        showToast(rpcErr.message, "error");
+        setArchiveDeleteLoading(false);
+        return;
+      }
+    }
+    const waivedAt = new Date().toISOString();
+    // Waive overdue and pending separately to preserve waived_from_status
+    const { data: pendingCycles, error: fetchErr } = await supabase
+      .from("payment_cycles")
+      .select("id, status")
+      .eq("tutor_id", user.id)
+      .eq("student_id", student.id)
+      .in("status", ["pending", "overdue"]);
+    if (fetchErr) {
+      showToast(fetchErr.message, "error");
+      setArchiveDeleteLoading(false);
+      return;
+    }
+    if (pendingCycles && pendingCycles.length > 0) {
+      const overdueCycleIds = pendingCycles
+        .filter((c) => c.status === "overdue")
+        .map((c) => c.id);
+      const pendingCycleIds = pendingCycles
+        .filter((c) => c.status === "pending")
+        .map((c) => c.id);
+      if (overdueCycleIds.length > 0) {
+        const { error: e1 } = await supabase
+          .from("payment_cycles")
+          .update({ status: "waived", waived_from_status: "overdue", waived_at: waivedAt })
+          .in("id", overdueCycleIds)
+          .eq("tutor_id", user.id);
+        if (e1) { showToast(e1.message, "error"); setArchiveDeleteLoading(false); return; }
+      }
+      if (pendingCycleIds.length > 0) {
+        const { error: e2 } = await supabase
+          .from("payment_cycles")
+          .update({ status: "waived", waived_from_status: "pending", waived_at: waivedAt })
+          .in("id", pendingCycleIds)
+          .eq("tutor_id", user.id);
+        if (e2) { showToast(e2.message, "error"); setArchiveDeleteLoading(false); return; }
+      }
+    }
+    await executeArchiveOrDelete(student, action);
+    setArchiveDeleteLoading(false);
+    setArchiveDeletePrompt(null);
+  };
+
+  const handlePromptKeepAsOwed = async () => {
+    if (!archiveDeletePrompt) return;
+    const { student, action } = archiveDeletePrompt;
+    setArchiveDeleteLoading(true);
+    await executeArchiveOrDelete(student, action);
+    setArchiveDeleteLoading(false);
+    setArchiveDeletePrompt(null);
+  };
+
   const handleDelete = async (student) => {
     setError(null);
+    const { pendingAmount, unbilledAmount } = await checkStudentOwed(student);
+    if (pendingAmount > 0 || unbilledAmount > 0) {
+      setArchiveDeletePrompt({ student, action: "delete", pendingAmount, unbilledAmount });
+      return;
+    }
     const { error } = await supabase
       .from("students")
       .update({ deleted_at: new Date().toISOString() })
@@ -780,6 +934,11 @@ export default function Students() {
 
   const handleArchive = async (student) => {
     setError(null);
+    const { pendingAmount, unbilledAmount } = await checkStudentOwed(student);
+    if (pendingAmount > 0 || unbilledAmount > 0) {
+      setArchiveDeletePrompt({ student, action: "archive", pendingAmount, unbilledAmount });
+      return;
+    }
     const { error } = await supabase
       .from("students")
       .update({ archived: true })
@@ -1787,6 +1946,20 @@ export default function Students() {
           student={scheduleStudent}
           onClose={() => setScheduleStudent(null)}
           onScheduled={() => refreshLessonsFor(scheduleStudent.id)}
+        />
+      )}
+
+      {archiveDeletePrompt && (
+        <ArchiveDeletePromptModal
+          student={archiveDeletePrompt.student}
+          action={archiveDeletePrompt.action}
+          pendingAmount={archiveDeletePrompt.pendingAmount}
+          unbilledAmount={archiveDeletePrompt.unbilledAmount}
+          onBillNow={handlePromptBillNow}
+          onWriteOffAll={handlePromptWriteOffAll}
+          onKeepAsOwed={handlePromptKeepAsOwed}
+          onCancel={() => setArchiveDeletePrompt(null)}
+          loading={archiveDeleteLoading}
         />
       )}
     </AppShell>
