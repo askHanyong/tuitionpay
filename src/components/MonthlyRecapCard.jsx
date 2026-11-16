@@ -36,7 +36,9 @@ function computeForMonth(
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
   const pendingFromCycles = paymentCycles
     .filter(
-      (c) => c.status === "pending" && isSameMonth(c.period_end, monthDate),
+      (c) =>
+        (c.status === "pending" || c.status === "overdue") &&
+        isSameMonth(c.period_end, monthDate),
     )
     .reduce((sum, c) => sum + Number(c.amount_due), 0);
 
