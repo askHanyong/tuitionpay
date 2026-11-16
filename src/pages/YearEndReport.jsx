@@ -2,12 +2,13 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { formatSGD } from "../lib/paymentNotice";
-import { lessonAmount } from "../lib/paymentMode";
 import { formatMonth } from "../utils/dateFormat";
 import {
   buildChecks,
   computeMonthlyBreakdowns,
+  computeBilledReconciliation,
   computePerStudentRows,
+  isUnpaidNoticeInYear,
   sgtInYear,
   sgtMonth,
 } from "../lib/yearEndReport";
@@ -113,12 +114,18 @@ async function loadReportData({ tutorId, year }) {
       .order("id", { ascending: true }),
   );
 
-  const { data: placementsData } = await supabase
+  // Any placement (active or ended) that overlaps the report year. Declined or
+  // still-pending requests never ran, so they carry no income.
+  const yearEndUtc = new Date(`${yearEnd}T00:00:00+08:00`).toISOString();
+  const { data: placementsData, error: placementsErr } = await supabase
     .from("agency_placements")
     .select("id")
     .eq("tutor_id", tutorId)
-    .is("ended_at", null)
-    .limit(5);
+    .in("status", ["active", "ended"])
+    .lt("started_at", yearEndUtc)
+    .or(`ended_at.is.null,ended_at.gte.${yearStartUtc}`)
+    .limit(50);
+  if (placementsErr) throw placementsErr;
 
   return {
     year,
@@ -130,8 +137,8 @@ async function loadReportData({ tutorId, year }) {
   };
 }
 
-function downloadCSV({ year, perStudentRows, annualRevenue, annualCommissionB, writtenOffInYear, outstandingAtYearEnd }) {
-  const header = ["Student", "Status", "Lessons", "Gross fees", "Agency/placement share", "Your revenue", "Commission paid (set-up B)", "Paid", "Written off", "Outstanding"];
+function downloadCSV({ year, perStudentRows, annualRevenue, annualCommissionB, writtenOffInYear, unpaidNoticesTotal }) {
+  const header = ["Student", "Status", "Lessons", "Gross fees", "Agency/placement share", "Your revenue", "Commission paid (set-up B)", "Paid", "Written off", "Unpaid notices"];
   const rows = perStudentRows.map((r) => {
     const status = r.student.deleted_at ? "Deleted" : r.student.archived ? "Archived" : "Active";
     return [
@@ -144,7 +151,7 @@ function downloadCSV({ year, perStudentRows, annualRevenue, annualCommissionB, w
       r.commissionB.toFixed(2),
       r.paid.toFixed(2),
       r.writtenOff.toFixed(2),
-      r.outstanding.toFixed(2),
+      r.unpaidNotices.toFixed(2),
     ];
   });
   const summary = [
@@ -157,7 +164,7 @@ function downloadCSV({ year, perStudentRows, annualRevenue, annualCommissionB, w
     annualCommissionB.toFixed(2),
     perStudentRows.reduce((s, r) => s + r.paid, 0).toFixed(2),
     writtenOffInYear.toFixed(2),
-    outstandingAtYearEnd.toFixed(2),
+    unpaidNoticesTotal.toFixed(2),
   ];
   const csvLines = [header, ...rows, [], summary].map((row) =>
     row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","),
@@ -218,8 +225,6 @@ export default function YearEndReport() {
   const report = useMemo(() => {
     if (!rawData) return null;
     const { year: dataYear, students, payees, lessons, cycles } = rawData;
-    const yearStart = `${dataYear}-01-01`;
-    const yearEnd = `${dataYear + 1}-01-01`;
     const sum = (arr, f) => arr.reduce((s, x) => s + f(x), 0);
 
     const baseMonths = computeMonthlyBreakdowns({ year: dataYear, students, payees, lessons });
@@ -236,28 +241,14 @@ export default function YearEndReport() {
     const collectedInYear = amountSum(paidCycles.filter((c) => sgtInYear(c.paid_at, dataYear)));
     const writtenOffInYear = amountSum(waivedCycles.filter((c) => sgtInYear(c.waived_at, dataYear)));
 
-    // Outstanding: pending/overdue cycles with period_end in year
-    const outstandingCycles = cycles
-      .filter(
-        (c) =>
-          (c.status === "pending" || c.status === "overdue") &&
-          c.period_end >= yearStart &&
-          c.period_end < yearEnd,
-      )
-      .reduce((s, c) => s + Number(c.amount_due), 0);
-
-    // Plus unbilled lessons in year
-    const yearLessons = lessons.filter(
-      (l) => l.lesson_date >= yearStart && l.lesson_date < yearEnd,
-    );
-    const studentsById = new Map(students.map((s) => [s.id, s]));
-    let unbilledAmount = 0;
-    for (const l of yearLessons) {
-      if (l.payment_cycle_id) continue;
-      const stu = studentsById.get(l.student_id);
-      if (stu) unbilledAmount += lessonAmount(l, stu);
-    }
-    const outstandingAtYearEnd = outstandingCycles + unbilledAmount;
+    // Unpaid notices: what payers still owe, as billed (before any agency share).
+    const unpaidNoticesTotal = amountSum(cycles.filter((c) => isUnpaidNoticeInYear(c, dataYear)));
+    const reconciliation = computeBilledReconciliation({
+      year: dataYear,
+      students,
+      lessons,
+      cycles,
+    });
 
     const months = baseMonths.map((m) => ({
       ...m,
@@ -285,6 +276,7 @@ export default function YearEndReport() {
       writtenOffInYear,
       monthsCollected: sum(months, (m) => m.collected),
       monthsWrittenOff: sum(months, (m) => m.writtenOff),
+      reconciliation,
     });
 
     return {
@@ -297,7 +289,8 @@ export default function YearEndReport() {
       annualLessons,
       writtenOffInYear,
       collectedInYear,
-      outstandingAtYearEnd,
+      unpaidNoticesTotal,
+      reconciliation,
       months,
       perStudentRows,
       checks,
@@ -347,7 +340,7 @@ export default function YearEndReport() {
             {r && (
               <>
                 <button
-                  onClick={() => downloadCSV({ year, perStudentRows: r.perStudentRows, annualRevenue: r.annualRevenue, annualCommissionB: r.annualCommissionB, writtenOffInYear: r.writtenOffInYear, outstandingAtYearEnd: r.outstandingAtYearEnd })}
+                  onClick={() => downloadCSV({ year, perStudentRows: r.perStudentRows, annualRevenue: r.annualRevenue, annualCommissionB: r.annualCommissionB, writtenOffInYear: r.writtenOffInYear, unpaidNoticesTotal: r.unpaidNoticesTotal })}
                   className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Export CSV
@@ -380,8 +373,8 @@ export default function YearEndReport() {
         {/* Agency placements notice */}
         {rawData && rawData.agencyPlacements.length > 0 && (
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            You have {rawData.agencyPlacements.length} active agency placement
-            {rawData.agencyPlacements.length !== 1 ? "s" : ""}. Income from those students via the agency platform isn't included in this report yet. Check with your agency for a separate statement.
+            You have {rawData.agencyPlacements.length === 50 ? "50+" : rawData.agencyPlacements.length} agency
+            placement{rawData.agencyPlacements.length !== 1 ? "s" : ""} that overlap {rawData.year}. Income from students placed through the agency platform isn't included in this report yet. Check with your agency for a separate statement.
           </div>
         )}
 
@@ -424,9 +417,9 @@ export default function YearEndReport() {
                 sub="By write-off date"
               />
               <StatTile
-                label="Outstanding at year end"
-                value={formatSGD(r.outstandingAtYearEnd)}
-                sub="Unpaid + unbilled"
+                label="Unpaid notices"
+                value={formatSGD(r.unpaidNoticesTotal)}
+                sub="As billed, before any agency share"
               />
             </div>
 
@@ -502,25 +495,37 @@ export default function YearEndReport() {
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
               <h2 className="mb-4 text-sm font-semibold text-[#1b2d4f]">Reconciliation</h2>
               <div className="space-y-1 font-mono text-sm">
-                <div className="flex justify-between gap-4 text-gray-800">
-                  <span>Revenue earned (lessons taught in {r.year})</span>
-                  <span>{formatSGD(r.annualRevenue)}</span>
+                <div className="flex justify-between gap-4 font-semibold text-gray-800">
+                  <span>Gross fees for lessons taught in {r.year}</span>
+                  <span>{formatSGD(r.annualGross)}</span>
                 </div>
                 <div className="flex justify-between gap-4 text-gray-600">
-                  <span>Less: Collected in {r.year}</span>
-                  <span>({formatSGD(r.collectedInYear)})</span>
+                  <span>Paid</span>
+                  <span>{formatSGD(r.reconciliation.paid)}</span>
                 </div>
                 <div className="flex justify-between gap-4 text-gray-600">
-                  <span>Less: Written off in {r.year}</span>
-                  <span>({formatSGD(r.writtenOffInYear)})</span>
+                  <span>Written off</span>
+                  <span>{formatSGD(r.reconciliation.writtenOff)}</span>
+                </div>
+                <div className="flex justify-between gap-4 text-gray-600">
+                  <span>Billed, still unpaid</span>
+                  <span>{formatSGD(r.reconciliation.unpaid)}</span>
+                </div>
+                <div className="flex justify-between gap-4 text-gray-600">
+                  <span>Not yet billed</span>
+                  <span>{formatSGD(r.reconciliation.unbilled)}</span>
                 </div>
                 <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 font-semibold text-[#1b2d4f]">
-                  <span>Still owed at year end</span>
-                  <span>{formatSGD(Math.max(0, r.annualRevenue - r.collectedInYear - r.writtenOffInYear))}</span>
+                  <span>Total</span>
+                  <span>
+                    {formatSGD(
+                      r.reconciliation.paid + r.reconciliation.writtenOff + r.reconciliation.unpaid + r.reconciliation.unbilled,
+                    )}
+                  </span>
                 </div>
               </div>
               <p className="mt-3 text-xs text-gray-400">
-                Still owed = outstanding cycles for this year's lessons + unbilled lessons. Collected/written-off figures use payment date, not lesson date, so small timing differences are normal.
+                All lines are fees as billed, before any agency share, split by the status of each lesson's notice today. Your revenue (after agency share) is shown above, not here.
               </p>
             </div>
 
@@ -538,6 +543,9 @@ export default function YearEndReport() {
 
               {studentsOpen && (
                 <div className="divide-y divide-gray-100 border-t border-gray-100">
+                  <p className="px-5 py-3 text-xs text-gray-400">
+                    Paid, written off and unpaid notices are amounts as billed to the payer, not your revenue. They are not subtracted from it.
+                  </p>
                   {r.perStudentRows.length === 0 && (
                     <p className="px-5 py-4 text-sm text-gray-400">No completed lessons in {r.year}.</p>
                   )}
@@ -581,9 +589,11 @@ export default function YearEndReport() {
                           <p className="font-medium text-gray-500">{formatSGD(row.writtenOff)}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-gray-400">Outstanding</p>
-                          <p className={`font-medium ${row.outstanding > 0 ? "text-amber-700" : "text-gray-400"}`}>
-                            {formatSGD(row.outstanding)}
+                          <p className="text-xs text-gray-400">
+                            {row.setup === "A" ? `Unpaid (collected by ${row.payeeName})` : "Unpaid notices"}
+                          </p>
+                          <p className={`font-medium ${row.unpaidNotices > 0 ? "text-amber-700" : "text-gray-400"}`}>
+                            {formatSGD(row.unpaidNotices)}
                           </p>
                         </div>
                         {row.commissionB > 0 && (

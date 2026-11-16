@@ -33,6 +33,13 @@ export function agencySetup(student, payee) {
   return student.fee_collected_by === "me" ? "B" : "A";
 }
 
+// A notice still unpaid, for a billing period ending in the year. Status is as
+// of today, not as at 31 Dec.
+export const isUnpaidNoticeInYear = (c, year) =>
+  (c.status === "pending" || c.status === "overdue") &&
+  c.period_end >= `${year}-01-01` &&
+  c.period_end < `${year + 1}-01-01`;
+
 export function computeMonthlyBreakdowns({ year, students, payees, lessons }) {
   return Array.from({ length: 12 }, (_, m) => {
     const monthDate = new Date(year, m, 1);
@@ -127,7 +134,9 @@ export function computePerStudentRows({ year, students, payees, lessons, cycles 
 
     let paid = 0;
     let writtenOff = 0;
+    let unpaidNotices = 0;
     for (const c of cyclesByStudent.get(student.id) ?? []) {
+      if (isUnpaidNoticeInYear(c, year)) unpaidNotices += Number(c.amount_due);
       if (c.status === "paid" && c.paid_at && sgtInYear(c.paid_at, year)) {
         paid += Number(c.amount_due);
       }
@@ -140,6 +149,7 @@ export function computePerStudentRows({ year, students, payees, lessons, cycles 
     rows.push({
       student,
       setup,
+      payeeName: payee?.name ?? null,
       lessonCount,
       gross: fromCents(billed),
       placementFee: fromCents(fee),
@@ -148,10 +158,41 @@ export function computePerStudentRows({ year, students, payees, lessons, cycles 
       revenue,
       paid,
       writtenOff,
-      outstanding: Math.max(0, revenue - paid - writtenOff),
+      unpaidNotices,
     });
   }
   return rows.sort((a, b) => a.student.name.localeCompare(b.student.name));
+}
+
+// Gross fees of the year's lessons split by the status of the notice each was
+// billed on (status today). One basis throughout: fees as billed, before any
+// agency share, so it can be compared with gross fees and nothing else.
+export function computeBilledReconciliation({ year, students, lessons, cycles }) {
+  const studentsById = new Map(students.map((s) => [s.id, s]));
+  const cyclesById = new Map(cycles.map((c) => [c.id, c]));
+  const cents = { paid: 0, writtenOff: 0, unpaid: 0, unbilled: 0, unmatched: 0 };
+  for (const l of lessons) {
+    if (!l.lesson_date.startsWith(`${year}-`)) continue;
+    const student = studentsById.get(l.student_id);
+    if (!student) continue;
+    const amount = toCents(lessonAmount(l, student));
+    if (!l.payment_cycle_id) {
+      cents.unbilled += amount;
+      continue;
+    }
+    const status = cyclesById.get(l.payment_cycle_id)?.status;
+    if (status === "paid") cents.paid += amount;
+    else if (status === "waived") cents.writtenOff += amount;
+    else if (status === "pending" || status === "overdue") cents.unpaid += amount;
+    else cents.unmatched += amount;
+  }
+  return {
+    paid: fromCents(cents.paid),
+    writtenOff: fromCents(cents.writtenOff),
+    unpaid: fromCents(cents.unpaid),
+    unbilled: fromCents(cents.unbilled),
+    unmatched: fromCents(cents.unmatched),
+  };
 }
 
 // Each check compares two independently derived figures.
@@ -167,6 +208,7 @@ export function buildChecks({
   writtenOffInYear,
   monthsCollected,
   monthsWrittenOff,
+  reconciliation,
 }) {
   const sum = (arr, f) => arr.reduce((s, x) => s + f(x), 0);
   const checks = [
@@ -200,6 +242,11 @@ export function buildChecks({
       label: "Written off by month adds up to written off in the year",
       a: monthsWrittenOff,
       b: writtenOffInYear,
+    },
+    {
+      label: "Paid + written off + unpaid + not yet billed adds up to gross fees",
+      a: reconciliation.paid + reconciliation.writtenOff + reconciliation.unpaid + reconciliation.unbilled,
+      b: annualGross,
     },
   ];
   return checks.map((c) => ({ ...c, ok: Math.abs(c.a - c.b) <= TOLERANCE }));
