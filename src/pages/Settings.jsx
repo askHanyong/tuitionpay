@@ -280,7 +280,7 @@ if (codeErr || !codeRow?.active) {
           (l) =>
             l.student_subjects &&
             l.rate_type !== l.student_subjects.rate_type &&
-            l.payment_cycles?.status !== "paid",
+            !["paid", "waived"].includes(l.payment_cycles?.status),
         );
         setBillingMismatches(mismatches);
       }

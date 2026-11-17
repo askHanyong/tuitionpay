@@ -822,7 +822,11 @@ export default function StudentProfile() {
               <li key={c.id} className="relative">
                 <span
                   className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ${
-                    c.status === "paid" ? "bg-[#5ecfaa]" : "bg-red-500"
+                    c.status === "paid"
+                      ? "bg-[#5ecfaa]"
+                      : c.status === "waived"
+                        ? "bg-gray-300"
+                        : "bg-red-500"
                   }`}
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -854,7 +858,7 @@ export default function StudentProfile() {
                     >
                       💬 Send WhatsApp Receipt
                     </button>
-                  ) : (
+                  ) : c.status === "waived" ? null : (
                     <button
                       onClick={() => handleRequestPayment(c)}
                       className="min-h-11 rounded-md bg-orange-500 px-3 text-xs font-medium text-white transition hover:bg-orange-600 hover:shadow"

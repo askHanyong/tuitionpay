@@ -38,8 +38,12 @@ export default function PaymentSummary() {
   }, [token]);
 
   const cycles = summary?.cycles ?? [];
-  const pendingCycles = cycles.filter((c) => c.status !== "paid");
-  const outstandingTotal = pendingCycles.reduce(
+  // Only pending/overdue notices are owed. A waived (written-off) notice is settled.
+  const owedCycles = cycles.filter(
+    (c) => c.status === "pending" || c.status === "overdue",
+  );
+  const hasWaived = cycles.some((c) => c.status === "waived");
+  const outstandingTotal = owedCycles.reduce(
     (sum, c) => sum + Number(c.amount_due ?? 0),
     0,
   );
@@ -76,11 +80,17 @@ export default function PaymentSummary() {
                 Taught by {summary.tutor_first_name}
               </p>
 
-              {pendingCycles.length > 0 && (
+              {owedCycles.length > 0 && (
                 <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                   Outstanding: {formatSGD(outstandingTotal)}
                   {summary.paynow_number &&
                     ` — please PayNow to ${summary.paynow_number}`}
+                </div>
+              )}
+
+              {owedCycles.length === 0 && hasWaived && (
+                <div className="mt-4 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                  No payment needed. Nothing is owed on this summary.
                 </div>
               )}
 
@@ -104,6 +114,7 @@ export default function PaymentSummary() {
                     )}
                     {cycles.map((cycle, idx) => {
                       const isPaid = cycle.status === "paid";
+                      const isWaived = cycle.status === "waived";
                       return (
                         <tr
                           key={`${cycle.period_start}-${idx}`}
@@ -113,17 +124,23 @@ export default function PaymentSummary() {
                             {formatPeriod(cycle.period_start, cycle.period_end)}
                           </td>
                           <td className="py-2 pr-2 text-gray-700">
-                            {formatSGD(cycle.amount_due)}
+                            {isWaived ? "—" : formatSGD(cycle.amount_due)}
                           </td>
                           <td className="py-2 pr-2">
                             <span
                               className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
                                 isPaid
                                   ? "bg-[#d6ede6] text-[#1b2d4f]"
-                                  : "bg-amber-100 text-amber-800"
+                                  : isWaived
+                                    ? "bg-gray-100 text-gray-600"
+                                    : "bg-amber-100 text-amber-800"
                               }`}
                             >
-                              {isPaid ? "✅ Paid" : "⏳ Pending"}
+                              {isPaid
+                                ? "✅ Paid"
+                                : isWaived
+                                  ? "No payment needed"
+                                  : "⏳ Pending"}
                             </span>
                           </td>
                           <td className="py-2 text-gray-700">
