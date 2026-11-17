@@ -38,7 +38,15 @@ export function currentMonthStr() {
 // of the statement month (earlier ones are needed to know how much of a
 // one-off placement fee has already been used). range: { start, end } of the
 // statement month, end exclusive.
-export function buildStatement({ payee, students, lessons, items = [], range, paidLessonIds = null }) {
+export function buildStatement({
+  payee,
+  students,
+  lessons,
+  items = [],
+  range,
+  paidLessonIds = null,
+  writtenOffLessonIds = null,
+}) {
   const sharePct = Number(payee.share_percent);
   const inMonth = (d) => !range || (d >= range.start && d < range.end);
 
@@ -60,6 +68,9 @@ export function buildStatement({ payee, students, lessons, items = [], range, pa
       const allRows = sorted.map((l) => {
         const perSession = l.rate_type === "per_session";
         const amount = round2(lessonAmount(l, student));
+        // A written-off (waived) notice is settled, not owed: it is neither
+        // paid nor unpaid.
+        const writtenOff = writtenOffLessonIds ? writtenOffLessonIds.has(l.id) : false;
         let placementFee = 0;
         if (feeLeft > 0 && (!feeStart || l.lesson_date >= feeStart)) {
           placementFee = round2(Math.min(feeLeft, amount));
@@ -76,7 +87,8 @@ export function buildStatement({ payee, students, lessons, items = [], range, pa
           placementFee,
           counted: round2(amount - placementFee),
           // true/false once we know the student's payment status, else null
-          paid: paidLessonIds ? paidLessonIds.has(l.id) : null,
+          paid: writtenOff ? null : paidLessonIds ? paidLessonIds.has(l.id) : null,
+          writtenOff,
         };
       });
 
@@ -93,6 +105,9 @@ export function buildStatement({ payee, students, lessons, items = [], range, pa
         countedTotal: sum("counted"),
         unpaidTotal: round2(rows.filter((r) => r.paid === false).reduce((t, r) => t + r.counted, 0)),
         paidCount: rows.filter((r) => r.paid === true).length,
+        paidTotal: round2(rows.filter((r) => r.paid === true).reduce((t, r) => t + r.counted, 0)),
+        writtenOffCount: rows.filter((r) => r.writtenOff).length,
+        writtenOffTotal: round2(rows.filter((r) => r.writtenOff).reduce((t, r) => t + r.counted, 0)),
         hours: sum("hours"),
       };
     })
@@ -131,6 +146,11 @@ export function buildStatement({ payee, students, lessons, items = [], range, pa
     itemsTotal,
     blocks,
     unpaidByStudents: round2(blocks.reduce((t, b) => t + b.unpaidTotal, 0)),
+    // paid + written off + unpaid add up to countedTotal when every lesson's
+    // payment status is known.
+    paidByStudents: round2(blocks.reduce((t, b) => t + b.paidTotal, 0)),
+    writtenOffByStudents: round2(blocks.reduce((t, b) => t + b.writtenOffTotal, 0)),
+    countedTotal: round2(blocks.reduce((t, b) => t + b.countedTotal, 0)),
     placementTotal,
     hasPlacement: placementTotal > 0,
     feesCollectedByAgency,

@@ -107,6 +107,9 @@ export default function SettlementBoard({ payees, monthStr, onMonthChange, onOpe
     const paidLessonIds = new Set(
       data.lessons.filter((l) => cycleStatus.get(l.payment_cycle_id) === "paid").map((l) => l.id),
     );
+    const writtenOffLessonIds = new Set(
+      data.lessons.filter((l) => cycleStatus.get(l.payment_cycle_id) === "waived").map((l) => l.id),
+    );
     const monthLessons = data.lessons.filter((l) => l.lesson_date >= start && l.lesson_date < end);
 
     const claimCards = [];
@@ -121,14 +124,29 @@ export default function SettlementBoard({ payees, monthStr, onMonthChange, onOpe
         items: data.items.filter((i) => i.payee_id === payee.id),
         range: { start, end },
         paidLessonIds,
+        writtenOffLessonIds,
       });
       if (st.blocks.length > 0 || record || st.items.length > 0) {
         claimCards.push({ payee, st, record });
       }
       for (const g of st.directGroups) {
         const key = g.payer;
-        const acc = payerMap.get(key) ?? { payer: key, total: 0, studentIds: [], students: [] };
+        const acc = payerMap.get(key) ?? {
+          payer: key,
+          total: 0,
+          paid: 0,
+          writtenOff: 0,
+          unpaid: 0,
+          studentIds: [],
+          students: [],
+        };
         acc.total += g.total;
+        for (const b of st.blocks) {
+          if (!g.studentIds.includes(b.student.id)) continue;
+          acc.paid += b.paidTotal;
+          acc.writtenOff += b.writtenOffTotal;
+          acc.unpaid += b.unpaidTotal;
+        }
         acc.studentIds.push(...g.studentIds);
         acc.students.push(...g.students);
         payerMap.set(key, acc);
@@ -150,9 +168,12 @@ export default function SettlementBoard({ payees, monthStr, onMonthChange, onOpe
       const billedIds = cycleIds.filter((id) => cycleStatus.get(id) !== "waived");
       const statuses = billedIds.map((id) => cycleStatus.get(id));
       const paidN = statuses.filter((x) => x === "paid").length;
+      const writtenOffN = cycleIds.length - billedIds.length;
       const status =
         billedIds.length === 0
-          ? "not_due"
+          ? writtenOffN > 0
+            ? "written_off"
+            : "not_due"
           : paidN === billedIds.length
             ? "paid"
             : paidN === 0
@@ -162,13 +183,23 @@ export default function SettlementBoard({ payees, monthStr, onMonthChange, onOpe
       const notMonthly = data.students.filter(
         (s) => ids.has(s.id) && s.payment_mode !== "monthly",
       );
-      return { ...g, total: Math.round(g.total * 100) / 100, status, pendingIds, notMonthly };
+      const r2 = (n) => Math.round(n * 100) / 100;
+      return {
+        ...g,
+        total: r2(g.total),
+        paid: r2(g.paid),
+        writtenOff: r2(g.writtenOff),
+        unpaid: r2(g.unpaid),
+        status,
+        pendingIds,
+        notMonthly,
+      };
     });
     payerCards.sort((a, b) => a.payer.localeCompare(b.payer));
 
     const claimSettled = (c) => c.record?.status === "reimbursed";
     const total = claimCards.length + payerCards.length;
-    const settled = claimCards.filter(claimSettled).length + payerCards.filter((c) => c.status === "paid").length;
+    const settled = claimCards.filter(claimSettled).length + payerCards.filter((c) => c.status === "paid" || c.status === "written_off").length;
     return { claimCards, payerCards, total, settled };
   }, [data, activePayees, monthStr]);
 
@@ -262,6 +293,11 @@ export default function SettlementBoard({ payees, monthStr, onMonthChange, onOpe
                     {formatSGD(st.unpaidByStudents)} of these lessons not yet paid by students
                   </p>
                 )}
+                {st.writtenOffByStudents > 0 && (
+                  <p className="text-xs text-gray-500">
+                    {formatSGD(st.writtenOffByStudents)} of these lessons written off (not owed)
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-sm font-semibold">{formatSGD(Math.abs(st.net))}</span>
@@ -289,11 +325,19 @@ export default function SettlementBoard({ payees, monthStr, onMonthChange, onOpe
                   <span className="text-xs font-normal text-gray-500">· pays you directly</span>
                 </p>
                 <p className="text-xs text-gray-500">{c.students.join(", ")}</p>
+                {c.writtenOff > 0 && (
+                  <p className="text-xs text-gray-500">
+                    Paid {formatSGD(c.paid)} · Written off {formatSGD(c.writtenOff)} · Unpaid{" "}
+                    {formatSGD(c.unpaid)}
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-sm font-semibold">{formatSGD(c.total)}</span>
                 {c.status === "paid" ? (
                   <Pill tone="green">✅ Paid</Pill>
+                ) : c.status === "written_off" ? (
+                  <Pill tone="gray">Written off</Pill>
                 ) : c.status === "partly" ? (
                   <Pill tone="amber">Partly paid</Pill>
                 ) : c.status === "unpaid" ? (

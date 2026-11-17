@@ -53,6 +53,7 @@ export default function Statements() {
   const [itemForm, setItemForm] = useState({ description: "", amount: "", direction: "owed_to_me", note: "" });
   const [savingItem, setSavingItem] = useState(false);
   const [paidIds, setPaidIds] = useState(() => new Set());
+  const [writtenOffIds, setWrittenOffIds] = useState(() => new Set());
   const [boardVersion, setBoardVersion] = useState(0);
 
   const activePayees = payees.filter((p) => !p.archived);
@@ -127,6 +128,7 @@ export default function Statements() {
       // Which of these lessons has the student already paid for?
       const cycleIds = [...new Set((les ?? []).map((l) => l.payment_cycle_id).filter(Boolean))];
       let paid = new Set();
+      let writtenOff = new Set();
       if (cycleIds.length) {
         const { data: cyc } = await supabase
           .from("payment_cycles")
@@ -135,9 +137,12 @@ export default function Statements() {
           .in("id", cycleIds);
         const paidCycles = new Set((cyc ?? []).filter((c) => c.status === "paid").map((c) => c.id));
         paid = new Set((les ?? []).filter((l) => paidCycles.has(l.payment_cycle_id)).map((l) => l.id));
+        const waivedCycles = new Set((cyc ?? []).filter((c) => c.status === "waived").map((c) => c.id));
+        writtenOff = new Set((les ?? []).filter((l) => waivedCycles.has(l.payment_cycle_id)).map((l) => l.id));
       }
       if (cancelled) return;
       setPaidIds(paid);
+      setWrittenOffIds(writtenOff);
       setLessons(les ?? []);
     })();
     return () => {
@@ -217,9 +222,10 @@ export default function Statements() {
             items,
             range: monthRange(monthStr),
             paidLessonIds: paidIds,
+            writtenOffLessonIds: writtenOffIds,
           })
         : null,
-    [effectivePayee, linkedStudents, lessons, items, monthStr, paidIds],
+    [effectivePayee, linkedStudents, lessons, items, monthStr, paidIds, writtenOffIds],
   );
 
   const syncClaimedTotal = async (nextItems) => {
@@ -574,6 +580,7 @@ export default function Statements() {
                         </span>
                         <span className="text-xs text-gray-600">
                           {b.paidCount}/{b.rows.length} paid ·{" "}
+                          {b.writtenOffCount > 0 && `${b.writtenOffCount} written off · `}
                           {b.collectedBy === "me"
                             ? b.directPayer
                               ? directPayerLabel(b.directPayer)
@@ -589,6 +596,7 @@ export default function Statements() {
                                 {fmtDay(r.date)}
                                 {r.paid === true && <span className="ml-2 text-xs text-green-700" title="Student has paid">✅ paid</span>}
                                 {r.paid === false && <span className="ml-2 text-xs text-amber-700" title="Student has not paid yet">⏳ unpaid</span>}
+                                {r.writtenOff && <span className="ml-2 text-xs text-gray-500" title="You wrote this notice off, so it is not owed">Written off</span>}
                               </td>
                               <td className="px-3 py-1.5 text-gray-600">
                                 {r.perSession ? "per session" : `${Number(r.hours.toFixed(2))} h`}
@@ -682,10 +690,24 @@ export default function Statements() {
                         <span>{formatSGD(statement.unpaidByStudents)}</span>
                       </div>
                     )}
+                    {statement.writtenOffByStudents > 0 && (
+                      <div className="flex justify-between py-0.5 text-xs text-gray-500">
+                        <span>Included above but written off by you (not owed)</span>
+                        <span>{formatSGD(statement.writtenOffByStudents)}</span>
+                      </div>
+                    )}
                     <div className="mt-1 flex justify-between border-t border-gray-300 pt-1.5 font-semibold">
                       <span>{statement.net < 0 ? `Net: you owe ${payee.name}` : `Total ${payee.name} to reimburse you`}</span>
                       <span>{formatSGD(Math.abs(statement.net))}</span>
                     </div>
+                    {statement.writtenOffByStudents > 0 && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        Fees counted {formatSGD(statement.countedTotal)} = paid{" "}
+                        {formatSGD(statement.paidByStudents)} + written off{" "}
+                        {formatSGD(statement.writtenOffByStudents)} + unpaid{" "}
+                        {formatSGD(statement.unpaidByStudents)}.
+                      </p>
+                    )}
                   </div>
 
                   <form onSubmit={addItem} className="rounded-md border border-dashed border-gray-300 p-3">
