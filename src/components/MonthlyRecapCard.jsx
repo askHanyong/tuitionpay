@@ -12,6 +12,7 @@ import { formatMonth } from "../utils/dateFormat";
 import { lessonAmount } from "../lib/paymentMode";
 import { buildEarningsBreakdown } from "../lib/collectedBreakdown";
 import InfoTip from "./InfoTip";
+import { dayLabel, monthName, sgtDateKey, sgtTodayKey } from "../lib/monthClose";
 
 function isSameMonth(dateStr, monthDate) {
   if (!dateStr) return false;
@@ -204,6 +205,7 @@ export default function MonthlyRecapCard({
   tutorName,
   currentMonthPendingOverride,
   onPendingTap,
+  closedMonths,
 }) {
   const { user } = useAuth();
   const isPractitioner = user?.user_metadata?.user_type === "practitioner";
@@ -234,7 +236,7 @@ export default function MonthlyRecapCard({
     };
   }, [user?.id]);
 
-  const current = useMemo(() => {
+  const currentLive = useMemo(() => {
     const computed = computeForMonth(
       monthDate,
       lessons,
@@ -267,7 +269,7 @@ export default function MonthlyRecapCard({
   // (same basis as the agency statements). `lessons` only covers before today,
   // so today's completed lessons are added from `scheduledLessons`; the two
   // sets never overlap.
-  const breakdown = useMemo(() => {
+  const breakdownLive = useMemo(() => {
     if (payees === null) return null;
     const completed = [
       ...lessons,
@@ -280,6 +282,44 @@ export default function MonthlyRecapCard({
       lessons: completed,
     });
   }, [payees, students, lessons, scheduledLessons, monthDate]);
+
+  // Month-end close: a month whose month_closes row has status 'closed' shows
+  // its snapshot. Without the prop (or for any other month) nothing changes.
+  const monthStr = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
+  const closeRow = closedMonths?.get(monthStr);
+  const snap = closeRow?.status === "closed" && closeRow.snapshot?.totals ? closeRow : null;
+  const isClosed = Boolean(snap);
+  const showCloseLink = Boolean(closedMonths) && !isClosed && monthStr < sgtTodayKey().slice(0, 7);
+  let current = currentLive;
+  let breakdown = breakdownLive;
+  if (snap) {
+    const t = snap.snapshot.totals;
+    current = {
+      totalLessons: t.lessons,
+      collected: t.notices_paid_cents / 100,
+      pending: t.notices_pending_cents / 100,
+      projectedEarnings: (t.notices_paid_cents + t.notices_pending_cents) / 100,
+      total: (t.notices_paid_cents + t.notices_pending_cents) / 100,
+    };
+    breakdown = {
+      mine: t.mine_cents / 100,
+      agencyTotal: t.agency_cents / 100,
+      total: t.gross_cents / 100,
+      agencies: (snap.snapshot.agencies ?? []).map((a) => ({
+        name: a.name,
+        payeeId: a.payee_id,
+        sharePct: a.share_percent,
+        amount: a.cents / 100,
+        lines: a.lines.map((l) => ({
+          kind: l.kind,
+          student: l.student,
+          collectedBy: l.collected_by,
+          billed: l.billed_cents / 100,
+          amount: l.cents / 100,
+        })),
+      })),
+    };
+  }
 
   const message =
     current.projectedEarnings > 3000
@@ -319,6 +359,11 @@ export default function MonthlyRecapCard({
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-900">
           {monthLabel} recap
+          {isClosed && (
+            <span className="ml-2 inline-block rounded-full bg-white px-2 py-0.5 align-middle text-xs font-medium text-[#0f7a58]">
+              🔒 Closed {dayLabel(sgtDateKey(snap.closed_at), sgtTodayKey())}
+            </span>
+          )}
         </h2>
         <div className="flex items-center gap-2">
           <button
@@ -360,7 +405,7 @@ export default function MonthlyRecapCard({
           </p>
         </div>
         <div className="text-center">
-          {onPendingTap && current.pending > 0 ? (
+          {onPendingTap && !isClosed && current.pending > 0 ? (
             <button
               onClick={() => {
                 const now = new Date();
@@ -378,7 +423,9 @@ export default function MonthlyRecapCard({
               {formatSGD(current.pending)}
             </p>
           )}
-          <p className="mt-1 text-xs font-medium text-gray-600">⏳ Pending</p>
+          <p className="mt-1 text-xs font-medium text-gray-600">
+            ⏳ {isClosed ? "Pending at close" : "Pending"}
+          </p>
         </div>
         <div className="text-center">
           <p className="text-xl font-semibold text-gray-900">
@@ -409,7 +456,6 @@ export default function MonthlyRecapCard({
           </div>
           {breakdown.agencies.map((a) => {
             const isOpen = openAgency === a.name.toLowerCase();
-            const monthStr = `${monthDate.getFullYear()}-${String(monthDate.getMonth() + 1).padStart(2, "0")}`;
             return (
               <div key={a.name}>
                 <button
@@ -502,6 +548,14 @@ export default function MonthlyRecapCard({
           {generating ? "Generating..." : "🖼️ Save as Image"}
         </button>
       </div>
+
+      {showCloseLink && (
+        <p className="mt-3 text-center text-sm">
+          <Link to={`/month-close?month=${monthStr}`} className="font-medium text-[#0f7a58] hover:underline">
+            Close {monthName(monthStr)} →
+          </Link>
+        </p>
+      )}
 
       <MonthlyReportTemplate
         ref={reportRef}

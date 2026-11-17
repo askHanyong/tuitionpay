@@ -28,6 +28,7 @@ import { useTerms } from "../contexts/TerminologyContext";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
 import { confirmClosedMonthChange, latestUnbilledLessonDate, lessonToggleDates, studentOwedDates } from "../lib/closedMonths";
+import { activityMonths, monthName, shiftMonth, sgtTodayKey } from "../lib/monthClose";
 import Onboarding from "../components/Onboarding";
 import GettingStartedChecklist from "../components/GettingStartedChecklist";
 import MonthlyRecapCard from "../components/MonthlyRecapCard";
@@ -47,9 +48,10 @@ const STALLED_CYCLE_THRESHOLD_DAYS = 21;
 // Update this in one place to ship a new "What's new" banner -- bumping
 // the id makes it reappear for everyone even if they dismissed a past one.
 const ANNOUNCEMENT = {
-  id: "whats-new-2026-11-waive",
+  id: "whats-new-2026-12-month-close",
   headline: "What's New in ChopeAndPay",
   bullets: [
+    "🔒 Month-end close — once a month is over, close it to lock in your figures. You'll get a warning if you change a closed month, and the year-end report uses your closed months. Open Month-end close from the Payments page.",
     "💸 Write off unpaid amounts — use the new Write off button on the Payments page to remove amounts you won't collect. It won't count as Collected. Undo anytime from the Written off section.",
     "📋 Pending now includes archived and deleted students — money they owe still shows up under Pending so you can write it off. Find their cycles on the Payments page.",
     "📆 Parent booking — set your open slots on the Availability page, share a private link from each student's profile, and parents can request a lesson.",
@@ -190,6 +192,25 @@ export default function Dashboard() {
   const [detailOverdueLesson, setDetailOverdueLesson] = useState(null);
   const [topicsLesson, setTopicsLesson] = useState(null);
   const topicTrackedStudentIds = useTopicTrackedStudents(user?.id);
+  // Month-end close: "YYYY-MM" -> month_closes row. undefined until loaded (or if
+  // the load fails), so the recap card and nudge then behave as before.
+  const [closedMonths, setClosedMonths] = useState(undefined);
+  const [nudgeDismissed, setNudgeDismissed] = useState({});
+  useEffect(() => {
+    if (!user?.id || isPractitioner) return;
+    let cancelled = false;
+    supabase
+      .from("month_closes")
+      .select("id, month, status, closed_at, snapshot")
+      .eq("tutor_id", user.id)
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        setClosedMonths(new Map((data ?? []).map((r) => [String(r.month).slice(0, 7), r])));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, isPractitioner]);
   const [checklistDismissed, setChecklistDismissed] = useState(true);
   const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
@@ -1506,6 +1527,45 @@ export default function Dashboard() {
 
           {!isPractitioner && <AnnouncementBanner />}
 
+          {/* Month-end close nudge: 1st-10th (Singapore time), last month has activity and is not closed */}
+          {!isPractitioner && !loading && closedMonths && (() => {
+            const today = sgtTodayKey();
+            let flag = false;
+            try { flag = new URLSearchParams(window.location.search).get("showCloseNudge") === "1"; } catch { /* no window */ }
+            if (!flag && Number(today.slice(8)) > 10) return null;
+            const last = shiftMonth(today.slice(0, 7), -1);
+            if (closedMonths.get(last)?.status === "closed") return null;
+            const key = `cnp_close_nudge_dismissed_${last}`;
+            let stored = false;
+            try { stored = localStorage.getItem(key) === "1"; } catch { /* storage unavailable */ }
+            if (stored || nudgeDismissed[last]) return null;
+            const active = activityMonths({ students: moneyRecapStudents, lessons: moneyRecapLessons, cycles: moneyRecapCycles });
+            if (!active.has(last)) return null;
+            return (
+              <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#b8e8d9] bg-[#edf6f3] p-4 pr-3 text-sm text-[#1b2d4f] shadow-sm">
+                <p className="min-w-0 flex-1 font-medium">
+                  {monthName(last)}'s done. Close the month — takes 2 minutes.
+                </p>
+                <Link
+                  to={`/month-close?month=${last}`}
+                  className="min-h-11 rounded-md bg-[#0f7a58] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#0c6a4c]"
+                >
+                  Close {monthName(last)}
+                </Link>
+                <button
+                  onClick={() => {
+                    try { localStorage.setItem(key, "1"); } catch { /* storage unavailable */ }
+                    setNudgeDismissed((d) => ({ ...d, [last]: true }));
+                  }}
+                  aria-label="Dismiss"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-[#0f7a58] hover:bg-[#d6ede6]"
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })()}
+
           {/* Subscription upsell — shown only when there is no active/trialing subscription */}
           {!loading && !isPractitioner && !["active", "trialing", "grandfathered"].includes(subscriptionStatus) && (
             <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -1571,6 +1631,7 @@ export default function Dashboard() {
               tutorName={user?.user_metadata?.full_name}
               currentMonthPendingOverride={allPendingAmount}
               onPendingTap={handlePendingTap}
+              closedMonths={closedMonths}
             />
           </div>
 
@@ -1862,6 +1923,7 @@ export default function Dashboard() {
               tutorName={user?.user_metadata?.full_name}
               currentMonthPendingOverride={allPendingAmount}
               onPendingTap={handlePendingTap}
+              closedMonths={closedMonths}
             />
           </div>
 
