@@ -43,7 +43,12 @@ export function buildYearRows({ year, students, payees, lessons, cycles, closes,
       state = nothing ? "nothing" : "open";
     }
     const t = snap ? snap.totals : lt;
+    const hasNoticeInMonth = cycles.some((c) => monthOf(c.period_end) === monthStr);
     return {
+      empty:
+        t.lessons === 0 && t.cash_collected_cents === 0 && t.cash_written_off_cents === 0 &&
+        lt.lessons === 0 && lt.cash_collected_cents === 0 && lt.cash_written_off_cents === 0 &&
+        !hasNoticeInMonth,
       monthStr,
       state,
       locked: Boolean(snap),
@@ -92,17 +97,16 @@ export function buildReadiness({ year, rows, todayKey }) {
   const nothing = rows.filter((r) => r.state === "nothing").map((r) => r.monthStr);
   const changed = rows.filter((r) => r.state === "changed");
   const allReady = yearOver && readyCount === 12;
-  const anyClosed = rows.some((r) => r.locked);
   return {
     yearOver, total: scope.length, readyCount, todo, allReady, changed,
-    noActivity: allReady && !anyClosed,
+    noActivity: rows.every((r) => r.empty),
     nothingText: nothing.length ? `${rangeText(nothing)}: no lessons or payments, nothing to close.` : null,
   };
 }
 
 const nameList = (ms) => ms.map((m) => monthName(m)).join(", ");
 export function readinessSentence(rd, year) {
-  if (rd.noActivity) return `No lessons or payments in ${year}, nothing to close.`;
+  if (rd.noActivity) return `No lessons or payments in ${year}.`;
   if (rd.allReady) return "All 12 months closed and unchanged. Ready to share with your accountant.";
   if (!rd.yearOver) {
     const first = rd.todo[0];
@@ -124,7 +128,8 @@ export function buildSummaryText({ year, totals, rows, readiness, todayKey }) {
   const notClosed = notReady.filter((r) => !r.locked);
   const changed = rows.filter((r) => r.state === "changed" || r.state === "old_calc");
   let status;
-  if (readiness.allReady) status = "all 12 months closed and unchanged";
+  if (readiness.noActivity) status = `no lessons or payments in ${year}`;
+  else if (readiness.allReady) status = "all 12 months closed and unchanged";
   else {
     const list = notClosed.map((r) => monthShort(r.monthStr)).join(", ");
     status = `DRAFT — ${notClosed.length} month${notClosed.length === 1 ? "" : "s"} not closed${list ? ` (${list})` : ""}`;
