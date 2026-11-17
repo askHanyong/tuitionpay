@@ -4,9 +4,11 @@ import AppShell from "../components/AppShell";
 import Confetti from "../components/Confetti";
 import MonthCloseChecklist from "../components/MonthCloseChecklist";
 import ReopenMonthModal from "../components/ReopenMonthModal";
+import { ChangedAfterClosePanel, SinceCloseStrip } from "../components/ClosedMonthChanges";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { formatSGD } from "../lib/paymentNotice";
+import { clearClosedMonthsCache, confirmClosedMonthChange } from "../lib/closedMonths";
 import { loadMonthCloseData } from "../lib/monthCloseData";
 import {
   AFTER_SAVE_MISMATCH_MESSAGE,
@@ -17,10 +19,13 @@ import {
   carriedKeySet,
   carryKey,
   checkSnapshot,
+  classifyChanges,
   closedCardSentence,
+  compareSnapshotToLive,
   dayLabel,
   findEarlierUnclosedMonth,
   isMonthStr,
+  lessonToggleDates,
   mapCloseError,
   mapReopenError,
   monthLabel,
@@ -397,6 +402,13 @@ export default function MonthClose() {
     pendingCents: t.notices_pending_cents,
   });
 
+  const compare = isClosed ? compareSnapshotToLive(closeRow.snapshot, liveSnap) : null;
+  const changes = isClosed ? classifyChanges(data.changes, closeRow.closed_at, monthStr) : null;
+  const openReopen = () => {
+    setReopenError(null);
+    setReopenOpen(true);
+  };
+
   const intro = isClosed
     ? `Closed on ${dayLabel(sgtDateKey(closeRow.closed_at), monthStr)}. Figures are locked.`
     : !over
@@ -421,10 +433,13 @@ export default function MonthClose() {
   // ── Checklist actions (same calls as Payments / Dashboard / Lessons) ──
   const onMarkDone = (it) =>
     runAction(async () => {
+      if (!(await confirmClosedMonthChange({ tutorId, kind: "lesson", dateKeys: lessonToggleDates({ lesson_date: it.date, is_completed: false }, true) }))) return false;
       await markLessonDone(tutorId, it.ref_id);
       showToast("Lesson marked done ✓");
     });
 
+  // Not guarded: only not-done lessons are listed here, and a lesson that is not done
+  // before or after does not count in any closed figure.
   const onDeleteLesson = (it) =>
     runAction(async () => {
       if (!window.confirm(`Delete this lesson on ${dayLabel(it.date, monthStr)}? It won't be counted or billed.`)) {
@@ -436,6 +451,7 @@ export default function MonthClose() {
 
   const onMarkPaid = (it) =>
     runAction(async () => {
+      if (!(await confirmClosedMonthChange({ tutorId, kind: "paid", dateKeys: [it.origin_month] }))) return false;
       await markNoticePaid(tutorId, it.ref_id);
       showToast("Marked as paid.");
     });
@@ -451,6 +467,7 @@ export default function MonthClose() {
       ) {
         return false;
       }
+      if (!(await confirmClosedMonthChange({ tutorId, kind: "notice", dateKeys: [it.origin_month] }))) return false;
       await writeOffNotice(tutorId, cycle);
       showToast("Written off.");
     });
@@ -470,6 +487,7 @@ export default function MonthClose() {
         `${n === 1 ? "lesson" : "lessons"} (${formatSGD(sumLessons(unbilled, student))}).` +
         (afterMonth > 0 ? ` ${afterMonth} of them ${afterMonth === 1 ? "is" : "are"} dated after ${mName}.` : "");
       if (!window.confirm(text)) return false;
+      if (!(await confirmClosedMonthChange({ tutorId, kind: "notice", dateKeys: [unbilled.map((l) => l.lesson_date).sort().pop()] }))) return false;
       await billStudentNow(student.id);
       showToast("Billed. A payment notice was created.");
     });
@@ -486,7 +504,10 @@ export default function MonthClose() {
       const fresh = await loadMonthCloseData(tutorId, monthStr);
       const { view: v, pruned, data: freshData } = applyFresh(fresh, draft);
       const freshRow = fresh.closes.find((c) => monthOfDate(c.month) === monthStr);
-      if (freshRow?.status === "closed") return; // closed elsewhere: treat as success
+      if (freshRow?.status === "closed") {
+        clearClosedMonthsCache(); // closed elsewhere: treat as success
+        return;
+      }
       if (!canCloseMonth(monthStr, fresh.todayKey)) {
         setCloseError(mapCloseError("MONTH_NOT_OVER", monthStr).text);
         return;
@@ -524,6 +545,7 @@ export default function MonthClose() {
         alreadyClosed = true;
       }
 
+      clearClosedMonthsCache();
       if (!alreadyClosed) {
         clearDraft(tutorId, monthStr);
         setDraft([]);
@@ -561,6 +583,7 @@ export default function MonthClose() {
     } catch (e) {
       const mapped = mapReopenError(e?.message, monthStr);
       if (mapped.kind === "not_closed") {
+        clearClosedMonthsCache();
         setReopenOpen(false);
         try {
           await refresh();
@@ -573,6 +596,7 @@ export default function MonthClose() {
       setBusy(false);
       return;
     }
+    clearClosedMonthsCache();
     setReopenOpen(false);
     setJustClosed(false);
     setCloseError(null);
@@ -707,6 +731,22 @@ export default function MonthClose() {
             </p>
 
             <WhoEarnsWhat snap={snap} monthStr={monthStr} />
+
+            {isClosed && (
+              <>
+                <SinceCloseStrip
+                  strip={changes.strip}
+                  monthName={mName}
+                  outstandingCents={liveSnap.totals.notices_pending_cents}
+                />
+                <ChangedAfterClosePanel
+                  compare={compare}
+                  panel={changes.panel}
+                  busy={busy}
+                  onReopen={openReopen}
+                />
+              </>
+            )}
 
             {isClosed ? (
               closeRow.snapshot.carried?.length > 0 && (

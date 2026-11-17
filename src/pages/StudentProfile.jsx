@@ -15,6 +15,7 @@ import { useTerms } from "../contexts/TerminologyContext";
 import { buildGoogleMapsUrl } from "../lib/maps";
 import { CLIENT_TYPE_LABEL } from "../lib/practitioner";
 import AppShell from "../components/AppShell";
+import { confirmClosedMonthChange, latestUnbilledLessonDate, studentOwedDates } from "../lib/closedMonths";
 import StatusBadge from "../components/StatusBadge";
 import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
 import MessagePreviewModal from "../components/MessagePreviewModal";
@@ -97,6 +98,7 @@ export default function StudentProfile() {
   };
 
   const handleArchivePromptBillNow = async () => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "notice", skip: student.is_practice, dateKeys: () => latestUnbilledLessonDate(user.id, student.id) }))) return;
     setArchiveLoading(true);
     const { error } = await supabase.rpc("create_manual_closeout_cycle", { p_student_id: student.id });
     if (error) { showToast(error.message, "error"); setArchiveLoading(false); return; }
@@ -106,6 +108,7 @@ export default function StudentProfile() {
   };
 
   const handleArchivePromptWriteOffAll = async () => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "notice", skip: student.is_practice, dateKeys: () => studentOwedDates(user.id, student.id) }))) return;
     setArchiveLoading(true);
     if (archivePrompt?.unbilledAmount > 0) {
       const { error: rpcErr } = await supabase.rpc("create_manual_closeout_cycle", { p_student_id: student.id });
@@ -381,6 +384,7 @@ export default function StudentProfile() {
   };
 
   const handleBillNow = async () => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "notice", skip: student.is_practice, dateKeys: () => latestUnbilledLessonDate(user.id, student.id) }))) return;
     setBillNowLoading(true);
     setBillNowError(null);
     const { error } = await supabase.rpc("create_manual_closeout_cycle", {
@@ -403,6 +407,7 @@ export default function StudentProfile() {
       )
     )
       return;
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "notice", skip: student.is_practice, dateKeys: [cycles.find((c) => c.id === cycleId)?.period_end] }))) return;
     const { error } = await supabase.rpc("delete_manual_closeout_cycle", {
       p_cycle_id: cycleId,
     });

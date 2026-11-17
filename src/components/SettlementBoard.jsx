@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { confirmClosedMonthChange, periodEndsOf } from "../lib/closedMonths";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { formatSGD } from "../lib/paymentNotice";
@@ -204,6 +205,7 @@ export default function SettlementBoard({ payees, monthStr, onMonthChange, onOpe
   }, [data, activePayees, monthStr]);
 
   const markPayerPaid = async (card) => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "paid", dateKeys: () => periodEndsOf(user.id, card.pendingIds) }))) return;
     setBusy(true);
     const { error: err } = await supabase
       .from("payment_cycles")

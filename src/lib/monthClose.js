@@ -677,3 +677,159 @@ export function closedCardSentence({ monthStr, snapshot, previousSnapshot }) {
   }
   return text;
 }
+
+// ── 4.7 Warning before a change in a closed month ────────────────────────────
+// Which dates does a lesson change touch? Only completed lessons of real
+// (non-practice) students count, and only when a figure-relevant field changes
+// (a notes-only edit does not). `before` / `after` are lesson-like objects, or
+// null for an insert / delete. Returns the dates of the counted sides.
+const LESSON_MONEY_FIELDS = ["lesson_date", "is_completed", "student_id", "duration_minutes", "rate", "rate_type"];
+const countsAsLesson = (l) => Boolean(l && l.is_completed && !(l.is_practice ?? l.students?.is_practice));
+
+export function lessonChangeDates(before, after) {
+  const b = countsAsLesson(before);
+  const a = countsAsLesson(after);
+  if (!b && !a) return [];
+  if (before && after && LESSON_MONEY_FIELDS.every((k) => (before[k] ?? null) === (after[k] ?? null))) {
+    return [];
+  }
+  return [...new Set([b && before.lesson_date, a && after.lesson_date].filter(Boolean))];
+}
+
+const joinNames = (list) =>
+  list.length === 1
+    ? list[0]
+    : list.length === 2
+      ? `${list[0]} and ${list[1]}`
+      : `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
+
+// The exact copy from spec 4.7. `months` are the closed "YYYY-MM" the change touches.
+export function closedMonthMessage(kind, months) {
+  const labels = months.map(monthLabel);
+  const heading = `${joinNames(labels)} ${months.length === 1 ? "is" : "are"} closed.`;
+  const names = joinNames(months.map(monthName));
+  if (kind === "paid") {
+    return `${heading}\n\nThis payment counts as collected today. What you earned in ${names} doesn't change. It will be logged.\n\nRecord payment?`;
+  }
+  if (kind === "notice") {
+    return `${heading}\n\nThis changes a payment notice from a closed month. What you earned in ${names} doesn't change. It will be logged.\n\nContinue?`;
+  }
+  const lesson =
+    "This changes a lesson in a closed month. Your closed figures stay as they are, the change is logged, and the month will be marked 'Changed after close'.";
+  return kind === "lesson_add"
+    ? `${heading}\n\n${lesson}\n\nA new payment notice may be created for it.\n\nContinue?`
+    : `${heading}\n\n${lesson}\n\nContinue?`;
+}
+
+// ── 6.6 Snapshot vs live ("Changed after close") ─────────────────────────────
+// notices_paid / notices_pending are deliberately NOT compared: they move when a
+// carried notice is paid later (6.10).
+export const COMPARE_KEYS = [
+  "lessons",
+  "gross_cents",
+  "agency_cents",
+  "revenue_cents",
+  "commission_b_cents",
+  "cash_collected_cents",
+  "cash_written_off_cents",
+];
+
+// status: 'same' | 'changed' | 'old_calc'. diffs only list keys that differ.
+// A snapshot from an older calculation is never compared figure by figure.
+export function compareSnapshotToLive(snapshot, live) {
+  if (!snapshot?.totals || snapshot.calc_version !== CALC_VERSION) {
+    return { status: "old_calc", diffs: [] };
+  }
+  const diffs = [];
+  for (const key of COMPARE_KEYS) {
+    const closed = snapshot.totals[key];
+    const now = live.totals[key];
+    if (closed !== now) diffs.push({ key, closed, now, diff: now - closed });
+  }
+  // Take-home follows from billed and agencies; show it when either moves.
+  if (snapshot.totals.mine_cents !== live.totals.mine_cents) {
+    diffs.push({
+      key: "mine_cents",
+      closed: snapshot.totals.mine_cents,
+      now: live.totals.mine_cents,
+      diff: live.totals.mine_cents - snapshot.totals.mine_cents,
+    });
+  }
+  return { status: diffs.length ? "changed" : "same", diffs };
+}
+
+// ── 6.7 Change log wording ───────────────────────────────────────────────────
+const dollars = (n) => formatSGD(Number(n) || 0);
+
+// "9:42 pm" in Singapore time.
+export function sgtClock(ts) {
+  const d = new Date(new Date(ts).getTime() + SGT_MS);
+  const h = d.getUTCHours();
+  const m = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${h % 12 || 12}:${m} ${h >= 12 ? "pm" : "am"}`;
+}
+
+const changedAtLabel = (ts, monthStr) => `${dayLabel(sgtDateKey(ts), monthStr)}, ${sgtClock(ts)}`;
+
+function describeLesson(row, monthStr) {
+  const o = row.old_values ?? {};
+  const n = row.new_values ?? {};
+  const d = (date) => dayLabel(date, monthStr);
+  let what;
+  if (row.action === "insert") what = `lesson on ${d(n.lesson_date)} added`;
+  else if (row.action === "delete") what = `lesson on ${d(o.lesson_date)} deleted`;
+  else if (o.is_completed === false && n.is_completed === true) what = `lesson on ${d(n.lesson_date)} marked done`;
+  else if (o.is_completed === true && n.is_completed === false) what = `lesson on ${d(n.lesson_date)} marked not done`;
+  else if (o.lesson_date && n.lesson_date && o.lesson_date !== n.lesson_date) {
+    what = `lesson moved from ${d(o.lesson_date)} to ${d(n.lesson_date)}`;
+  } else what = `lesson on ${d(n.lesson_date ?? o.lesson_date)} edited`;
+  return `${what} · ${dollars(row.amount_before)} → ${dollars(row.amount_after)}`;
+}
+
+// Splits the log rows written AFTER the current close into the two places the page
+// shows them (4.6): payment-status changes go to the grey "Since close" strip;
+// lesson and billing changes go to the amber "Changed after close" list.
+// Rows from before the current close (e.g. before a reopen) are already reflected
+// in the snapshot and are ignored. Newest first.
+export function classifyChanges(rows, closedAt, monthStr) {
+  const after = new Date(closedAt).getTime();
+  const strip = [];
+  const panel = [];
+  const sorted = [...(rows ?? [])]
+    .filter((r) => new Date(r.changed_at).getTime() > after)
+    .sort((a, b) => new Date(b.changed_at) - new Date(a.changed_at));
+  for (const row of sorted) {
+    const name = row.student_name || "A student";
+    const amount = dollars(row.new_values?.amount_due ?? row.old_values?.amount_due ?? row.amount_after);
+    const day = dayLabel(sgtDateKey(row.changed_at), monthStr);
+    if (row.entity_type === "lesson") {
+      panel.push({ id: row.id, text: `${changedAtLabel(row.changed_at, monthStr)} · ${name} · ${describeLesson(row, monthStr)}` });
+    } else if (row.entity_type === "payment_cycle") {
+      const o = row.old_values ?? {};
+      const n = row.new_values ?? {};
+      if (row.action === "insert") {
+        panel.push({ id: row.id, text: `${changedAtLabel(row.changed_at, monthStr)} · ${name} · billed ${amount} (Bill now)` });
+      } else if (row.action === "delete") {
+        panel.push({ id: row.id, text: `${changedAtLabel(row.changed_at, monthStr)} · ${name} · undid a manual notice of ${amount}` });
+      } else if (o.status !== n.status && n.status === "paid") {
+        strip.push({ id: row.id, text: `${name} paid ${amount} on ${day}` });
+      } else if (o.status !== n.status && n.status === "waived") {
+        strip.push({ id: row.id, text: `Wrote off ${amount} for ${name} on ${day}` });
+      } else if (o.status === "waived" && o.status !== n.status) {
+        strip.push({ id: row.id, text: `Undid write-off of ${amount} for ${name} on ${day}` });
+      } else if (o.status !== n.status) {
+        strip.push({ id: row.id, text: `${name}: notice changed from ${o.status} to ${n.status} on ${day}` });
+      } else {
+        panel.push({
+          id: row.id,
+          text: `${changedAtLabel(row.changed_at, monthStr)} · ${name} · notice changed ${dollars(row.amount_before)} → ${dollars(row.amount_after)}`,
+        });
+      }
+    }
+  }
+  return { strip, panel };
+}
+
+// Marking a lesson done / not done: the figures move only if it counts afterwards / before.
+export const lessonToggleDates = (lesson, completed) =>
+  lesson ? lessonChangeDates(lesson, { ...lesson, is_completed: completed }) : [];
