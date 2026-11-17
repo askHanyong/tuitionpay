@@ -909,6 +909,13 @@ export default function Payments() {
           >
             Year-end income report (for tax filing)
           </Link>
+          <span className="mx-2 text-gray-300" aria-hidden="true">·</span>
+          <Link
+            to="/month-close"
+            className="text-sm text-[#1b2d4f] underline decoration-dotted underline-offset-2 hover:text-[#5ecfaa]"
+          >
+            Month-end close
+          </Link>
         </div>
       )}
 
