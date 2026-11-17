@@ -28,6 +28,7 @@ import Availability from "./pages/Availability";
 import BookingPage from "./pages/BookingPage";
 import BookingRequests from "./pages/BookingRequests";
 import YearEndReport from "./pages/YearEndReport";
+import MonthClose from "./pages/MonthClose";
 
 function App() {
   return (
@@ -78,6 +79,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Payments />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/month-close"
+              element={
+                <ProtectedRoute>
+                  <MonthClose />
                 </ProtectedRoute>
               }
             />
