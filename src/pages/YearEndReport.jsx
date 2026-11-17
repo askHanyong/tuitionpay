@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { formatSGD } from "../lib/paymentNotice";
@@ -14,6 +15,15 @@ import {
   sgtMonth,
 } from "../lib/yearEndReport";
 import AppShell from "../components/AppShell";
+import { useToast } from "../contexts/ToastContext";
+import { sgtTodayKey, monthName } from "../lib/monthClose";
+import {
+  buildReadiness,
+  buildSummaryText,
+  buildYearRows,
+  readinessSentence,
+  sumRows,
+} from "../lib/yearEndClose";
 
 const PAGE_SIZE = 900;
 const THIS_YEAR = new Date().getFullYear();
@@ -44,6 +54,9 @@ async function loadReportData({ tutorId, year }) {
   // paid_at / waived_at are filtered in UTC by the database, so the lower bound
   // is Singapore midnight on 1 Jan expressed in UTC.
   const yearStartUtc = new Date(`${yearStart}T00:00:00+08:00`).toISOString();
+  // Widened by a day so a payment made just after midnight on 1 Jan Singapore
+  // time is never missed; rows outside the year are dropped by the SGT checks.
+  const cyclesFrom = `${year - 1}-12-31`;
 
   const { data: studentsData, error: studentsErr } = await supabase
     .from("students")
@@ -113,7 +126,7 @@ async function loadReportData({ tutorId, year }) {
       )
       .eq("tutor_id", tutorId)
       .or(
-        `period_end.gte.${yearStart},paid_at.gte.${yearStartUtc},waived_at.gte.${yearStartUtc}`,
+        `period_end.gte.${yearStart},paid_at.gte.${cyclesFrom},waived_at.gte.${cyclesFrom}`,
       )
       .order("id", { ascending: true }),
   );
@@ -131,8 +144,30 @@ async function loadReportData({ tutorId, year }) {
     .limit(50);
   if (placementsErr) throw placementsErr;
 
+  // Read-only: closed-month rows and change-log rows for the year.
+  const closes = await fetchPaged(() =>
+    supabase
+      .from("month_closes")
+      .select("id, month, status, revision, calc_version, snapshot, closed_at")
+      .eq("tutor_id", tutorId)
+      .gte("month", yearStart)
+      .lt("month", yearEnd)
+      .order("month", { ascending: true }),
+  );
+  const changeLog = await fetchPaged(() =>
+    supabase
+      .from("closed_month_changes")
+      .select("id, month, entity_type, action")
+      .eq("tutor_id", tutorId)
+      .gte("month", yearStart)
+      .lt("month", yearEnd)
+      .order("id", { ascending: true }),
+  );
+
   return {
     year,
+    closes,
+    changeLog,
     students,
     payees,
     lessons: [...priorLessons, ...yearLessons],
@@ -206,6 +241,9 @@ export default function YearEndReport() {
   const [error, setError] = useState(null);
   const [rawData, setRawData] = useState(null);
   const [studentsOpen, setStudentsOpen] = useState(false);
+  const { showToast } = useToast();
+  const [copied, setCopied] = useState(false);
+  const [fallbackText, setFallbackText] = useState(null);
 
   useEffect(() => {
     if (!tutorId || isPractitioner) return;
@@ -228,9 +266,10 @@ export default function YearEndReport() {
     };
   }, [year, tutorId, isPractitioner]);
 
+  const todayKey = sgtTodayKey();
   const report = useMemo(() => {
     if (!rawData) return null;
-    const { year: dataYear, payees } = rawData;
+    const { year: dataYear, payees, closes, changeLog } = rawData;
     const { students, lessons, cycles } = applyPracticeExclusion(rawData);
     const sum = (arr, f) => arr.reduce((s, x) => s + f(x), 0);
 
@@ -257,11 +296,27 @@ export default function YearEndReport() {
       cycles,
     });
 
+    // Live per-month figures: used only by the consistency checks below.
     const months = baseMonths.map((m) => ({
       ...m,
       collected: amountSum(paidCycles.filter((c) => sgtMonth(c.paid_at) === m.monthPrefix)),
       writtenOff: amountSum(waivedCycles.filter((c) => sgtMonth(c.waived_at) === m.monthPrefix)),
     }));
+
+    // What the table shows: snapshot for closed months, live otherwise (6.8).
+    const yearRows = buildYearRows({
+      year: dataYear,
+      students,
+      payees,
+      lessons,
+      cycles,
+      closes,
+      changeLog,
+      todayKey,
+    });
+    const shown = sumRows(yearRows);
+    const readiness = buildReadiness({ year: dataYear, rows: yearRows, todayKey });
+    const revenueDiff = yearRows.reduce((a, r) => a + r.revenueDiff, 0);
 
     const perStudentRows = computePerStudentRows({
       year: dataYear,
@@ -288,22 +343,28 @@ export default function YearEndReport() {
 
     return {
       year: dataYear,
-      annualRevenue,
-      annualCommissionB,
-      annualGross,
-      annualAgencyShare,
+      // Annual figures = sum of the rows as displayed.
+      annualRevenue: shown.revenue / 100,
+      annualCommissionB: shown.commissionB / 100,
+      annualGross: shown.gross / 100,
+      annualAgencyShare: shown.agency / 100,
       annualMine,
-      annualLessons,
-      writtenOffInYear,
-      collectedInYear,
+      annualLessons: shown.lessons,
+      writtenOffInYear: shown.writtenOff / 100,
+      collectedInYear: shown.collected / 100,
       unpaidNoticesTotal,
       reconciliation,
-      months,
+      months: baseMonths.map((m, i) => ({ ...m, row: yearRows[i] })),
+      yearRows,
+      shown,
+      readiness,
+      revenueDiff,
+      todayKey,
       perStudentRows,
       checks,
       failedChecks: checks.filter((c) => !c.ok),
     };
-  }, [rawData]);
+  }, [rawData, todayKey]);
 
   useEffect(() => {
     if (!report) return;
@@ -311,6 +372,25 @@ export default function YearEndReport() {
       console.error("[YearEndReport] Check failed:", c.label, c.a, c.b);
     }
   }, [report]);
+
+  async function copySummary() {
+    const text = buildSummaryText({
+      year,
+      totals: report.shown,
+      rows: report.yearRows,
+      readiness: report.readiness,
+      todayKey: report.todayKey,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setFallbackText(null);
+      setCopied(true);
+      showToast("Summary copied, ready to paste into an email");
+      setTimeout(() => setCopied(false), 3000);
+    } catch {
+      setFallbackText(text);
+    }
+  }
 
   if (isPractitioner) {
     return (
@@ -403,12 +483,54 @@ export default function YearEndReport() {
 
         {r && (
           <>
+            {/* Readiness (month-end close) */}
+            <div
+              className={`rounded-xl border px-4 py-3 text-sm no-print ${
+                r.readiness.allReady
+                  ? "border-[#b8e8d9] bg-[#edf6f3] text-[#1b2d4f]"
+                  : "border-gray-200 bg-white text-gray-700"
+              }`}
+            >
+              <p className="font-medium">{readinessSentence(r.readiness, r.year)}</p>
+              {r.readiness.todo.length > 0 && (
+                <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                  {r.readiness.todo.map((ms) => (
+                    <Link key={ms} to={`/month-close?month=${ms}`} className="font-medium text-[#1b2d4f] underline">
+                      Close {monthName(ms)} →
+                    </Link>
+                  ))}
+                </p>
+              )}
+              {r.readiness.nothingText && (
+                <p className="mt-1 text-xs text-gray-500">{r.readiness.nothingText}</p>
+              )}
+            </div>
+
+            {r.readiness.changed.length > 0 && (
+              <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 no-print">
+                <p className="font-medium">
+                  {r.readiness.changed.length} closed month{r.readiness.changed.length !== 1 ? "s have" : " has"} changed since you closed {r.readiness.changed.length !== 1 ? "them" : "it"}. Review {r.readiness.changed.length !== 1 ? "them" : "it"} before you file.
+                </p>
+                <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                  {r.readiness.changed.map((row) => (
+                    <Link key={row.monthStr} to={`/month-close?month=${row.monthStr}`} className="font-medium underline">
+                      {monthName(row.monthStr)} →
+                    </Link>
+                  ))}
+                </p>
+              </div>
+            )}
+
             {/* Headline tiles */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <StatTile
                 label="Revenue"
                 value={formatSGD(r.annualRevenue)}
-                sub={`${r.annualLessons} lessons taught`}
+                sub={
+                  r.revenueDiff !== 0
+                    ? `${r.annualLessons} lessons taught · Live records differ by ${r.revenueDiff > 0 ? "+" : "−"}${formatSGD(Math.abs(r.revenueDiff) / 100)}`
+                    : `${r.annualLessons} lessons taught`
+                }
                 accent
               />
               {r.annualCommissionB > 0 && (
@@ -443,6 +565,26 @@ export default function YearEndReport() {
                   <span className="font-semibold text-[#1b2d4f]">{formatSGD(r.annualRevenue - r.annualCommissionB)}</span>
                 </div>
               </div>
+              <div className="mt-4 no-print">
+                <button
+                  onClick={copySummary}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  {copied ? "Summary copied" : "Copy summary for accountant"}
+                </button>
+                {fallbackText && (
+                  <div className="mt-2">
+                    <textarea
+                      readOnly
+                      value={fallbackText}
+                      rows={13}
+                      onFocus={(e) => e.target.select()}
+                      className="w-full rounded-lg border border-gray-300 p-2 font-mono text-xs"
+                    />
+                    <p className="text-xs text-gray-500">Select all and copy.</p>
+                  </div>
+                )}
+              </div>
               <p className="mt-3 text-xs text-gray-400">
                 Singapore 2-line statement for revenue ≤ $200k. Revenue = lessons taught in {r.year} at your share of each student's fee.
                 {r.annualCommissionB > 0 && ` Adjusted profit deducts ${formatSGD(r.annualCommissionB)} commission you paid to agencies.`}
@@ -458,6 +600,7 @@ export default function YearEndReport() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 text-left text-xs text-gray-500">
+                      <th className="w-6 px-2 py-2 font-medium" aria-label="Closed"></th>
                       <th className="px-4 py-2 font-medium">Month</th>
                       <th className="px-4 py-2 text-right font-medium">Lessons</th>
                       <th className="px-4 py-2 text-right font-medium">Gross fees</th>
@@ -468,23 +611,57 @@ export default function YearEndReport() {
                     </tr>
                   </thead>
                   <tbody>
-                    {r.months.map((m) => (
-                      <tr
-                        key={m.monthPrefix}
-                        className={`border-b border-gray-50 ${m.lessonCount === 0 ? "text-gray-300" : "text-gray-800"}`}
-                      >
-                        <td className="px-4 py-2">{formatMonth(m.monthDate)}</td>
-                        <td className="px-4 py-2 text-right">{m.lessonCount || "—"}</td>
-                        <td className="px-4 py-2 text-right">{m.gross > 0 ? formatSGD(m.gross) : "—"}</td>
-                        <td className="px-4 py-2 text-right">{m.agencyShare > 0 ? formatSGD(m.agencyShare) : "—"}</td>
-                        <td className="px-4 py-2 text-right font-medium">{m.revenue > 0 ? formatSGD(m.revenue) : "—"}</td>
-                        <td className="px-4 py-2 text-right">{m.collected > 0 ? formatSGD(m.collected) : "—"}</td>
-                        <td className="px-4 py-2 text-right">{m.writtenOff > 0 ? formatSGD(m.writtenOff) : "—"}</td>
-                      </tr>
-                    ))}
+                    {r.months.map((m) => {
+                      const row = m.row;
+                      const dash = (n, f = formatSGD) => (n > 0 ? f(n / 100) : "—");
+                      return (
+                        <tr
+                          key={m.monthPrefix}
+                          className={`border-b border-gray-50 ${row.lessons === 0 ? "text-gray-300" : "text-gray-800"}`}
+                        >
+                          <td className="px-2 py-2 text-center" title={row.locked ? "Closed figures" : undefined}>
+                            {row.locked ? "🔒" : ""}
+                          </td>
+                          <td className="px-4 py-2">
+                            {formatMonth(m.monthDate)}
+                            {row.state === "changed" && (
+                              <Link
+                                to={`/month-close?month=${row.monthStr}`}
+                                className="mt-0.5 block w-fit rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800"
+                              >
+                                Changed after close
+                                {row.revenueDiff !== 0 &&
+                                  ` (${row.revenueDiff > 0 ? "+" : "−"}${formatSGD(Math.abs(row.revenueDiff) / 100)} live)`}
+                              </Link>
+                            )}
+                            {row.state === "old_calc" && (
+                              <Link
+                                to={`/month-close?month=${row.monthStr}`}
+                                className="mt-0.5 block w-fit rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800"
+                              >
+                                Older calculation — review
+                              </Link>
+                            )}
+                            {row.state === "reopened" && (
+                              <span className="mt-0.5 block w-fit rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">Reopened</span>
+                            )}
+                            {row.state === "in_progress" && (
+                              <span className="mt-0.5 block w-fit rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">In progress</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-2 text-right">{row.lessons || "—"}</td>
+                          <td className="px-4 py-2 text-right">{dash(row.gross)}</td>
+                          <td className="px-4 py-2 text-right">{dash(row.agency)}</td>
+                          <td className="px-4 py-2 text-right font-medium">{dash(row.revenue)}</td>
+                          <td className="px-4 py-2 text-right">{dash(row.collected)}</td>
+                          <td className="px-4 py-2 text-right">{dash(row.writtenOff)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 border-gray-200 font-semibold text-[#1b2d4f]">
+                      <td></td>
                       <td className="px-4 py-3">Total</td>
                       <td className="px-4 py-3 text-right">{r.annualLessons}</td>
                       <td className="px-4 py-3 text-right">{formatSGD(r.annualGross)}</td>
@@ -496,6 +673,9 @@ export default function YearEndReport() {
                   </tfoot>
                 </table>
               </div>
+              <p className="border-t border-gray-100 px-5 py-2 text-xs text-gray-400">
+                🔒 = closed figures. Other months are live and can still change.
+              </p>
             </div>
 
             {/* Reconciliation */}
@@ -532,9 +712,15 @@ export default function YearEndReport() {
                 </div>
               </div>
               <p className="mt-3 text-xs text-gray-400">
-                All lines are fees as billed, before any agency share, split by the status of each lesson's notice today. Your revenue (after agency share) is shown above, not here.
+                {r.readiness.changed.length > 0 && "Gross fees above are the closed figures; the lines below use live records, so they may not add up until you review the changed months. "}All lines are fees as billed, before any agency share, split by the status of each lesson's notice today. Your revenue (after agency share) is shown above, not here.
               </p>
             </div>
+
+            {r.readiness.changed.length > 0 && (
+              <p className="text-xs text-amber-700">
+                Record cards show live records and may differ from closed months until you review them.
+              </p>
+            )}
 
             {/* Per-student record cards */}
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
