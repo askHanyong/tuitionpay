@@ -1,29 +1,92 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import AppShell from "../components/AppShell";
+import Confetti from "../components/Confetti";
+import MonthCloseChecklist from "../components/MonthCloseChecklist";
+import ReopenMonthModal from "../components/ReopenMonthModal";
 import { useAuth } from "../contexts/AuthContext";
+import { useToast } from "../contexts/ToastContext";
 import { formatSGD } from "../lib/paymentNotice";
 import { loadMonthCloseData } from "../lib/monthCloseData";
 import {
-  CHECKLIST_TYPES,
+  AFTER_SAVE_MISMATCH_MESSAGE,
+  buildCarriedEntries,
   buildChecklist,
   buildMonthSnapshot,
   canCloseMonth,
+  carriedKeySet,
+  carryKey,
+  checkSnapshot,
+  closedCardSentence,
+  dayLabel,
+  findEarlierUnclosedMonth,
   isMonthStr,
+  mapCloseError,
+  mapReopenError,
   monthLabel,
   monthName,
   monthShort,
+  pendingIsCarried,
   pickDefaultMonth,
+  pruneDraft,
+  sameTotals,
   sgtDateKey,
   sgtStamp,
   sgtTodayKey,
   shiftMonth,
+  unresolvedItems,
+  BAD_SNAPSHOT_MESSAGE,
+  STALE_PAGE_MESSAGE,
 } from "../lib/monthClose";
+import {
+  billStudentNow,
+  clearDraft,
+  closeMonthRpc,
+  deleteLessonWithCalendar,
+  fetchUnbilledLessons,
+  markLessonDone,
+  markNoticePaid,
+  readCloseRow,
+  readDraft,
+  reopenMonthRpc,
+  sumLessons,
+  writeDraft,
+  writeOffNotice,
+} from "../lib/monthCloseActions";
 
 const usd = (c) => formatSGD(c / 100);
-const SHOW_LIMIT = 5;
 const AGENCY_COLORS = ["#1b2d4f", "#3d5a8c", "#7c93bd", "#aab9d3"];
 const monthOfDate = (d) => String(d ?? "").slice(0, 7);
+
+function computeView(data) {
+  const { monthStr } = data;
+  const snap = buildMonthSnapshot({
+    monthStr,
+    students: data.students,
+    payees: data.payees,
+    lessons: data.lessons,
+    cycles: data.cycles,
+    statements: data.statements,
+    carried: [],
+    takenAt: data.loadedAt,
+  });
+  const items = buildChecklist({
+    monthStr,
+    students: data.students,
+    payees: data.payees,
+    lessons: data.lessons,
+    cycles: data.cycles,
+    statements: data.statements,
+    closes: data.closes,
+    upcomingStudentIds: data.upcomingStudentIds,
+    snapshot: snap,
+  });
+  const realIds = new Set(data.students.filter((s) => !s.is_practice).map((s) => s.id));
+  const noticeCount = data.cycles.filter(
+    (c) => realIds.has(c.student_id) && monthOfDate(c.period_end) === monthStr,
+  ).length;
+  return { snap, items, noticeCount };
+}
 
 function Tile({ label, value, tone }) {
   return (
@@ -31,59 +94,6 @@ function Tile({ label, value, tone }) {
       <p className={`text-xl font-semibold ${tone ?? "text-gray-900"}`}>{value}</p>
       <p className="mt-1 text-xs font-medium text-gray-600">{label}</p>
     </div>
-  );
-}
-
-function Chip({ children, tone = "gray" }) {
-  const tones = {
-    gray: "bg-gray-100 text-gray-600",
-    red: "bg-red-100 text-red-700",
-    amber: "bg-amber-100 text-amber-800",
-  };
-  return (
-    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${tones[tone]}`}>
-      {children}
-    </span>
-  );
-}
-
-function DoneRow({ children }) {
-  return (
-    <li className="flex items-start gap-3 py-2">
-      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#5ecfaa] text-xs font-bold text-[#1b2d4f]">
-        ✓
-      </span>
-      <span className="text-sm text-gray-700">{children}</span>
-    </li>
-  );
-}
-
-function OpenRow({ item }) {
-  return (
-    <li className="flex items-start gap-3 py-2">
-      <span className="mt-0.5 h-5 w-5 shrink-0 rounded-full border-2 border-amber-500 bg-white" />
-      <div className="min-w-0 flex-1">
-        <p className="text-sm text-gray-900">{item.label}</p>
-        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          {item.tag && <Chip tone={item.tag === "Overdue" ? "red" : item.tag === "Pending" ? "amber" : "gray"}>{item.tag}</Chip>}
-          {item.chip && <Chip>{item.chip}</Chip>}
-          {item.deleted ? <Chip tone="red">Deleted</Chip> : item.archived ? <Chip>Archived</Chip> : null}
-          {item.type === "statement" && (
-            <Link
-              to={`/statements?payee=${item.payee_id}&month=${item.origin_month}`}
-              className="text-xs font-medium text-[#0f7a58] hover:underline"
-            >
-              Open statement →
-            </Link>
-          )}
-          {item.type === "zero_rate_lesson" && (
-            <Link to="/lessons" className="text-xs font-medium text-[#0f7a58] hover:underline">
-              Fix in Lessons →
-            </Link>
-          )}
-        </div>
-      </div>
-    </li>
   );
 }
 
@@ -179,73 +189,9 @@ function WhoEarnsWhat({ snap, monthStr }) {
   );
 }
 
-function Checklist({ snap, items, monthStr, noticeCount }) {
-  const [expanded, setExpanded] = useState({});
-  const mName = monthName(monthStr);
-  const t = snap.totals;
-  const rowsOf = (type) => items.filter((i) => i.type === type);
-
-  const group = (type, doneLines) => {
-    const rows = rowsOf(type);
-    const shown = expanded[type] ? rows : rows.slice(0, SHOW_LIMIT);
-    return (
-      <>
-        {rows.length === 0 ? doneLines : null}
-        {shown.map((it) => (
-          <OpenRow key={it.key} item={it} />
-        ))}
-        {rows.length > SHOW_LIMIT && !expanded[type] && (
-          <li className="py-1 pl-8">
-            <button
-              type="button"
-              onClick={() => setExpanded((e) => ({ ...e, [type]: true }))}
-              className="text-xs font-medium text-[#0f7a58] hover:underline"
-            >
-              Show {rows.length - SHOW_LIMIT} more
-            </button>
-          </li>
-        )}
-      </>
-    );
-  };
-
-  const sentStatements = snap.statements.filter((s) => s.status !== "none");
-  const statementRows = rowsOf("statement");
-
-  return (
-    <section className="mt-4 rounded-xl border border-[#b8e8d9] bg-white p-4">
-      <h2 className="mb-1 text-sm font-semibold text-gray-900">Before you close</h2>
-      <ul className="divide-y divide-gray-100">
-        {group(
-          CHECKLIST_TYPES[0],
-          <DoneRow>{t.lessons > 0 ? `All ${t.lessons} lessons marked done` : "No lessons to mark done"}</DoneRow>,
-        )}
-        {group(CHECKLIST_TYPES[1], null)}
-        {group(
-          CHECKLIST_TYPES[2],
-          <DoneRow>
-            {noticeCount > 0 ? `Every ${mName} notice is paid` : `No payment notices for ${mName}`}
-          </DoneRow>,
-        )}
-        {group(CHECKLIST_TYPES[3], <DoneRow>Every completed lesson is billed</DoneRow>)}
-        {sentStatements.map((s) => (
-          <DoneRow key={s.payee_id}>
-            {s.name} statement sent{s.claimed_total_cents != null ? `, ${usd(s.claimed_total_cents)}` : ""}
-          </DoneRow>
-        ))}
-        {statementRows.length > 0 && group(CHECKLIST_TYPES[4], null)}
-        <DoneRow>
-          {t.cash_written_off_cents > 0
-            ? `Written off in ${mName}: ${usd(t.cash_written_off_cents)}`
-            : "Nothing to write off"}
-        </DoneRow>
-      </ul>
-    </section>
-  );
-}
-
 export default function MonthClose() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const tutorId = user?.id;
   const isPractitioner = user?.user_metadata?.user_type === "practitioner";
   const [searchParams, setSearchParams] = useSearchParams();
@@ -262,6 +208,31 @@ export default function MonthClose() {
   const [reloadKey, setReloadKey] = useState(0);
   const loadedMonthRef = useRef(null);
 
+  const [draft, setDraft] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const [closeError, setCloseError] = useState(null);
+  const [justClosed, setJustClosed] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [reopenError, setReopenError] = useState(null);
+
+  // Show fresh data and keep the carry draft in step with it: entries whose item
+  // no longer exists are dropped (6.5).
+  const applyFresh = useCallback(
+    (d, currentDraft) => {
+      const withStamp = { ...d, loadedAt: sgtStamp() };
+      const v = computeView(withStamp);
+      const pruned = pruneDraft(currentDraft, v.items);
+      if (pruned.length) writeDraft(tutorId, d.monthStr, pruned);
+      else clearDraft(tutorId, d.monthStr);
+      setDraft(pruned);
+      setData(withStamp);
+      return { view: v, pruned, data: withStamp };
+    },
+    [tutorId],
+  );
+
   useEffect(() => {
     if (!tutorId || isPractitioner) return;
     if (requested && loadedMonthRef.current === requested) return;
@@ -269,6 +240,9 @@ export default function MonthClose() {
     (async () => {
       setPhase("loading");
       setError(null);
+      setActionError(null);
+      setCloseError(null);
+      setJustClosed(false);
       try {
         let target = requested ?? shiftMonth(sgtTodayKey().slice(0, 7), -1);
         let d = await loadMonthCloseData(tutorId, target);
@@ -287,7 +261,7 @@ export default function MonthClose() {
         }
         if (cancelled) return;
         loadedMonthRef.current = target;
-        setData({ ...d, loadedAt: sgtStamp() });
+        applyFresh(d, readDraft(tutorId, target));
         setPhase("ready");
         if (!requested) setSearchParams({ month: target }, { replace: true });
       } catch (e) {
@@ -300,43 +274,40 @@ export default function MonthClose() {
     return () => {
       cancelled = true;
     };
-  }, [tutorId, isPractitioner, requested, reloadKey, setSearchParams]);
+  }, [tutorId, isPractitioner, requested, reloadKey, setSearchParams, applyFresh]);
 
-  const view = useMemo(() => {
-    if (!data) return null;
-    const { monthStr } = data;
-    const snap = buildMonthSnapshot({
-      monthStr,
-      students: data.students,
-      payees: data.payees,
-      lessons: data.lessons,
-      cycles: data.cycles,
-      statements: data.statements,
-      carried: [],
-      takenAt: data.loadedAt,
-    });
-    const items = buildChecklist({
-      monthStr,
-      students: data.students,
-      payees: data.payees,
-      lessons: data.lessons,
-      cycles: data.cycles,
-      statements: data.statements,
-      closes: data.closes,
-      upcomingStudentIds: data.upcomingStudentIds,
-      snapshot: snap,
-    });
-    const realIds = new Set(data.students.filter((s) => !s.is_practice).map((s) => s.id));
-    const noticeCount = data.cycles.filter(
-      (c) => realIds.has(c.student_id) && monthOfDate(c.period_end) === monthStr,
-    ).length;
-    return { snap, items, noticeCount };
-  }, [data]);
+  const view = useMemo(() => (data ? computeView(data) : null), [data]);
+  const clearConfetti = useCallback(() => setJustClosed(false), []);
 
   const goToMonth = (m) => setSearchParams({ month: m });
   const tryAgain = () => {
     loadedMonthRef.current = null;
     setReloadKey((k) => k + 1);
+  };
+
+  const refresh = async (useDraft = draft) => {
+    const d = await loadMonthCloseData(tutorId, data.monthStr);
+    return applyFresh(d, useDraft);
+  };
+
+  // Runs one checklist action: no double submits, visible error, reload after.
+  // The action returns false when the tutor cancelled a confirm (nothing happens).
+  const runAction = async (fn) => {
+    if (busy) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      const result = await fn();
+      if (result === false) return;
+      await refresh();
+    } catch (e) {
+      console.error("[MonthClose] action failed", e);
+      const message = e?.message ?? "Something went wrong.";
+      setActionError(message);
+      showToast(message, "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (isPractitioner) {
@@ -381,28 +352,254 @@ export default function MonthClose() {
     );
   }
 
-  const { snap, items, noticeCount } = view;
+  const { snap: liveSnap, items, noticeCount } = view;
   const monthStr = data.monthStr;
-  const t = snap.totals;
+  const mName = monthName(monthStr);
+  const nextName = monthName(shiftMonth(monthStr, 1));
   const over = canCloseMonth(monthStr, data.todayKey);
+  const closeRow = data.closes.find((c) => monthOfDate(c.month) === monthStr) ?? null;
+  // State comes ONLY from month_closes.status (never from reopened_at / reopen_reason,
+  // which stay set after a reopened month is closed again).
+  const isClosed = closeRow?.status === "closed";
+  const isReopened = closeRow?.status === "reopened";
+  const snap = isClosed ? closeRow.snapshot : liveSnap;
+  const t = snap.totals;
+  const unresolved = unresolvedItems(items, draft);
+  const openCount = unresolved.length;
+  const carriedKeys = carriedKeySet(draft);
+  const previousClose = data.closes.find(
+    (c) => monthOfDate(c.month) === shiftMonth(monthStr, -1) && c.status === "closed",
+  );
+  const earlierUnclosed =
+    isClosed || !over
+      ? null
+      : findEarlierUnclosedMonth({
+          todayKey: data.todayKey,
+          monthStr,
+          students: data.students,
+          lessons: data.lessons,
+          cycles: data.cycles,
+          closes: data.closes,
+        });
   const nothing =
+    !isClosed &&
     over &&
     items.length === 0 &&
     t.lessons === 0 &&
     noticeCount === 0 &&
     t.cash_collected_cents === 0 &&
     t.cash_written_off_cents === 0;
-  const closeRow = data.closes.find((c) => monthOfDate(c.month) === monthStr);
-  const intro = !over
-    ? `Preview. You can close ${monthName(monthStr)} from 1 ${monthShort(shiftMonth(monthStr, 1))}.`
-    : items.length === 0
-      ? "Everything is in order. Ready when you are."
-      : items.length === 1
-        ? "One thing left to decide, then you can close the month."
-        : `${items.length} things left to decide, then you can close the month.`;
+  const pendingCarried = pendingIsCarried({
+    monthStr,
+    items,
+    draft,
+    closed: isClosed,
+    pendingCents: t.notices_pending_cents,
+  });
+
+  const intro = isClosed
+    ? `Closed on ${dayLabel(sgtDateKey(closeRow.closed_at), monthStr)}. Figures are locked.`
+    : !over
+      ? `Preview. You can close ${mName} from 1 ${monthShort(shiftMonth(monthStr, 1))}.`
+      : openCount === 0
+        ? "Everything is in order. Ready when you are."
+        : openCount === 1
+          ? "One thing left to decide, then you can close the month."
+          : `${openCount} things left to decide, then you can close the month.`;
+
+  // ── Carry (draft in state + localStorage) ──
+  const commitDraft = (next) => {
+    setDraft(next);
+    if (next.length) writeDraft(tutorId, monthStr, next);
+    else clearDraft(tutorId, monthStr);
+  };
+  const toEntry = (it) => ({ type: it.type, ref_id: it.ref_id, origin_month: it.origin_month });
+  const onCarry = (it) => commitDraft(pruneDraft([...draft, toEntry(it)], items));
+  const onUncarry = (it) => commitDraft(draft.filter((d) => carryKey(d) !== carryKey(it)));
+  const onCarryAll = () => commitDraft(pruneDraft([...draft, ...unresolved.map(toEntry)], items));
+
+  // ── Checklist actions (same calls as Payments / Dashboard / Lessons) ──
+  const onMarkDone = (it) =>
+    runAction(async () => {
+      await markLessonDone(tutorId, it.ref_id);
+      showToast("Lesson marked done ✓");
+    });
+
+  const onDeleteLesson = (it) =>
+    runAction(async () => {
+      if (!window.confirm(`Delete this lesson on ${dayLabel(it.date, monthStr)}? It won't be counted or billed.`)) {
+        return false;
+      }
+      await deleteLessonWithCalendar(tutorId, it.ref_id);
+      showToast("Lesson deleted.");
+    });
+
+  const onMarkPaid = (it) =>
+    runAction(async () => {
+      await markNoticePaid(tutorId, it.ref_id);
+      showToast("Marked as paid.");
+    });
+
+  const onWriteOff = (it) =>
+    runAction(async () => {
+      const cycle = data.cycles.find((c) => c.id === it.ref_id);
+      if (!cycle) throw new Error("That notice no longer exists. Please reload.");
+      if (
+        !window.confirm(
+          `Write off ${usd(it.amount_cents)} from ${it.student}? This removes it from Pending. It won't count as Collected.`,
+        )
+      ) {
+        return false;
+      }
+      await writeOffNotice(tutorId, cycle);
+      showToast("Written off.");
+    });
+
+  const onBillNow = (it) =>
+    runAction(async () => {
+      const student = data.students.find((s) => s.id === it.ref_id);
+      if (!student) throw new Error("That student no longer exists. Please reload.");
+      // Bill now bills ALL of the student's unbilled completed lessons, including
+      // ones dated after this month, so count them all for the confirm.
+      const unbilled = await fetchUnbilledLessons(tutorId, student.id);
+      if (unbilled.length === 0) throw new Error("There are no unbilled lessons for this student any more.");
+      const afterMonth = unbilled.filter((l) => monthOfDate(l.lesson_date) > monthStr).length;
+      const n = unbilled.length;
+      const text =
+        `Bill ${student.name} now? This creates one notice for ${n === 1 ? "the" : "all"} ${n} unbilled ` +
+        `${n === 1 ? "lesson" : "lessons"} (${formatSGD(sumLessons(unbilled, student))}).` +
+        (afterMonth > 0 ? ` ${afterMonth} of them ${afterMonth === 1 ? "is" : "are"} dated after ${mName}.` : "");
+      if (!window.confirm(text)) return false;
+      await billStudentNow(student.id);
+      showToast("Billed. A payment notice was created.");
+    });
+
+  // ── Close (6.13, 4.9, 6.2 "After saving") ──
+  const handleClose = async () => {
+    if (busy || closing || !tutorId) return;
+    setClosing(true);
+    setBusy(true);
+    setCloseError(null);
+    setActionError(null);
+    try {
+      // Reload everything, rebuild the checklist and snapshot from fresh data.
+      const fresh = await loadMonthCloseData(tutorId, monthStr);
+      const { view: v, pruned, data: freshData } = applyFresh(fresh, draft);
+      const freshRow = fresh.closes.find((c) => monthOfDate(c.month) === monthStr);
+      if (freshRow?.status === "closed") return; // closed elsewhere: treat as success
+      if (!canCloseMonth(monthStr, fresh.todayKey)) {
+        setCloseError(mapCloseError("MONTH_NOT_OVER", monthStr).text);
+        return;
+      }
+      if (unresolvedItems(v.items, pruned).length > 0) {
+        setCloseError(STALE_PAGE_MESSAGE);
+        return;
+      }
+      const snapshot = buildMonthSnapshot({
+        monthStr,
+        students: freshData.students,
+        payees: freshData.payees,
+        lessons: freshData.lessons,
+        cycles: freshData.cycles,
+        statements: freshData.statements,
+        carried: buildCarriedEntries(v.items, pruned),
+        takenAt: sgtStamp(),
+      });
+      const failed = checkSnapshot(snapshot);
+      if (failed.length > 0) {
+        console.error("[MonthClose] snapshot self-check failed; month not closed", failed);
+        setCloseError(BAD_SNAPSHOT_MESSAGE);
+        return;
+      }
+
+      let alreadyClosed = false;
+      try {
+        await closeMonthRpc(monthStr, snapshot);
+      } catch (e) {
+        const mapped = mapCloseError(e?.message, monthStr);
+        if (mapped.kind !== "already") {
+          setCloseError(mapped.text);
+          return;
+        }
+        alreadyClosed = true;
+      }
+
+      if (!alreadyClosed) {
+        clearDraft(tutorId, monthStr);
+        setDraft([]);
+        // Re-read the row and compare the saved totals with what was sent.
+        let mismatch = false;
+        try {
+          const stored = await readCloseRow(tutorId, monthStr);
+          mismatch = !sameTotals(stored?.snapshot?.totals, snapshot.totals);
+          if (mismatch) console.error("[MonthClose] saved totals differ from the snapshot sent", stored?.snapshot?.totals, snapshot.totals);
+        } catch (e) {
+          console.error("[MonthClose] could not re-read the closed row", e);
+          mismatch = true;
+        }
+        if (mismatch) setCloseError(AFTER_SAVE_MISMATCH_MESSAGE);
+        else setJustClosed(true);
+        showToast(`${mName} closed.`);
+      }
+      await refresh([]); // the draft was just removed; do not bring it back
+    } catch (e) {
+      console.error("[MonthClose] close failed", e);
+      setCloseError(mapCloseError(e?.message, monthStr).text);
+    } finally {
+      setClosing(false);
+      setBusy(false);
+    }
+  };
+
+  // ── Reopen ──
+  const handleReopen = async (reason) => {
+    if (busy) return;
+    setBusy(true);
+    setReopenError(null);
+    try {
+      await reopenMonthRpc(monthStr, reason);
+    } catch (e) {
+      const mapped = mapReopenError(e?.message, monthStr);
+      if (mapped.kind === "not_closed") {
+        setReopenOpen(false);
+        try {
+          await refresh();
+        } catch (e2) {
+          setActionError(e2?.message ?? "Couldn't refresh the page.");
+        }
+      } else {
+        setReopenError(mapped.text);
+      }
+      setBusy(false);
+      return;
+    }
+    setReopenOpen(false);
+    setJustClosed(false);
+    setCloseError(null);
+    try {
+      await refresh([]);
+      showToast(`${mName} reopened.`);
+    } catch (e) {
+      setActionError(`Reopened, but the page couldn't refresh: ${e?.message ?? "unknown error"}. Please reload.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const closeLabel = closing
+    ? "Closing…"
+    : !over
+      ? `You can close ${mName} from 1 ${monthShort(shiftMonth(monthStr, 1))}`
+      : openCount > 0
+        ? `Resolve ${openCount} item${openCount === 1 ? "" : "s"} to close`
+        : isReopened
+          ? `Close ${mName} again`
+          : `Close ${mName}`;
+  const canClose = over && openCount === 0 && !busy && !closing;
 
   return (
     <AppShell>
+      {justClosed && <Confetti onDone={clearConfetti} />}
       <div className="mx-auto max-w-lg px-4 py-6">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -428,19 +625,69 @@ export default function MonthClose() {
           </div>
         </div>
 
+        {actionError && (isClosed || nothing) && (
+          <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {actionError}
+          </p>
+        )}
+
         {nothing ? (
           <div className="mt-4 rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-600">
             Nothing happened in {monthLabel(monthStr)} — no lessons, no payments. Nothing to close.
           </div>
         ) : (
           <>
-            <p className="mt-1 text-sm text-gray-600">{intro}</p>
+            {isClosed && (
+              <section
+                className={`mt-4 rounded-xl border border-[#b8e8d9] bg-[#edf6f3] p-4 ${justClosed ? "cnp-pop" : ""}`}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1b2d4f] text-base font-bold text-white">
+                    ✓
+                  </span>
+                  <div>
+                    <h2 className="text-base font-semibold text-[#1b2d4f]">{mName} closed</h2>
+                    <p className="mt-0.5 text-sm text-gray-700">
+                      {closedCardSentence({
+                        monthStr,
+                        snapshot: closeRow.snapshot,
+                        previousSnapshot: previousClose?.snapshot,
+                      })}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReopenError(null);
+                        setReopenOpen(true);
+                      }}
+                      disabled={busy}
+                      className="mt-2 text-sm font-medium text-[#1b2d4f] underline disabled:opacity-50"
+                    >
+                      Reopen {mName}
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
 
-            {closeRow && (
+            {isReopened && (
+              <section className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <p>
+                  Reopened on {dayLabel(sgtDateKey(closeRow.reopened_at), monthStr)}
+                  {closeRow.reopen_reason ? ` — '${closeRow.reopen_reason}'` : ""}. Last closed figures are kept
+                  below for comparison.
+                </p>
+              </section>
+            )}
+
+            <p className="mt-3 text-sm text-gray-600">{intro}</p>
+
+            {earlierUnclosed && (
               <p className="mt-2 rounded-md bg-gray-100 px-3 py-2 text-xs text-gray-600">
-                {closeRow.status === "closed"
-                  ? `Closed on ${sgtDateKey(closeRow.closed_at)}. The closed view comes in the next update; these are live figures.`
-                  : `Reopened. These are live figures.`}
+                {monthName(earlierUnclosed)} isn&apos;t closed yet. Closing oldest first keeps carried items tidy.{" "}
+                <Link to={`/month-close?month=${earlierUnclosed}`} className="font-medium text-[#0f7a58] underline">
+                  Go to {monthName(earlierUnclosed)}
+                </Link>
               </p>
             )}
 
@@ -448,27 +695,101 @@ export default function MonthClose() {
               <Tile label="Lessons taught" value={t.lessons} />
               <Tile label="My take-home" value={usd(t.mine_cents)} tone="text-[#0f7a58]" />
               <Tile label="Collected" value={usd(t.notices_paid_cents)} />
-              <Tile label="Pending" value={usd(t.notices_pending_cents)} tone="text-amber-700" />
+              <Tile
+                label={pendingCarried ? "Pending, carried" : "Pending"}
+                value={usd(t.notices_pending_cents)}
+                tone="text-amber-700"
+              />
             </div>
             <p className="mt-2 text-xs text-gray-500">
-              Cash received in {monthName(monthStr)} (any month&apos;s notices): {usd(t.cash_collected_cents)} ·
-              Written off in {monthName(monthStr)}: {usd(t.cash_written_off_cents)}
+              Cash received in {mName} (any month&apos;s notices): {usd(t.cash_collected_cents)} · Written off in{" "}
+              {mName}: {usd(t.cash_written_off_cents)}
             </p>
 
             <WhoEarnsWhat snap={snap} monthStr={monthStr} />
-            <Checklist snap={snap} items={items} monthStr={monthStr} noticeCount={noticeCount} />
 
-            <button
-              disabled
-              className="mt-5 min-h-11 w-full cursor-not-allowed rounded-md bg-gray-200 px-4 text-sm font-medium text-gray-500"
-            >
-              {over
-                ? "Closing comes in the next update"
-                : `You can close ${monthName(monthStr)} from 1 ${monthShort(shiftMonth(monthStr, 1))}`}
-            </button>
+            {isClosed ? (
+              closeRow.snapshot.carried?.length > 0 && (
+                <section className="mt-4 rounded-xl border border-[#b8e8d9] bg-white p-4">
+                  <h2 className="mb-1 text-sm font-semibold text-gray-900">Carried into {nextName}</h2>
+                  <ul className="divide-y divide-gray-100">
+                    {closeRow.snapshot.carried.map((c) => (
+                      <li key={`${c.type}:${c.ref_id}:${c.origin_month}`} className="py-2 text-sm text-gray-700">
+                        {c.label}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )
+            ) : (
+              <MonthCloseChecklist
+                snap={liveSnap}
+                items={items}
+                monthStr={monthStr}
+                noticeCount={noticeCount}
+                carriedKeys={carriedKeys}
+                busy={busy}
+                actionError={actionError}
+                onCarry={onCarry}
+                onUncarry={onUncarry}
+                onCarryAll={onCarryAll}
+                onMarkDone={onMarkDone}
+                onDeleteLesson={onDeleteLesson}
+                onMarkPaid={onMarkPaid}
+                onWriteOff={onWriteOff}
+                onBillNow={onBillNow}
+              />
+            )}
+
+            {isReopened && closeRow.snapshot?.totals && (
+              <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+                <h2 className="mb-2 text-sm font-semibold text-gray-900">Last closed figures</h2>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-700">
+                  <span>Lessons taught</span>
+                  <span className="text-right font-medium">{closeRow.snapshot.totals.lessons}</span>
+                  <span>Total billed</span>
+                  <span className="text-right font-medium">{usd(closeRow.snapshot.totals.gross_cents)}</span>
+                  <span>Agencies earn</span>
+                  <span className="text-right font-medium">{usd(closeRow.snapshot.totals.agency_cents)}</span>
+                  <span>My take-home</span>
+                  <span className="text-right font-medium">{usd(closeRow.snapshot.totals.mine_cents)}</span>
+                </div>
+              </section>
+            )}
+
+            {closeError && (
+              <p role="alert" className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {closeError}
+              </p>
+            )}
+
+            {!isClosed && (
+              <button
+                type="button"
+                onClick={handleClose}
+                disabled={!canClose}
+                className={`mt-5 min-h-11 w-full rounded-md px-4 text-sm font-medium transition ${
+                  canClose
+                    ? "bg-[#5ecfaa] text-[#1b2d4f] hover:brightness-95"
+                    : "cursor-not-allowed bg-gray-200 text-gray-500"
+                }`}
+              >
+                {closeLabel}
+              </button>
+            )}
           </>
         )}
       </div>
+
+      {reopenOpen && (
+        <ReopenMonthModal
+          monthName={mName}
+          busy={busy}
+          error={reopenError}
+          onCancel={() => setReopenOpen(false)}
+          onConfirm={handleReopen}
+        />
+      )}
     </AppShell>
   );
 }

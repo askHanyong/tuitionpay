@@ -8,7 +8,7 @@ import { monthBounds, sgtTodayKey } from "./monthClose";
 
 const PAGE_SIZE = 900;
 
-async function fetchPaged(makeQuery) {
+export async function fetchPaged(makeQuery) {
   const rows = [];
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await makeQuery().range(from, from + PAGE_SIZE - 1);

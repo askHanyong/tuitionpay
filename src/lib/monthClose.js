@@ -94,10 +94,9 @@ export function dayLabel(dateStr, relativeTo) {
 }
 
 // ── 4.1 Default month ────────────────────────────────────────────────────────
-// Oldest month in the previous 12 that had activity and is not closed; if none,
-// the previous month. "Closed" means status 'closed' (a reopened month is open).
-export function pickDefaultMonth({ todayKey, students, lessons, cycles, closes }) {
-  const prev = shiftMonth(todayKey.slice(0, 7), -1);
+// Months in which anything happened for a real (non-practice) student: a completed
+// lesson, a notice with period_end in it, or a payment / write-off (Singapore date).
+export function activityMonths({ students, lessons, cycles }) {
   const real = new Set(students.filter((s) => !s.is_practice).map((s) => s.id));
   const active = new Set();
   for (const l of lessons) {
@@ -109,14 +108,37 @@ export function pickDefaultMonth({ todayKey, students, lessons, cycles, closes }
     if (c.status === "paid" && c.paid_at) active.add(sgtMonthKey(c.paid_at));
     if (c.status === "waived" && c.waived_at) active.add(sgtMonthKey(c.waived_at));
   }
-  const closed = new Set(
-    closes.filter((c) => c.status === "closed").map((c) => monthOf(c.month)),
-  );
+  return active;
+}
+
+const closedMonthSet = (closes) =>
+  new Set(closes.filter((c) => c.status === "closed").map((c) => monthOf(c.month)));
+
+// Oldest month in the previous 12 that had activity and is not closed; if none,
+// the previous month. "Closed" means status 'closed' (a reopened month is open).
+export function pickDefaultMonth({ todayKey, students, lessons, cycles, closes }) {
+  const prev = shiftMonth(todayKey.slice(0, 7), -1);
+  const active = activityMonths({ students, lessons, cycles });
+  const closed = closedMonthSet(closes);
   for (let i = 11; i >= 0; i--) {
     const m = shiftMonth(prev, -i);
     if (active.has(m) && !closed.has(m)) return m;
   }
   return prev;
+}
+
+// 6.9: the oldest earlier month (within the previous 12) that had activity and is
+// not closed, or null. Only a gentle hint, never blocking.
+export function findEarlierUnclosedMonth({ todayKey, monthStr, students, lessons, cycles, closes }) {
+  const prev = shiftMonth(todayKey.slice(0, 7), -1);
+  const active = activityMonths({ students, lessons, cycles });
+  const closed = closedMonthSet(closes);
+  for (let i = 11; i >= 0; i--) {
+    const m = shiftMonth(prev, -i);
+    if (m >= monthStr) break;
+    if (active.has(m) && !closed.has(m)) return m;
+  }
+  return null;
 }
 
 // ── 6.2 Snapshot ─────────────────────────────────────────────────────────────
@@ -540,4 +562,118 @@ export function buildChecklist({
       a.label.localeCompare(b.label),
   );
   return items;
+}
+
+// ── 6.5 Carry forward ────────────────────────────────────────────────────────
+// A carry is identified by type + ref_id. Statements also need the month, since
+// the same agency can have a statement open for more than one month.
+export const carryKey = (x) =>
+  x.type === "statement" ? `${x.type}:${x.ref_id}:${x.origin_month}` : `${x.type}:${x.ref_id}`;
+
+// Drop draft entries whose item no longer exists (resolved, or re-created with a
+// new id). Never invents entries and removes duplicates.
+export function pruneDraft(draft, items) {
+  const live = new Set(items.map(carryKey));
+  const seen = new Set();
+  const out = [];
+  for (const d of draft ?? []) {
+    if (!d || typeof d.type !== "string" || !d.ref_id) continue;
+    const k = carryKey(d);
+    if (!live.has(k) || seen.has(k)) continue;
+    seen.add(k);
+    out.push({ type: d.type, ref_id: d.ref_id, origin_month: d.origin_month ?? null });
+  }
+  return out;
+}
+
+export const carriedKeySet = (draft) => new Set((draft ?? []).map(carryKey));
+export const unresolvedItems = (items, draft) => {
+  const carried = carriedKeySet(draft);
+  return items.filter((it) => !carried.has(carryKey(it)));
+};
+
+// The entries stored in snapshot.carried at close (5.7).
+export const buildCarriedEntries = (items, draft) => {
+  const carried = carriedKeySet(draft);
+  return items
+    .filter((it) => carried.has(carryKey(it)))
+    .map((it) => ({
+      type: it.type,
+      ref_id: it.ref_id,
+      student_id: it.student_id ?? null,
+      label: it.label,
+      amount_cents: it.amount_cents,
+      origin_month: it.origin_month,
+    }));
+};
+
+// ── 4.3 "Pending, carried" ───────────────────────────────────────────────────
+// True when there is pending money in the month and every such notice is carried
+// (or the month is closed, which required every one to be settled or carried).
+export function pendingIsCarried({ monthStr, items, draft, closed, pendingCents }) {
+  if (pendingCents <= 0) return false;
+  if (closed) return true;
+  const carried = carriedKeySet(draft);
+  const mine = items.filter((it) => it.type === "unpaid_notice" && it.origin_month === monthStr);
+  return mine.length > 0 && mine.every((it) => carried.has(carryKey(it)));
+}
+
+// ── 4.9 Error messages ───────────────────────────────────────────────────────
+export const BAD_SNAPSHOT_MESSAGE =
+  "Something didn't add up, so the month was not closed. Please reload and try again.";
+export const STALE_PAGE_MESSAGE =
+  "Something changed since you opened this page. Please check the list again.";
+export const AFTER_SAVE_MISMATCH_MESSAGE =
+  "The month is closed, but the saved figures didn't match what was sent. Please reopen it and close it again.";
+
+// kind: 'already' (treat as success) | 'message'
+export function mapCloseError(message, monthStr) {
+  const m = String(message ?? "");
+  const name = monthName(monthStr);
+  if (m.includes("MONTH_ALREADY_CLOSED")) return { kind: "already", text: "" };
+  if (m.includes("MONTH_NOT_OVER")) {
+    return {
+      kind: "message",
+      text: `${name} isn't over yet (Singapore time). Try again from 1 ${monthShort(shiftMonth(monthStr, 1))}.`,
+    };
+  }
+  if (m.includes("BAD_SNAPSHOT")) return { kind: "message", text: BAD_SNAPSHOT_MESSAGE };
+  return { kind: "message", text: `Couldn't close ${name}: ${m || "unknown error"}. Nothing was changed.` };
+}
+
+// kind: 'reason' (stay in the modal) | 'not_closed' (reload) | 'message'
+export function mapReopenError(message, monthStr) {
+  const m = String(message ?? "");
+  if (m.includes("REASON_REQUIRED")) return { kind: "reason", text: "Please add a short reason." };
+  if (m.includes("MONTH_NOT_CLOSED")) return { kind: "not_closed", text: "" };
+  return {
+    kind: "message",
+    text: `Couldn't reopen ${monthName(monthStr)}: ${m || "unknown error"}. Nothing was changed.`,
+  };
+}
+
+// Compare the totals sent with the totals read back (jsonb does not keep key order).
+export function sameTotals(a, b) {
+  if (!a || !b) return false;
+  const ka = Object.keys(a).sort();
+  const kb = Object.keys(b).sort();
+  if (ka.length !== kb.length || ka.some((k, i) => k !== kb[i])) return false;
+  return ka.every((k) => Number(a[k]) === Number(b[k]));
+}
+
+// ── 3.2 Closed card sentence ─────────────────────────────────────────────────
+// The comparison with the previous month is only given when that month is closed.
+export function closedCardSentence({ monthStr, snapshot, previousSnapshot }) {
+  const mine = snapshot.totals.mine_cents;
+  const money = (c) => formatSGD(Math.abs(c) / 100);
+  let text = `${money(mine)} take-home, locked.`;
+  if (previousSnapshot?.totals) {
+    const diff = mine - previousSnapshot.totals.mine_cents;
+    const prevName = monthName(shiftMonth(monthStr, -1));
+    text +=
+      diff === 0
+        ? ` That is the same as ${prevName}.`
+        : ` That is ${money(diff)} ${diff > 0 ? "more" : "less"} than ${prevName}.`;
+  }
+  return text;
 }
