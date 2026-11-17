@@ -13,6 +13,7 @@ import {
   formatDayMonth,
 } from "../utils/dateFormat";
 import { lessonAmount } from "../lib/paymentMode";
+import { excludePractice } from "../lib/practice";
 import {
   buildPaidReceiptMessage,
   buildPaymentRequestMessage,
@@ -63,8 +64,10 @@ export default function Payments() {
     if (companiesData) setPractitionerCompanies(companiesData);
     if (error) setError(error.message);
     // All cycles (including archived/deleted students) are kept so they
-    // can be written off from the Payments page.
-    setCycles(data ?? []);
+    // can be written off from the Payments page. Practice students' notices
+    // are test data and are left out of every list and count here.
+    const studentsById = new Map((studentsData ?? []).map((s) => [s.id, s]));
+    setCycles(excludePractice(data ?? [], studentsById));
     setAllStudents(studentsData ?? []);
     setTutorProfile(tutorData ?? {});
 
@@ -148,7 +151,7 @@ export default function Payments() {
       }
 
       const result = [];
-      for (const student of students) {
+      for (const student of excludePractice(students)) {
         if (pendingStudentIds.has(student.id)) continue;
         const studentLessons = (allLessons ?? []).filter(
           (l) => l.student_id === student.id,

@@ -12,6 +12,7 @@ import { formatDateFull, formatMonth } from "../utils/dateFormat";
 import AppShell from "../components/AppShell";
 import { useTerms } from "../contexts/TerminologyContext";
 import LessonDetailModal from "../components/LessonDetailModal";
+import PracticeBadge from "../components/PracticeBadge";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -91,7 +92,7 @@ export default function Calendar() {
     const { data } = await supabase
       .from("lessons")
       .select(
-        "*, students!inner(name, subject, hourly_rate, address, payment_mode, payment_cycle_count, company_id), payment_cycles(id, status, amount_due)",
+        "*, students!inner(name, subject, hourly_rate, address, payment_mode, payment_cycle_count, company_id, is_practice), payment_cycles(id, status, amount_due)",
       )
       .eq("tutor_id", user.id)
       .is("students.deleted_at", null)
@@ -526,6 +527,7 @@ export default function Calendar() {
                   >
                     {l.students?.name}
                   </Link>
+                  {l.students?.is_practice && <PracticeBadge className="ml-2" />}
                   <p className="mb-2 text-xs text-gray-500">
                     {l.lesson_time && `${formatLessonTime(l.lesson_time)} · `}
                     {l.subject ?? l.students?.subject ?? "—"} ·{" "}

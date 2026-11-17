@@ -19,6 +19,7 @@ import { showAppNotification } from "../lib/notifications";
 import { computeStudentPaymentStatus } from "../lib/paymentStatus";
 import { AVATAR_PRESET_COLORS } from "./Students";
 import AppShell from "../components/AppShell";
+import PracticeBadge from "../components/PracticeBadge";
 import {
   CLIENT_TYPE_LABEL,
   CONSULTATION_TYPE_OPTIONS,
@@ -267,7 +268,7 @@ export default function Lessons() {
         supabase
           .from("lessons")
           .select(
-            "*, students!inner(name, subject, hourly_rate, payment_mode, payment_cycle_count)",
+            "*, students!inner(name, subject, hourly_rate, payment_mode, payment_cycle_count, is_practice)",
           )
           .eq("tutor_id", user.id)
           .is("students.deleted_at", null)
@@ -391,7 +392,7 @@ export default function Lessons() {
     const { data, error } = await supabase
       .from("lessons")
       .select(
-        "*, students!inner(name, subject, hourly_rate, payment_mode, payment_cycle_count)",
+        "*, students!inner(name, subject, hourly_rate, payment_mode, payment_cycle_count, is_practice)",
       )
       .eq("tutor_id", user.id)
       .is("students.deleted_at", null)
@@ -1731,7 +1732,7 @@ export default function Lessons() {
                       >
                         <StudentAvatar name={s.name} tier={tier} avatarColor={s.avatar_color} />
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-[#1b2d4f]">{s.name}</p>
+                          <p className="text-sm font-semibold text-[#1b2d4f]">{s.name}{s.is_practice && <PracticeBadge className="ml-2" />}</p>
                           {subs && <p className="text-xs text-[#0f7a58]">{subs}</p>}
                         </div>
                       </button>
@@ -1758,7 +1759,7 @@ export default function Lessons() {
                           >
                             <StudentAvatar name={s.name} tier={tier} avatarColor={s.avatar_color} />
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-[#1b2d4f]">{s.name}</p>
+                              <p className="text-sm font-semibold text-[#1b2d4f]">{s.name}{s.is_practice && <PracticeBadge className="ml-2" />}</p>
                               {subs && <p className="text-xs text-[#0f7a58]">{subs}</p>}
                             </div>
                           </button>
@@ -1784,7 +1785,7 @@ export default function Lessons() {
                           >
                             <StudentAvatar name={s.name} tier={tier} avatarColor={s.avatar_color} />
                             <div className="min-w-0">
-                              <p className="text-sm font-semibold text-[#1b2d4f]">{s.name}</p>
+                              <p className="text-sm font-semibold text-[#1b2d4f]">{s.name}{s.is_practice && <PracticeBadge className="ml-2" />}</p>
                               {subs && <p className="text-xs text-[#0f7a58]">{subs}</p>}
                             </div>
                           </button>
@@ -1825,6 +1826,7 @@ export default function Lessons() {
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
                   {students.find((s) => s.id === form.student_id)?.name ?? "Lesson"}
+                  {students.find((s) => s.id === form.student_id)?.is_practice && <PracticeBadge className="ml-2 align-middle" />}
                 </h2>
                 {isPractitioner && (
                   <p className="text-xs text-gray-500">
@@ -2022,6 +2024,7 @@ export default function Lessons() {
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <span className="flex flex-wrap items-center gap-2 font-medium text-gray-900">
                       <span>{l.students?.name ?? l.student_name_snapshot}</span>
+                      {l.students?.is_practice && <PracticeBadge />}
                       {completed ? (
                         <span className="inline-block rounded-full bg-[#d6ede6] px-2 py-0.5 text-xs font-medium text-[#1b2d4f]">
                           Completed
@@ -2133,6 +2136,7 @@ export default function Lessons() {
                       </td>
                       <td className="px-4 py-3 text-gray-700">
                         {l.students?.name ?? l.student_name_snapshot}
+                        {l.students?.is_practice && <PracticeBadge className="ml-2" />}
                       </td>
                       <td className="px-4 py-3">
                         {completed ? (

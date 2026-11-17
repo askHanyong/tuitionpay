@@ -3,6 +3,7 @@
 // month by month so they add up to the monthly totals.
 
 import { lessonAmount } from "./paymentMode";
+import { excludePractice } from "./practice";
 import {
   buildEarningsBreakdown,
   fromCents,
@@ -11,6 +12,17 @@ import {
 } from "./collectedBreakdown";
 
 export const TOLERANCE = 0.01;
+
+// Drop practice students and their lessons and notices. The lookup map is built
+// from ALL students first so the practice students' own rows are found.
+export function applyPracticeExclusion({ students, lessons, cycles }) {
+  const byId = new Map(students.map((s) => [s.id, s]));
+  return {
+    students: excludePractice(students, byId),
+    lessons: excludePractice(lessons, byId),
+    cycles: excludePractice(cycles, byId),
+  };
+}
 
 // Asia/Singapore has no daylight saving, so a fixed +08:00 offset is exact.
 const SGT_OFFSET_MS = 8 * 60 * 60 * 1000;

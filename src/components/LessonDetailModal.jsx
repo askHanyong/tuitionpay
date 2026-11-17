@@ -6,6 +6,7 @@ import { formatSGD } from "../lib/paymentNotice";
 import { lessonAmount } from "../lib/paymentMode";
 import { useTerms } from "../contexts/TerminologyContext";
 import LessonTopicsPanel from "./LessonTopicsPanel";
+import PracticeBadge from "./PracticeBadge";
 
 export default function LessonDetailModal({
   lesson,
@@ -56,6 +57,7 @@ export default function LessonDetailModal({
           <div>
             <h2 className="text-lg font-bold text-gray-900">
               {lesson.students?.name}
+              {lesson.students?.is_practice && <PracticeBadge className="ml-2 align-middle" />}
             </h2>
             {companyName && (
               <p className="text-sm text-gray-500">{companyName}</p>

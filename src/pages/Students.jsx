@@ -19,6 +19,8 @@ import { CLIENT_TYPE_OPTIONS, CLIENT_TYPE_LABEL } from "../lib/practitioner";
 import { SYLLABUS_OPTIONS, normalizeSyllabus } from "../lib/lessonTopics";
 import { lessonAmount } from "../lib/paymentMode";
 import ArchiveDeletePromptModal from "../components/ArchiveDeletePromptModal";
+import PracticeBadge from "../components/PracticeBadge";
+import PracticeToggle from "../components/PracticeToggle";
 
 const emptySubjectRow = () => ({
   id: null,
@@ -54,6 +56,7 @@ const emptyForm = {
   guardian_relationship: "",
   guardian_contact: "",
   payee_id: "",
+  is_practice: false,
   fee_collected_by: "payee",
   direct_payer: "",
   placement_fee_agency: "",
@@ -471,6 +474,7 @@ export default function Students() {
       guardian_relationship: student.guardian_relationship ?? "",
       guardian_contact: student.guardian_contact ?? "",
       payee_id: student.payee_id ?? "",
+      is_practice: Boolean(student.is_practice),
       fee_collected_by: student.fee_collected_by ?? "payee",
       direct_payer: student.direct_payer ?? "",
       placement_fee_agency: student.placement_fee_agency ?? "",
@@ -629,6 +633,7 @@ export default function Students() {
         ? {}
         : {
             payee_id: form.payee_id || null,
+            is_practice: Boolean(form.is_practice),
             fee_collected_by: form.payee_id ? form.fee_collected_by : "payee",
             direct_payer:
               form.payee_id && form.fee_collected_by === "me"
@@ -1488,6 +1493,16 @@ export default function Students() {
 
         {!isPractitioner && (
           <div className="rounded-md border border-gray-200 p-4">
+            <PracticeToggle
+              deferred
+              checked={Boolean(form.is_practice)}
+              onChange={(next) => setForm((f) => ({ ...f, is_practice: next }))}
+            />
+          </div>
+        )}
+
+        {!isPractitioner && (
+          <div className="rounded-md border border-gray-200 p-4">
             <label className="mb-2 block text-sm font-medium text-gray-700">
               Payment cycle
             </label>
@@ -1737,6 +1752,7 @@ export default function Students() {
                         >
                           {s.name}
                         </Link>
+                        {s.is_practice && <PracticeBadge className="ml-2" />}
                         {isPractitioner && (
                           <p className="text-xs text-gray-500">
                             {companies.find((c) => c.id === s.company_id)?.name ?? "—"}
@@ -1851,6 +1867,7 @@ export default function Students() {
                               >
                                 {s.name}
                               </Link>
+                              {s.is_practice && <PracticeBadge className="ml-2" />}
                               {isPractitioner && (
                                 <p className="text-xs text-gray-500">
                                   {companies.find((c) => c.id === s.company_id)?.name ?? "—"}

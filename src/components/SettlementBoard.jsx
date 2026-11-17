@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { formatSGD } from "../lib/paymentNotice";
+import { excludePractice } from "../lib/practice";
 import { buildStatement, monthLabelFromStr, monthRange } from "../lib/statement";
 
 const PILL = {
@@ -37,10 +38,10 @@ export default function SettlementBoard({ payees, monthStr, onMonthChange, onOpe
     }
     const { end } = monthRange(monthStr);
     const monthDate = `${monthStr}-01`;
-    const { data: studs, error: sErr } = await supabase
+    const { data: allStuds, error: sErr } = await supabase
       .from("students")
       .select(
-        "id, name, subject, level, hourly_rate, fee_collected_by, payee_id, payment_mode, placement_fee_agency, placement_fee_amount, placement_fee_start, direct_payer",
+        "id, name, subject, level, hourly_rate, fee_collected_by, payee_id, payment_mode, placement_fee_agency, placement_fee_amount, placement_fee_start, direct_payer, is_practice",
       )
       .eq("tutor_id", user.id)
       .in(
@@ -49,6 +50,8 @@ export default function SettlementBoard({ payees, monthStr, onMonthChange, onOpe
       )
       .is("deleted_at", null);
     if (sErr) return setError(sErr.message);
+    // Practice students are test data and never appear on the settlement board.
+    const studs = excludePractice(allStuds ?? []);
     let lessons = [];
     let cycles = [];
     if (studs?.length) {
