@@ -28,3 +28,22 @@ export function formatSGTDate(dateStr) {
     weekday: "short", day: "numeric", month: "short", year: "numeric",
   });
 }
+
+// ── Date / hour in Asia/Singapore (reuses the helper in lib/monthClose) ──────
+import { sgtDateKey as sgtDateKeyOf } from "../lib/monthClose";
+
+/** "YYYY-MM-DD" of a moment as seen in Singapore. Never uses toISOString on a local date. */
+export function sgtDateKey(d = new Date()) {
+  return sgtDateKeyOf(d);
+}
+
+/** Hour 0-23 of a moment in Singapore. */
+export function sgtHour(d = new Date()) {
+  return Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Singapore",
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).format(d),
+  );
+}
