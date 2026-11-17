@@ -27,6 +27,7 @@ import AgencyDashboard from "./pages/AgencyDashboard";
 import Availability from "./pages/Availability";
 import BookingPage from "./pages/BookingPage";
 import BookingRequests from "./pages/BookingRequests";
+import YearEndReport from "./pages/YearEndReport";
 
 function App() {
   return (
@@ -125,6 +126,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <GoogleCallback />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/year-end-report"
+              element={
+                <ProtectedRoute>
+                  <YearEndReport />
                 </ProtectedRoute>
               }
             />

@@ -898,6 +898,17 @@ export default function Payments() {
         )}
       </section>
 
+      {!isPractitioner && (
+        <div className="mt-6 text-center">
+          <Link
+            to="/year-end-report"
+            className="text-sm text-[#1b2d4f] underline decoration-dotted underline-offset-2 hover:text-[#5ecfaa]"
+          >
+            Year-end income report (for tax filing)
+          </Link>
+        </div>
+      )}
+
       {preview && (
         <MessagePreviewModal
           title={preview.title}
