@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { formatSGD } from "../lib/paymentNotice";
 import { formatMonth } from "../utils/dateFormat";
 import {
+  applyPracticeExclusion,
   buildChecks,
   computeMonthlyBreakdowns,
   computeBilledReconciliation,
@@ -47,7 +48,7 @@ async function loadReportData({ tutorId, year }) {
   const { data: studentsData, error: studentsErr } = await supabase
     .from("students")
     .select(
-      "id, name, hourly_rate, payment_mode, payment_cycle_count, payee_id, fee_collected_by, placement_fee_agency, placement_fee_amount, placement_fee_start, archived, deleted_at",
+      "id, name, hourly_rate, payment_mode, payment_cycle_count, payee_id, fee_collected_by, placement_fee_agency, placement_fee_amount, placement_fee_start, archived, deleted_at, is_practice",
     )
     .eq("tutor_id", tutorId);
   if (studentsErr) throw studentsErr;
@@ -59,6 +60,7 @@ async function loadReportData({ tutorId, year }) {
     .eq("tutor_id", tutorId);
   if (payeesErr) throw payeesErr;
   const payees = payeesData ?? [];
+  const practiceIds = new Set(students.filter((s) => s.is_practice).map((s) => s.id));
 
   const lessonsBase = () =>
     supabase
@@ -79,7 +81,9 @@ async function loadReportData({ tutorId, year }) {
   // A placement fee drains from the student's earliest lessons, possibly in
   // earlier years. Without a start date we cannot know where it began, so load
   // all of that student's earlier lessons; with one, load from the earliest start.
-  const feeStudents = students.filter((s) => Number(s.placement_fee_amount) > 0);
+  const feeStudents = students.filter(
+    (s) => !s.is_practice && Number(s.placement_fee_amount) > 0,
+  );
   let priorLessons = [];
   if (feeStudents.length > 0) {
     const missingStart = feeStudents.some((s) => !s.placement_fee_start);
@@ -119,7 +123,7 @@ async function loadReportData({ tutorId, year }) {
   const yearEndUtc = new Date(`${yearEnd}T00:00:00+08:00`).toISOString();
   const { data: placementsData, error: placementsErr } = await supabase
     .from("agency_placements")
-    .select("id")
+    .select("id, student_id")
     .eq("tutor_id", tutorId)
     .in("status", ["active", "ended"])
     .lt("started_at", yearEndUtc)
@@ -133,7 +137,9 @@ async function loadReportData({ tutorId, year }) {
     payees,
     lessons: [...priorLessons, ...yearLessons],
     cycles,
-    agencyPlacements: placementsData ?? [],
+    agencyPlacements: (placementsData ?? []).filter(
+      (p) => !practiceIds.has(p.student_id),
+    ),
   };
 }
 
@@ -224,7 +230,8 @@ export default function YearEndReport() {
 
   const report = useMemo(() => {
     if (!rawData) return null;
-    const { year: dataYear, students, payees, lessons, cycles } = rawData;
+    const { year: dataYear, payees } = rawData;
+    const { students, lessons, cycles } = applyPracticeExclusion(rawData);
     const sum = (arr, f) => arr.reduce((s, x) => s + f(x), 0);
 
     const baseMonths = computeMonthlyBreakdowns({ year: dataYear, students, payees, lessons });

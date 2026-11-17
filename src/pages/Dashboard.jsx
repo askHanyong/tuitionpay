@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
@@ -36,6 +36,8 @@ import LessonTopicsModal from "../components/LessonTopicsModal";
 import { useTopicTrackedStudents } from "../hooks/useTopicTrackedStudents";
 import MessagePreviewModal from "../components/MessagePreviewModal";
 import PendingBreakdownModal from "../components/PendingBreakdownModal";
+import PracticeBadge from "../components/PracticeBadge";
+import { excludePractice, isPractice } from "../lib/practice";
 
 const todayKey = () => toDateKey(new Date());
 
@@ -222,6 +224,43 @@ export default function Dashboard() {
   const [onboardingDismissed, setOnboardingDismissed] = useState(
     () => localStorage.getItem("chopeandpay_onboarding_dismissed") === "true",
   );
+  // Practice students stay visible (today's lessons, upcoming, Done, ...) but
+  // never count in money figures. The lookup covers ALL students, archived and
+  // deleted included, so their lessons and notices are caught too.
+  const studentsById = useMemo(
+    () => new Map(recapStudents.map((s) => [s.id, s])),
+    [recapStudents],
+  );
+  const moneyStudents = useMemo(
+    () => excludePractice(students, studentsById),
+    [students, studentsById],
+  );
+  const moneyRecapStudents = useMemo(
+    () => excludePractice(recapStudents, studentsById),
+    [recapStudents, studentsById],
+  );
+  const moneyLessons = useMemo(
+    () => excludePractice(lessons, studentsById),
+    [lessons, studentsById],
+  );
+  const moneyRecapLessons = useMemo(
+    () => excludePractice(recapLessons, studentsById),
+    [recapLessons, studentsById],
+  );
+  const moneyCycles = useMemo(
+    () => excludePractice(paymentCycles, studentsById),
+    [paymentCycles, studentsById],
+  );
+  const moneyRecapCycles = useMemo(
+    () => excludePractice(recapPaymentCycles, studentsById),
+    [recapPaymentCycles, studentsById],
+  );
+  const moneyScheduledLessons = useMemo(
+    () => excludePractice(scheduledLessons, studentsById),
+    [scheduledLessons, studentsById],
+  );
+  const isPracticeLesson = (l) => isPractice(studentsById.get(l.student_id));
+
   // Practitioners skip the onboarding popup entirely — they go straight to
   // the normal empty-state Dashboard ("Add your first client").
   const showOnboarding =
@@ -254,14 +293,14 @@ export default function Dashboard() {
         .order("period_end", { ascending: false }),
       supabase
         .from("lessons")
-        .select("*, students(name, subject, address)")
+        .select("*, students(name, subject, address, is_practice)")
         .eq("tutor_id", user.id)
         .eq("lesson_date", todayKey())
         .order("lesson_time", { ascending: true }),
       supabase
         .from("lessons")
         .select(
-          "id, student_id, lesson_date, lesson_time, is_completed, duration_minutes, rate, rate_type, students(name)",
+          "id, student_id, lesson_date, lesson_time, is_completed, duration_minutes, rate, rate_type, students(name, is_practice)",
         )
         .eq("tutor_id", user.id)
         .gte("lesson_date", todayKey()),
@@ -272,7 +311,7 @@ export default function Dashboard() {
       supabase
         .from("lessons")
         .select(
-          "id, student_id, lesson_date, lesson_time, subject, duration_minutes, notes, is_completed, google_event_id, students(name, subject, address, payment_mode)",
+          "id, student_id, lesson_date, lesson_time, subject, duration_minutes, notes, is_completed, google_event_id, students(name, subject, address, payment_mode, is_practice)",
         )
         .eq("tutor_id", user.id)
         .eq("is_completed", false)
@@ -428,17 +467,17 @@ export default function Dashboard() {
     weekStart.setDate(weekStart.getDate() - 6);
     const weekStartKey = toDateKey(weekStart);
     const todayK = todayKey();
-    const weekLessons = lessons.filter(
+    const weekLessons = moneyLessons.filter(
       (l) => l.lesson_date >= weekStartKey && l.lesson_date <= todayK,
     );
-    const weekEarnings = paymentCycles
+    const weekEarnings = moneyCycles
       .filter((c) => c.period_end >= weekStartKey && c.period_end <= todayK)
       .reduce((sum, c) => sum + Number(c.amount_due), 0);
     showAppNotification(
       `This week: ${weekLessons.length} lessons · ${formatSGD(weekEarnings)} earned 🎉`,
     );
     localStorage.setItem(key, "1");
-  }, [notifyPrefs.notify_weekly_summary, loading, lessons, paymentCycles]);
+  }, [notifyPrefs.notify_weekly_summary, loading, moneyLessons, moneyCycles]);
 
   const cycleCountByStudent = new Map(
     students.map((s) => [s.id, s.payment_cycle_count ?? 4]),
@@ -584,7 +623,7 @@ export default function Dashboard() {
 
   const now = new Date();
   const paymentStatusByStudent = new Map();
-  for (const s of students) {
+  for (const s of moneyStudents) {
     paymentStatusByStudent.set(
       s.id,
       computeStudentPaymentStatus(s, {
@@ -598,7 +637,7 @@ export default function Dashboard() {
     );
   }
 
-  const sortedStudents = [...students].sort((a, b) => {
+  const sortedStudents = [...moneyStudents].sort((a, b) => {
     const sa = paymentStatusByStudent.get(a.id);
     const sb = paymentStatusByStudent.get(b.id);
     const rankDiff = tierRank(sa.tier) - tierRank(sb.tier);
@@ -614,12 +653,12 @@ export default function Dashboard() {
     (s) => paymentStatusByStudent.get(s.id).tier === "amber",
   ).length;
   const overdueCount = overdueStudents.length;
-  const upToDateCount = students.length - overdueCount - dueSoonCount;
+  const upToDateCount = moneyStudents.length - overdueCount - dueSoonCount;
   // Compute all outstanding pending using recapPaymentCycles (includes archived
   // and deleted students) so their owed money counts. Both 'pending' and
   // 'overdue' cycles are owed; 'waived' cycles are excluded.
   const allPendingAmount = (() => {
-    const owedCycles = recapPaymentCycles.filter(
+    const owedCycles = moneyRecapCycles.filter(
       (c) => c.status === "pending" || c.status === "overdue",
     );
     const owedStudentIds = new Set(owedCycles.map((c) => c.student_id));
@@ -628,12 +667,12 @@ export default function Dashboard() {
       0,
     );
     const recapLessonsByStudentForPending = new Map();
-    for (const l of recapLessons) {
+    for (const l of moneyRecapLessons) {
       if (!recapLessonsByStudentForPending.has(l.student_id))
         recapLessonsByStudentForPending.set(l.student_id, []);
       recapLessonsByStudentForPending.get(l.student_id).push(l);
     }
-    const fromMidCycle = students
+    const fromMidCycle = moneyStudents
       .filter(
         (stu) =>
           (stu.payment_mode ?? "lessons") === "lessons" &&
@@ -675,7 +714,7 @@ export default function Dashboard() {
     const rows = [];
 
     if (isCurrentMonth) {
-      const owedCycles = recapPaymentCycles.filter(
+      const owedCycles = moneyRecapCycles.filter(
         (c) => c.status === "pending" || c.status === "overdue",
       );
       const owedStudentIds = new Set(owedCycles.map((c) => c.student_id));
@@ -698,13 +737,13 @@ export default function Dashboard() {
       }
 
       const recapLessonsByStudent = new Map();
-      for (const l of recapLessons) {
+      for (const l of moneyRecapLessons) {
         if (!recapLessonsByStudent.has(l.student_id))
           recapLessonsByStudent.set(l.student_id, []);
         recapLessonsByStudent.get(l.student_id).push(l);
       }
 
-      for (const stu of students) {
+      for (const stu of moneyStudents) {
         if ((stu.payment_mode ?? "lessons") !== "lessons") continue;
         if (owedStudentIds.has(stu.id)) continue;
         const openLessons = (recapLessonsByStudent.get(stu.id) ?? []).filter(
@@ -733,7 +772,7 @@ export default function Dashboard() {
         });
       }
     } else {
-      const owedCycles = recapPaymentCycles.filter(
+      const owedCycles = moneyRecapCycles.filter(
         (c) =>
           (c.status === "pending" || c.status === "overdue") &&
           isSameMonthLocal(c.period_end, monthDate),
@@ -765,15 +804,17 @@ export default function Dashboard() {
   const stalledItems = (() => {
     const now = new Date();
     const recapLessonsByStudent = new Map();
-    for (const l of recapLessons) {
+    for (const l of moneyRecapLessons) {
       if (!recapLessonsByStudent.has(l.student_id))
         recapLessonsByStudent.set(l.student_id, []);
       recapLessonsByStudent.get(l.student_id).push(l);
     }
-    const scheduledStudentIds = new Set(scheduledLessons.map((l) => l.student_id));
+    const scheduledStudentIds = new Set(
+      moneyScheduledLessons.map((l) => l.student_id),
+    );
 
     const items = [];
-    for (const stu of recapStudents) {
+    for (const stu of moneyRecapStudents) {
       if (stu.deleted_at) continue;
       if ((stu.payment_mode ?? "lessons") !== "lessons") continue;
       const openLessons = (recapLessonsByStudent.get(stu.id) ?? []).filter(
@@ -823,7 +864,7 @@ export default function Dashboard() {
       );
     }
   }
-  const unpaidCycles = paymentCycles
+  const unpaidCycles = moneyCycles
     .filter((c) => c.status === "pending" || c.status === "overdue")
     .sort(
       (a, b) =>
@@ -890,7 +931,7 @@ export default function Dashboard() {
         .select("*, students(name)")
         .eq("tutor_id", user.id)
         .eq("status", "pending");
-      const newlyCreated = (newCycles ?? []).find(
+      const newlyCreated = excludePractice(newCycles ?? [], studentsById).find(
         (c) => !previouslyPendingIds.has(c.id),
       );
       if (newlyCreated) {
@@ -1343,6 +1384,7 @@ export default function Dashboard() {
                         <div className="flex flex-wrap items-baseline gap-x-1.5">
                           <p className="text-sm font-semibold text-gray-900">
                             {l.students?.name}
+                            {isPracticeLesson(l) && <PracticeBadge className="ml-2" />}
                           </p>
                           {l.lesson_time && (
                             <span className="text-sm text-gray-500">
@@ -1437,6 +1479,7 @@ export default function Dashboard() {
                     <div>
                       <p className="text-sm font-medium text-gray-900">
                         {l.students?.name}
+                        {isPracticeLesson(l) && <PracticeBadge className="ml-2" />}
                       </p>
                       <p className="text-xs text-gray-500">
                         {formatDate(l.lesson_date)}
@@ -1512,10 +1555,10 @@ export default function Dashboard() {
           {/* Monthly recap — mobile only (desktop version lives in right panel) */}
           <div className="md:hidden">
             <MonthlyRecapCard
-              lessons={recapLessons}
-              paymentCycles={recapPaymentCycles}
-              students={recapStudents}
-              scheduledLessons={scheduledLessons}
+              lessons={moneyRecapLessons}
+              paymentCycles={moneyRecapCycles}
+              students={moneyRecapStudents}
+              scheduledLessons={moneyScheduledLessons}
               tutorName={user?.user_metadata?.full_name}
               currentMonthPendingOverride={allPendingAmount}
               onPendingTap={handlePendingTap}
@@ -1592,6 +1635,7 @@ export default function Dashboard() {
                     >
                       <span className="text-sm font-medium text-gray-900">
                         {l.students?.name}
+                        {isPracticeLesson(l) && <PracticeBadge className="ml-2" />}
                       </span>
                       <span className="text-xs text-amber-800">
                         {l.subject ?? l.students?.subject ?? "—"} ·{" "}
@@ -1802,10 +1846,10 @@ export default function Dashboard() {
           {/* Monthly recap — desktop only (mobile version is in left panel) */}
           <div className="hidden md:block">
             <MonthlyRecapCard
-              lessons={recapLessons}
-              paymentCycles={recapPaymentCycles}
-              students={recapStudents}
-              scheduledLessons={scheduledLessons}
+              lessons={moneyRecapLessons}
+              paymentCycles={moneyRecapCycles}
+              students={moneyRecapStudents}
+              scheduledLessons={moneyScheduledLessons}
               tutorName={user?.user_metadata?.full_name}
               currentMonthPendingOverride={allPendingAmount}
               onPendingTap={handlePendingTap}
@@ -1825,11 +1869,11 @@ export default function Dashboard() {
                 Manage →
               </Link>
             </div>
-            {!loading && students.length > 0 && (
+            {!loading && moneyStudents.length > 0 && (
               <p className="mb-3 text-sm">
                 <span className="font-medium text-gray-700">
-                  {students.length}{" "}
-                  {(students.length === 1
+                  {moneyStudents.length}{" "}
+                  {(moneyStudents.length === 1
                     ? terms.student
                     : terms.students
                   ).toLowerCase()}
@@ -1858,8 +1902,12 @@ export default function Dashboard() {
             )}
             {loading ? (
               <p className="text-sm text-gray-500">Loading...</p>
-            ) : students.length === 0 ? (
-              <p className="text-sm text-gray-500">No {terms.students.toLowerCase()} yet.</p>
+            ) : moneyStudents.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                {students.length === 0
+                  ? `No ${terms.students.toLowerCase()} yet.`
+                  : `No ${terms.students.toLowerCase()} to track payments for yet.`}
+              </p>
             ) : (
               <ul className="divide-y divide-gray-100">
                 {sortedStudents.map((s) => {

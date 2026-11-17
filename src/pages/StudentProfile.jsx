@@ -20,6 +20,8 @@ import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
 import MessagePreviewModal from "../components/MessagePreviewModal";
 import ProgressReportModal from "../components/ProgressReportModal";
 import ArchiveDeletePromptModal from "../components/ArchiveDeletePromptModal";
+import PracticeBadge from "../components/PracticeBadge";
+import PracticeToggle from "../components/PracticeToggle";
 
 export default function StudentProfile() {
   const { id } = useParams();
@@ -139,6 +141,24 @@ export default function StudentProfile() {
     await executeArchive();
     setArchiveLoading(false);
     setArchivePrompt(null);
+  };
+
+  const handleTogglePractice = async (next) => {
+    const { error } = await supabase
+      .from("students")
+      .update({ is_practice: next })
+      .eq("id", student.id)
+      .eq("tutor_id", user.id);
+    if (error) {
+      showToast(error.message, "error");
+      return;
+    }
+    setStudent((prev) => ({ ...prev, is_practice: next }));
+    showToast(
+      next
+        ? `${terms.student} marked as practice.`
+        : `${terms.student} counts in your figures again.`,
+    );
   };
 
   const handleSharePaymentSummary = async () => {
@@ -503,6 +523,7 @@ export default function StudentProfile() {
               <h1 className="text-xl font-semibold text-gray-900">
                 {student.name}
               </h1>
+              {student.is_practice && <PracticeBadge />}
               {isPractitioner ? (
                 student.client_type && (
                   <span className="inline-block rounded-full bg-[#d6ede6] px-2.5 py-0.5 text-xs font-medium text-[#1b2d4f]">
@@ -598,6 +619,15 @@ export default function StudentProfile() {
             )}
           </div>
         </div>
+
+        {!isPractitioner && (
+          <div className="mt-4 rounded-lg border border-gray-100 px-3">
+            <PracticeToggle
+              checked={Boolean(student.is_practice)}
+              onChange={handleTogglePractice}
+            />
+          </div>
+        )}
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-lg bg-[#edf6f3] p-3 text-center">

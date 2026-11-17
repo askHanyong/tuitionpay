@@ -6,6 +6,7 @@ import { useToast } from "../contexts/ToastContext";
 import AppShell from "../components/AppShell";
 import SettlementBoard from "../components/SettlementBoard";
 import { formatSGD } from "../lib/paymentNotice";
+import { excludePractice } from "../lib/practice";
 import {
   buildStatement,
   currentMonthStr,
@@ -87,10 +88,10 @@ export default function Statements() {
     if (!user || !payeeId) return;
     let cancelled = false;
     (async () => {
-      const { data: studs, error: sErr } = await supabase
+      const { data: allStuds, error: sErr } = await supabase
         .from("students")
         .select(
-          "id, name, subject, level, hourly_rate, fee_collected_by, payee_id, placement_fee_agency, placement_fee_amount, placement_fee_start, direct_payer",
+          "id, name, subject, level, hourly_rate, fee_collected_by, payee_id, placement_fee_agency, placement_fee_amount, placement_fee_start, direct_payer, is_practice",
         )
         .eq("tutor_id", user.id)
         .eq("payee_id", payeeId)
@@ -100,7 +101,9 @@ export default function Statements() {
         setError(sErr.message);
         return;
       }
-      setStudents(studs ?? []);
+      // Practice students are test data and never appear on a statement.
+      const studs = excludePractice(allStuds ?? []);
+      setStudents(studs);
       if (!studs?.length) {
         setLessons([]);
         return;
