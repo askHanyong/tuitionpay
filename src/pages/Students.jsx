@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { useTerms } from "../contexts/TerminologyContext";
 import AppShell from "../components/AppShell";
+import { confirmClosedMonthChange, latestUnbilledLessonDate, studentOwedDates } from "../lib/closedMonths";
 import ScheduleLessonsModal from "../components/ScheduleLessonsModal";
 import { formatDate } from "../utils/dateFormat";
 import { formatSGD } from "../lib/paymentNotice";
@@ -813,6 +814,7 @@ export default function Students() {
   const handlePromptBillNow = async () => {
     if (!archiveDeletePrompt) return;
     const { student, action } = archiveDeletePrompt;
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "notice", skip: student.is_practice, dateKeys: () => latestUnbilledLessonDate(user.id, student.id) }))) return;
     setArchiveDeleteLoading(true);
     const { error } = await supabase.rpc("create_manual_closeout_cycle", {
       p_student_id: student.id,
@@ -830,6 +832,7 @@ export default function Students() {
   const handlePromptWriteOffAll = async () => {
     if (!archiveDeletePrompt) return;
     const { student, action } = archiveDeletePrompt;
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "notice", skip: student.is_practice, dateKeys: () => studentOwedDates(user.id, student.id) }))) return;
     setArchiveDeleteLoading(true);
     if (archiveDeletePrompt.unbilledAmount > 0) {
       const { error: rpcErr } = await supabase.rpc("create_manual_closeout_cycle", {

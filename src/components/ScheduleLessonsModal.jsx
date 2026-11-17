@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { completedLessonDates, confirmClosedMonthChange } from "../lib/closedMonths";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { useTerms } from "../contexts/TerminologyContext";
@@ -287,6 +288,7 @@ export default function ScheduleLessonsModal({
           toInsert.push(buildRow(item.date));
         }
       }
+      if (toDelete.length && !(await confirmClosedMonthChange({ tutorId: user.id, kind: "lesson", dateKeys: () => completedLessonDates(user.id, toDelete) }))) return;
       if (toDelete.length) {
         const { error } = await supabase
           .from("lessons")

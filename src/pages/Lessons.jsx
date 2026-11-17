@@ -20,6 +20,7 @@ import { computeStudentPaymentStatus } from "../lib/paymentStatus";
 import { AVATAR_PRESET_COLORS } from "./Students";
 import AppShell from "../components/AppShell";
 import PracticeBadge from "../components/PracticeBadge";
+import { confirmClosedMonthChange, lessonChangeDates, lessonToggleDates } from "../lib/closedMonths";
 import {
   CLIENT_TYPE_LABEL,
   CONSULTATION_TYPE_OPTIONS,
@@ -946,6 +947,8 @@ export default function Lessons() {
           ? true
           : (original?.is_completed ?? false);
 
+      if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: editingId ? "lesson" : "lesson_add", dateKeys: lessonChangeDates(original, { lesson_date: form.lesson_date, is_completed, student_id: form.student_id, duration_minutes: Math.round(durationHours * 60), rate: effectiveRate, rate_type: form.rate_type || "hourly", is_practice: students.find((s) => s.id === form.student_id)?.is_practice }) }))) return;
+
       if (editingId) {
         const isOnline = form.lesson_mode === "online";
         // f2f clears any existing meet link; online preserves existing link
@@ -1122,6 +1125,7 @@ export default function Lessons() {
 
   const handleToggleComplete = async (lesson) => {
     const next = !lesson.is_completed;
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "lesson", dateKeys: lessonToggleDates(lesson, next) }))) return;
     setLessons((prev) =>
       prev.map((l) => (l.id === lesson.id ? { ...l, is_completed: next } : l)),
     );
@@ -1150,6 +1154,7 @@ export default function Lessons() {
   const confirmDelete = async () => {
     const id = deleteTarget;
     if (!id) return;
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "lesson", dateKeys: lessonChangeDates(lessons.find((l) => l.id === id), null) }))) return;
     setDeleting(true);
     setError(null);
     await deleteLessonFromGoogleCalendar(lessons.find((l) => l.id === id));

@@ -21,6 +21,7 @@ import {
 } from "../lib/whatsapp";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
+import { confirmClosedMonthChange } from "../lib/closedMonths";
 import MessagePreviewModal from "../components/MessagePreviewModal";
 
 export default function Payments() {
@@ -347,6 +348,7 @@ export default function Payments() {
   }, []);
 
   const handleMarkPaid = async (id) => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "paid", dateKeys: [cycles.find((c) => c.id === id)?.period_end] }))) return;
     setError(null);
     const { error } = await supabase
       .from("payment_cycles")
@@ -393,6 +395,7 @@ export default function Payments() {
       )
     )
       return;
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "notice", dateKeys: [cycles.find((c) => c.id === cycleId)?.period_end] }))) return;
     setUndoingCycleId(cycleId);
     const { error } = await supabase.rpc("delete_manual_closeout_cycle", {
       p_cycle_id: cycleId,
@@ -417,6 +420,7 @@ export default function Payments() {
       )
     )
       return;
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "notice", dateKeys: [cycle?.period_end] }))) return;
     setWaivingCycleId(cycleId);
     const { error } = await supabase
       .from("payment_cycles")
@@ -444,6 +448,7 @@ export default function Payments() {
       )
     )
       return;
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "notice", dateKeys: [cycles.find((c) => c.id === cycleId)?.period_end] }))) return;
     setUndoingWaiveId(cycleId);
     const { error } = await supabase
       .from("payment_cycles")

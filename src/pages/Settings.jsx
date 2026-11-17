@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { useTerms } from "../contexts/TerminologyContext";
 import AppShell from "../components/AppShell";
+import { completedLessonDates, confirmClosedMonthChange } from "../lib/closedMonths";
 import {
   buildGoogleAuthUrl,
   disconnectGoogleCalendar,
@@ -321,6 +322,7 @@ if (codeErr || !codeRow?.active) {
   const handleSyncBillingTypes = async () => {
     setSyncingBilling(true);
     try {
+      if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "lesson", dateKeys: () => completedLessonDates(user.id, billingMismatches.map((l) => l.id)) }))) return;
       const toPerSession = billingMismatches
         .filter((l) => l.student_subjects.rate_type === "per_session")
         .map((l) => l.id);

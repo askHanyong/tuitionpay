@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { confirmClosedMonthChange } from "../lib/closedMonths";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { useTerms } from "../contexts/TerminologyContext";
@@ -76,6 +77,7 @@ export default function Onboarding({ onDismiss, onDone }) {
     setSubmitting(true);
     try {
       const durationHours = Number(lessonForm.duration_hours);
+      if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "lesson_add", dateKeys: [lessonForm.lesson_date] }))) return;
       const { error } = await supabase.from("lessons").insert({
         tutor_id: user.id,
         student_id: student.id,

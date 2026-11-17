@@ -10,6 +10,7 @@ import {
 import { formatLessonTime } from "../lib/date";
 import { formatDateFull, formatMonth } from "../utils/dateFormat";
 import AppShell from "../components/AppShell";
+import { confirmClosedMonthChange, lessonChangeDates, lessonToggleDates, periodEndsOf } from "../lib/closedMonths";
 import { useTerms } from "../contexts/TerminologyContext";
 import LessonDetailModal from "../components/LessonDetailModal";
 import PracticeBadge from "../components/PracticeBadge";
@@ -313,6 +314,7 @@ export default function Calendar() {
 
   const confirmDeleteLesson = async () => {
     if (!deleteTarget) return;
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "lesson", dateKeys: lessonChangeDates(deleteTarget, null) }))) return;
     setDeleting(true);
     await deleteFromGoogleCalendar(deleteTarget);
     await supabase
@@ -326,6 +328,7 @@ export default function Calendar() {
   };
 
   const handleDeleteLessonFromModal = async (lessonId) => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "lesson", dateKeys: lessonChangeDates(lessons.find((l) => l.id === lessonId), null) }))) return;
     await deleteFromGoogleCalendar(lessons.find((l) => l.id === lessonId));
     const { error } = await supabase
       .from("lessons")
@@ -339,6 +342,7 @@ export default function Calendar() {
   };
 
   const handleMarkDone = async (lesson) => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "lesson", dateKeys: lessonToggleDates(lesson, true) }))) return;
     setDetailLesson(null);
     const { error } = await supabase
       .from("lessons")
@@ -353,6 +357,7 @@ export default function Calendar() {
   };
 
   const handleMarkPaid = async (cycleId) => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "paid", skip: detailLesson?.students?.is_practice, dateKeys: () => periodEndsOf(user.id, [cycleId]) }))) return;
     setDetailLesson(null);
     const { error } = await supabase
       .from("payment_cycles")

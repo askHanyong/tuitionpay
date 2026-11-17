@@ -27,6 +27,7 @@ import { useToast } from "../contexts/ToastContext";
 import { useTerms } from "../contexts/TerminologyContext";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
+import { confirmClosedMonthChange, latestUnbilledLessonDate, lessonToggleDates, studentOwedDates } from "../lib/closedMonths";
 import Onboarding from "../components/Onboarding";
 import GettingStartedChecklist from "../components/GettingStartedChecklist";
 import MonthlyRecapCard from "../components/MonthlyRecapCard";
@@ -903,6 +904,7 @@ export default function Dashboard() {
   };
 
   const handleMarkDone = async (lessonId) => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "lesson", dateKeys: lessonToggleDates(todayLessons.find((l) => l.id === lessonId), true) }))) return;
     const previouslyPendingIds = new Set(
       paymentCycles.filter((c) => c.status === "pending").map((c) => c.id),
     );
@@ -943,6 +945,7 @@ export default function Dashboard() {
   };
 
   const handleUndoDone = async (lessonId) => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "lesson", dateKeys: lessonToggleDates(todayLessons.find((l) => l.id === lessonId), false) }))) return;
     setTodayLessons((prev) =>
       prev.map((l) => (l.id === lessonId ? { ...l, is_completed: false } : l)),
     );
@@ -1013,6 +1016,7 @@ export default function Dashboard() {
   };
 
   const handleCollectPayment = async (cycleId) => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "paid", dateKeys: [unpaidCycles.find((c) => c.id === cycleId)?.period_end] }))) return;
     const { error } = await supabase
       .from("payment_cycles")
       .update({ status: "paid", paid_at: new Date().toISOString() })
@@ -1042,6 +1046,7 @@ export default function Dashboard() {
       )
     )
       return;
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "notice", dateKeys: [cycle?.period_end] }))) return;
     const { error } = await supabase
       .from("payment_cycles")
       .update({
@@ -1064,6 +1069,7 @@ export default function Dashboard() {
   };
 
   const handleBillNowMidCycle = async (student) => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "notice", dateKeys: () => latestUnbilledLessonDate(user.id, student.id) }))) return;
     const { error } = await supabase.rpc("create_manual_closeout_cycle", {
       p_student_id: student.id,
     });
@@ -1091,6 +1097,7 @@ export default function Dashboard() {
   };
 
   const handleBillNowStalled = async (student) => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "notice", dateKeys: () => latestUnbilledLessonDate(user.id, student.id) }))) return;
     const { error } = await supabase.rpc("create_manual_closeout_cycle", {
       p_student_id: student.id,
     });
@@ -1103,6 +1110,7 @@ export default function Dashboard() {
   };
 
   const handleWriteOffStalled = async (student) => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "notice", dateKeys: () => studentOwedDates(user.id, student.id) }))) return;
     const { error: rpcErr } = await supabase.rpc("create_manual_closeout_cycle", {
       p_student_id: student.id,
     });
@@ -1170,6 +1178,7 @@ export default function Dashboard() {
   };
 
   const handleMarkOverdueLessonDone = async (lesson) => {
+    if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "lesson", dateKeys: lessonToggleDates(lesson, true) }))) return;
     setDetailOverdueLesson(null);
     const { error } = await supabase
       .from("lessons")
