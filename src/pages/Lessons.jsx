@@ -318,7 +318,13 @@ export default function Lessons() {
       const scheduledLessonsByStudent = new Map();
       const openCountByStudent = new Map();
       for (const c of cyclesData ?? []) {
-        const map = c.status === "paid" ? paidCyclesByStudent : pendingCyclesByStudent;
+        const map =
+          c.status === "paid"
+            ? paidCyclesByStudent
+            : c.status === "pending" || c.status === "overdue"
+              ? pendingCyclesByStudent
+              : null;
+        if (!map) continue;
         if (!map.has(c.student_id)) map.set(c.student_id, []);
         map.get(c.student_id).push(c);
       }

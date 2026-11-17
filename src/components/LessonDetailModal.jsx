@@ -21,6 +21,7 @@ export default function LessonDetailModal({
   const address = lesson.students?.address;
   const isDone = lesson.is_completed;
   const isPaid = paymentCycle?.status === "paid";
+  const isWaived = paymentCycle?.status === "waived";
   const amountDue = paymentCycle
     ? Number(paymentCycle.amount_due)
     : lessonAmount(lesson, lesson.students);
@@ -107,10 +108,18 @@ export default function LessonDetailModal({
         {isDone && lesson.students?.payment_mode === "per_lesson" && (
           <p
             className={`mt-3 text-sm font-medium ${
-              isPaid ? "text-[#0f7a58]" : "text-red-700"
+              isPaid
+                ? "text-[#0f7a58]"
+                : isWaived
+                  ? "text-gray-500"
+                  : "text-red-700"
             }`}
           >
-            {isPaid ? "Paid ✓" : `Unpaid — ${formatSGD(amountDue)} due`}
+            {isPaid
+              ? "Paid ✓"
+              : isWaived
+                ? "Written off — no payment needed"
+                : `Unpaid — ${formatSGD(amountDue)} due`}
           </p>
         )}
 
@@ -164,6 +173,7 @@ export default function LessonDetailModal({
             {isDone &&
               lesson.students?.payment_mode === "per_lesson" &&
               !isPaid &&
+              !isWaived &&
               paymentCycle && (
                 <button
                   onClick={() => onMarkPaid(paymentCycle.id)}

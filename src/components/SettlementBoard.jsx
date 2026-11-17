@@ -142,17 +142,20 @@ export default function SettlementBoard({ payees, monthStr, onMonthChange, onOpe
             .filter(Boolean),
         ),
       ];
-      const statuses = cycleIds.map((id) => cycleStatus.get(id));
+      // Written-off notices are settled: they neither count as unpaid nor get
+      // marked paid.
+      const billedIds = cycleIds.filter((id) => cycleStatus.get(id) !== "waived");
+      const statuses = billedIds.map((id) => cycleStatus.get(id));
       const paidN = statuses.filter((x) => x === "paid").length;
       const status =
-        cycleIds.length === 0
+        billedIds.length === 0
           ? "not_due"
-          : paidN === cycleIds.length
+          : paidN === billedIds.length
             ? "paid"
             : paidN === 0
               ? "unpaid"
               : "partly";
-      const pendingIds = cycleIds.filter((id) => cycleStatus.get(id) !== "paid");
+      const pendingIds = billedIds.filter((id) => cycleStatus.get(id) !== "paid");
       const notMonthly = data.students.filter(
         (s) => ids.has(s.id) && s.payment_mode !== "monthly",
       );
