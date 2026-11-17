@@ -11,6 +11,7 @@ import MonthlyReportTemplate from "./MonthlyReportTemplate";
 import { formatMonth } from "../utils/dateFormat";
 import { lessonAmount } from "../lib/paymentMode";
 import { buildEarningsBreakdown } from "../lib/collectedBreakdown";
+import InfoTip from "./InfoTip";
 
 function isSameMonth(dateStr, monthDate) {
   if (!dateStr) return false;
@@ -350,7 +351,13 @@ export default function MonthlyRecapCard({
           <p className="text-xl font-semibold text-[#0f7a58]">
             {formatSGD(current.collected)}
           </p>
-          <p className="mt-1 text-xs font-medium text-gray-600">✅ Collected</p>
+          <p className="mt-1 text-xs font-medium text-gray-600">
+            ✅ Collected (notices closed this month)
+            <InfoTip
+              label="About Collected"
+              text="Payment notices marked paid whose billing period ends this month. A notice can cover lessons from earlier months, and it is not your take-home (agency shares and placement fees are separate)."
+            />
+          </p>
         </div>
         <div className="text-center">
           {onPendingTap && current.pending > 0 ? (
@@ -462,7 +469,13 @@ export default function MonthlyRecapCard({
             );
           })}
           <div className="mt-1 flex items-center justify-between border-t border-[#b8e8d9] pt-1.5">
-            <span className="font-medium text-gray-700">Total billed</span>
+            <span className="font-medium text-gray-700">
+              Billed (lessons taught)
+              <InfoTip
+                label="About Billed"
+                text="Value of lessons you taught this month, whether or not they've been paid."
+              />
+            </span>
             <span className="font-semibold text-gray-900">
               {formatSGD(breakdown.total)}
             </span>
