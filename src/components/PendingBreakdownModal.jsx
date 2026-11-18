@@ -27,6 +27,8 @@ export default function PendingBreakdownModal({
   onRemind,
   remindingStudentId,
   isPractitioner,
+  reminderInfo,
+  onUndoReminder,
 }) {
   const total = rows.reduce((s, r) => s + r.amount, 0);
   const title = isCurrentMonth
@@ -86,9 +88,31 @@ export default function PendingBreakdownModal({
                     </span>
                   )}
                 </div>
+                {!isPractitioner && row.type === "cycle" && reminderInfo && (() => {
+                  const info = reminderInfo(row.cycle);
+                  if (!info) return null;
+                  return (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {info.text}
+                      {info.reminded && info.newestToday && onUndoReminder && (
+                        <>
+                          {" · "}
+                          <button type="button" onClick={() => onUndoReminder(row.cycle)} className="font-medium text-[#0f7a58] underline">
+                            Undo
+                          </button>
+                        </>
+                      )}
+                    </p>
+                  );
+                })()}
                 {!isPractitioner && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {row.type === "cycle" && row.student && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {row.type === "cycle" && row.collector === "agency" && (
+                      <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">
+                        {row.collectorName ? `Agency collects · ${row.collectorName}` : "Agency collects"}
+                      </span>
+                    )}
+                    {row.type === "cycle" && row.student && row.collector !== "agency" && row.amount > 0 && (
                       <button
                         onClick={() => onRemind(row.student, row.cycle)}
                         disabled={remindingStudentId === row.studentId}
@@ -96,7 +120,9 @@ export default function PendingBreakdownModal({
                       >
                         {remindingStudentId === row.studentId
                           ? "Preparing…"
-                          : "💬 Remind"}
+                          : reminderInfo?.(row.cycle)?.reminded
+                            ? "💬 Remind again"
+                            : "💬 Remind"}
                       </button>
                     )}
                     {row.type === "cycle" && (

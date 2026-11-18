@@ -31,7 +31,10 @@ import { confirmClosedMonthChange, loadClosedMonths, latestUnbilledLessonDate, l
 import { activityMonths, monthName, shiftMonth, sgtTodayKey } from "../lib/monthClose";
 import Onboarding from "../components/Onboarding";
 import GettingStartedChecklist from "../components/GettingStartedChecklist";
-import { buildOwedRows, owedInvariantHolds, sumOwed } from "../lib/owed";
+import { buildOwedRows, isAgencyCollected, owedInvariantHolds, sumOwed } from "../lib/owed";
+import ReminderSheet from "../components/ReminderSheet";
+import { describeReminded, loadReminders, logReminders, undoTodayReminders } from "../lib/reminders";
+import { sgtDateKey } from "../utils/sgt";
 import TodayBriefing from "../components/TodayBriefing";
 import { buildBriefing, firstNameOf, getMonthEndPrompt } from "../lib/briefing";
 import MonthlyRecapCard from "../components/MonthlyRecapCard";
@@ -233,6 +236,8 @@ export default function Dashboard() {
   const [checkoutLoading, setCheckoutLoading] = useState(null); // "monthly" | "annual" | null
   const [preview, setPreview] = useState(null); // WhatsApp message preview
   const [remindingStudentId, setRemindingStudentId] = useState(null);
+  const [reminders, setReminders] = useState([]); // payment_reminders log (tutors only)
+  const [reminderSheet, setReminderSheet] = useState(null);
   const [pendingBreakdownState, setPendingBreakdownState] = useState(null);
   const [stalledDismissed, setStalledDismissed] = useState(() => {
     try {
@@ -450,6 +455,16 @@ export default function Dashboard() {
       .order("expires_at", { ascending: true })
       .limit(1);
     setNextBookingExpiry(nextBooking?.[0]?.expires_at ?? null);
+
+    // Reminder log ("Reminded 3 days ago"). A failure never blocks the Dashboard.
+    if (!isPractitioner) {
+      try {
+        setReminders(await loadReminders(supabase, user.id));
+      } catch (err) {
+        console.error("loadReminders:", err);
+        showToast("Could not load your reminder history.", "error");
+      }
+    }
   };
 
   useEffect(() => {
@@ -847,6 +862,22 @@ export default function Dashboard() {
         terms,
         formatTime: formatLessonTime,
       });
+  // "last reminded N days ago" on the owed row (from the reminder log).
+  if (briefing) {
+    const owedItem = briefing.items.find((it) => it.key === "owed");
+    if (owedItem) {
+      const tutorCycleRows = owedRows.filter((r) => r.type === "cycle" && r.collector === "tutor");
+      let newest = null;
+      for (const r of tutorCycleRows) {
+        const info = describeReminded({ reminders, cycle: r.cycle, todayKey: briefingToday });
+        if (info?.reminded && (newest === null || info.newestDaysAgo < newest)) newest = info.newestDaysAgo;
+      }
+      if (newest !== null) {
+        const when = newest === 0 ? "today" : newest === 1 ? "yesterday" : `${newest} days ago`;
+        owedItem.sub = [owedItem.sub, `last reminded ${when}`].filter(Boolean).join(" · ");
+      }
+    }
+  }
   const scrollToId = (id) =>
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   const handleBriefingAction = (action) => {
@@ -976,7 +1007,7 @@ export default function Dashboard() {
   // Opens the same editable WhatsApp payment request the Payments page uses,
   // for the oldest unpaid cycle of an overdue student. PayNow details and the
   // cycle's lesson dates are fetched on tap so loadAll() stays unchanged.
-  const handleRemind = async (student, cycle) => {
+  const handleRemindLegacy = async (student, cycle) => {
     setRemindingStudentId(student.id);
     try {
       const [{ data: tutor }, { data: cycleLessons }] = await Promise.all([
@@ -1022,6 +1053,77 @@ export default function Dashboard() {
     }
   };
 
+  // Tutors: opens the ReminderSheet (spec 4.3). Practitioners keep the old preview.
+  const handleRemind = async (student, cycle) => {
+    if (isPractitioner) return handleRemindLegacy(student, cycle);
+    setRemindingStudentId(student.id);
+    try {
+      const open = moneyRecapCycles.filter(
+        (c) => c.student_id === student.id && (c.status === "pending" || c.status === "overdue") && Number(c.amount_due) > 0,
+      );
+      const notices = open.some((c) => c.id === cycle.id) ? open : [cycle, ...open];
+      const [{ data: tutor, error: tutorErr }, ...dateResults] = await Promise.all([
+        supabase.from("tutors").select("full_name, paynow_number").eq("id", user.id).single(),
+        ...notices.map(async (n) => {
+          const byCycle = await supabase
+            .from("lessons")
+            .select("lesson_date")
+            .eq("tutor_id", user.id)
+            .eq("payment_cycle_id", n.id)
+            .eq("is_completed", true)
+            .order("lesson_date", { ascending: true });
+          if (byCycle.error) return byCycle;
+          if ((byCycle.data ?? []).length > 0) return byCycle;
+          return supabase
+            .from("lessons")
+            .select("lesson_date")
+            .eq("tutor_id", user.id)
+            .eq("student_id", n.student_id)
+            .eq("is_completed", true)
+            .gte("lesson_date", n.period_start)
+            .lte("lesson_date", n.period_end)
+            .order("lesson_date", { ascending: true });
+        }),
+      ]);
+      if (tutorErr) throw tutorErr;
+      const failed = dateResults.find((r) => r.error);
+      if (failed) throw failed.error;
+      setReminderSheet({
+        student,
+        cycle,
+        tutor: { ...tutor, full_name: tutor?.full_name ?? user?.user_metadata?.full_name },
+        openNotices: notices.map((n, i) => ({
+          ...n,
+          mode: student.payment_mode ?? "lessons",
+          dates: (dateResults[i].data ?? []).map((l) => l.lesson_date),
+        })),
+      });
+    } catch (err) {
+      console.error("handleRemind:", err);
+      showToast("Could not prepare the reminder. Please try again.", "error");
+    } finally {
+      setRemindingStudentId(null);
+    }
+  };
+
+  const reminderTodayKey = sgtDateKey();
+  const reminderInfo = (cycle) => describeReminded({ reminders, cycle, todayKey: reminderTodayKey });
+  const handleUndoReminder = async (cycle) => {
+    const { error, ids } = await undoTodayReminders(supabase, {
+      tutorId: user.id,
+      cycle,
+      reminders,
+      todayKey: reminderTodayKey,
+    });
+    if (error) {
+      showToast(`Could not remove the reminder mark: ${error.message}`, "error");
+      return;
+    }
+    setReminders((prev) => prev.filter((r) => !ids.includes(r.id)));
+    showToast("Reminder mark removed.");
+  };
+  const payeeNameOf = (student) => payees.find((p) => p.id === student?.payee_id)?.name ?? null;
+
   const handleCollectPayment = async (cycleId) => {
     if (!(await confirmClosedMonthChange({ tutorId: user.id, kind: "paid", dateKeys: [unpaidCycles.find((c) => c.id === cycleId)?.period_end] }))) return;
     const { error } = await supabase
@@ -1040,7 +1142,12 @@ export default function Dashboard() {
           : c,
       ),
     );
-    showToast("Marked as paid.");
+    const paidCycle = moneyRecapCycles.find((c) => c.id === cycleId);
+    showToast(
+      paidCycle
+        ? `${formatSGD(Number(paidCycle.amount_due))} from ${paidCycle.students?.name ?? "the student"} marked as paid.`
+        : "Marked as paid.",
+    );
   };
 
   const handleWaiveCycle = async (cycleId, currentStatus) => {
@@ -1784,18 +1891,45 @@ export default function Dashboard() {
                             {overdueReason}
                           </p>
                         )}
+                        {!isPractitioner && (() => {
+                          const info = reminderInfo(c);
+                          if (!info) return null;
+                          return (
+                            <p className="mt-0.5 text-xs text-gray-500">
+                              {info.text}
+                              {info.reminded && info.newestToday && (
+                                <>
+                                  {" · "}
+                                  <button type="button" onClick={() => handleUndoReminder(c)} className="font-medium text-[#0f7a58] underline">
+                                    Undo
+                                  </button>
+                                </>
+                              )}
+                            </p>
+                          );
+                        })()}
                       </div>
                       {!isPractitioner && student && (
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            onClick={() => handleRemind(student, c)}
-                            disabled={remindingStudentId === student.id}
-                            className="min-h-11 rounded-md bg-orange-500 px-3 text-xs font-medium text-white transition hover:bg-orange-600 hover:shadow disabled:opacity-60"
-                          >
-                            {remindingStudentId === student.id
-                              ? "Preparing…"
-                              : "💬 Remind"}
-                          </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {isAgencyCollected(student) ? (
+                            <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600">
+                              {payeeNameOf(student) ? `Agency collects · ${payeeNameOf(student)}` : "Agency collects"}
+                            </span>
+                          ) : (
+                            Number(c.amount_due) > 0 && (
+                              <button
+                                onClick={() => handleRemind(student, c)}
+                                disabled={remindingStudentId === student.id}
+                                className="min-h-11 rounded-md bg-orange-500 px-3 text-xs font-medium text-white transition hover:bg-orange-600 hover:shadow disabled:opacity-60"
+                              >
+                                {remindingStudentId === student.id
+                                  ? "Preparing…"
+                                  : reminderInfo(c)?.reminded
+                                    ? "💬 Remind again"
+                                    : "💬 Remind"}
+                              </button>
+                            )
+                          )}
                           <button
                             onClick={() => handleCollectPayment(c.id)}
                             className="min-h-11 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-100"
@@ -2135,6 +2269,24 @@ export default function Dashboard() {
           onRemind={handleRemind}
           remindingStudentId={remindingStudentId}
           isPractitioner={isPractitioner}
+          reminderInfo={reminderInfo}
+          onUndoReminder={handleUndoReminder}
+        />
+      )}
+
+      {reminderSheet && !isPractitioner && (
+        <ReminderSheet
+          student={reminderSheet.student}
+          cycle={reminderSheet.cycle}
+          openNotices={reminderSheet.openNotices}
+          tutor={reminderSheet.tutor}
+          reminders={reminders}
+          todayKey={reminderTodayKey}
+          logReminders={({ notices, stage, channel }) =>
+            logReminders(supabase, { tutorId: user.id, notices, stage, channel })
+          }
+          onLogged={(rows) => setReminders((prev) => [...rows, ...prev])}
+          onClose={() => setReminderSheet(null)}
         />
       )}
     </AppShell>
