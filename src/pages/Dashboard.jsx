@@ -27,11 +27,13 @@ import { useToast } from "../contexts/ToastContext";
 import { useTerms } from "../contexts/TerminologyContext";
 import StatusBadge from "../components/StatusBadge";
 import AppShell from "../components/AppShell";
-import { confirmClosedMonthChange, latestUnbilledLessonDate, lessonToggleDates, studentOwedDates } from "../lib/closedMonths";
+import { confirmClosedMonthChange, loadClosedMonths, latestUnbilledLessonDate, lessonToggleDates, studentOwedDates } from "../lib/closedMonths";
 import { activityMonths, monthName, shiftMonth, sgtTodayKey } from "../lib/monthClose";
 import Onboarding from "../components/Onboarding";
 import GettingStartedChecklist from "../components/GettingStartedChecklist";
 import { buildOwedRows, owedInvariantHolds, sumOwed } from "../lib/owed";
+import TodayBriefing from "../components/TodayBriefing";
+import { buildBriefing, firstNameOf, getMonthEndPrompt } from "../lib/briefing";
 import MonthlyRecapCard from "../components/MonthlyRecapCard";
 import NotificationPrompt from "../components/NotificationPrompt";
 import LessonDetailModal from "../components/LessonDetailModal";
@@ -198,6 +200,18 @@ export default function Dashboard() {
   // the load fails), so the recap card and nudge then behave as before.
   const [closedMonths, setClosedMonths] = useState(undefined);
   const [nudgeDismissed, setNudgeDismissed] = useState({});
+  // Set of closed "YYYY-MM" (from closedMonths.js); undefined until loaded, null if it failed.
+  const [closedSet, setClosedSet] = useState(undefined);
+  useEffect(() => {
+    if (!user?.id || isPractitioner) return;
+    let cancelled = false;
+    loadClosedMonths(user.id).then((set) => {
+      if (!cancelled) setClosedSet(set);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, isPractitioner]);
   useEffect(() => {
     if (!user?.id || isPractitioner) return;
     let cancelled = false;
@@ -240,6 +254,8 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [pendingBookingCount, setPendingBookingCount] = useState(0);
+  const [nextBookingExpiry, setNextBookingExpiry] = useState(null);
+  const [tutorFullName, setTutorFullName] = useState(null);
   const [notifyPrefs, setNotifyPrefs] = useState({
     notify_lesson_reminders: true,
     notify_payment_due: true,
@@ -424,6 +440,16 @@ export default function Dashboard() {
       .eq("status", "pending")
       .gt("expires_at", now);
     setPendingBookingCount(bookingCount ?? 0);
+    // Earliest-expiring pending request, for the briefing's "expires in ..." text.
+    const { data: nextBooking } = await supabase
+      .from("booking_requests")
+      .select("id, student_id, start_at, expires_at")
+      .eq("tutor_id", user.id)
+      .eq("status", "pending")
+      .gt("expires_at", now)
+      .order("expires_at", { ascending: true })
+      .limit(1);
+    setNextBookingExpiry(nextBooking?.[0]?.expires_at ?? null);
   };
 
   useEffect(() => {
@@ -431,11 +457,12 @@ export default function Dashboard() {
       const { data: tutorData } = await supabase
         .from("tutors")
         .select(
-          "notify_lesson_reminders, notify_payment_due, notify_weekly_summary, onboarding_dismissed, google_calendar_tokens, subscription_status, current_period_end",
+          "full_name, notify_lesson_reminders, notify_payment_due, notify_weekly_summary, onboarding_dismissed, google_calendar_tokens, subscription_status, current_period_end",
         )
         .eq("id", user.id)
         .single();
       if (tutorData) {
+        setTutorFullName(tutorData.full_name ?? null);
         setNotifyPrefs(tutorData);
         setChecklistDismissed(isPractitioner || Boolean(tutorData.onboarding_dismissed));
         setGoogleCalendarConnected(
@@ -604,10 +631,10 @@ export default function Dashboard() {
   // days, soonest first -- past lessons (completed or not) are excluded
   // entirely.
   const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
+  const todayStr = todayKey();
   const sevenDaysOut = new Date(today);
   sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
-  const sevenDaysOutStr = sevenDaysOut.toISOString().slice(0, 10);
+  const sevenDaysOutStr = toDateKey(sevenDaysOut);
   const upcomingLessons = scheduledLessons
     .filter((l) => l.lesson_date > todayStr && l.lesson_date <= sevenDaysOutStr)
     .sort((a, b) => {
@@ -789,6 +816,45 @@ export default function Dashboard() {
   const visibleStalledItems = stalledItems.filter(
     (item) => !stalledDismissed[item.student.id],
   );
+
+  // Today briefing (tutors only). Practice students never count.
+  const briefingNow = new Date();
+  const briefingToday = sgtTodayKey();
+  const briefing = isPractitioner
+    ? null
+    : buildBriefing({
+        now: briefingNow,
+        firstName: firstNameOf(tutorFullName, user?.user_metadata?.full_name),
+        todayLessons: todayLessons.filter((l) => !isPracticeLesson(l)),
+        overdueLessons: overdueLessons.filter((l) => !isPracticeLesson(l)),
+        owedRows,
+        stalledCount: visibleStalledItems.length,
+        bookingCount: pendingBookingCount,
+        bookingExpiresAt: nextBookingExpiry,
+        monthEndPrompt:
+          closedSet === undefined
+            ? null
+            : getMonthEndPrompt({
+                todayKey: briefingToday,
+                openNoticeCount: owedRows.filter((r) => r.type === "cycle").length,
+                isMonthClosed: (m) => Boolean(closedSet?.has(m)),
+                previousMonthHasActivity: activityMonths({
+                  students: moneyRecapStudents,
+                  lessons: moneyRecapLessons,
+                  cycles: moneyRecapCycles,
+                }).has(shiftMonth(briefingToday.slice(0, 7), -1)),
+              }),
+        terms,
+        formatTime: formatLessonTime,
+      });
+  const scrollToId = (id) =>
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  const handleBriefingAction = (action) => {
+    if (action === "scroll-today") scrollToId("dashboard-today");
+    else if (action === "scroll-status") scrollToId("dashboard-status-update");
+    else if (action === "scroll-attention") scrollToId("dashboard-needs-attention");
+    else if (action === "owed") handlePendingTap(new Date(), true);
+  };
 
   // "Needs your attention" lists every unpaid cycle once. For tutors, a cycle
   // that belongs to an overdue student is flagged red with the reason from the
@@ -1278,6 +1344,10 @@ export default function Dashboard() {
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
         {/* ── LEFT PANEL — Today & upcoming (60%) ── */}
         <div className="min-w-0 flex-1 space-y-6 md:flex-[3]">
+          {!isPractitioner && briefing && (
+            <TodayBriefing briefing={briefing} loading={loading} onAction={handleBriefingAction} />
+          )}
+
           {/* Subscription status — shown when active so tutor knows their plan */}
           {!loading && subscriptionStatus === "past_due" && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm">
@@ -1289,7 +1359,7 @@ export default function Dashboard() {
           )}
 
           {/* Today's lessons */}
-          <section className="rounded-xl border-2 border-[#5ecfaa] bg-gradient-to-b from-[#effaf6] to-white p-5 shadow-md ring-4 ring-[#5ecfaa]/15">
+          <section id="dashboard-today" className="scroll-mt-4 rounded-xl border-2 border-[#5ecfaa] bg-gradient-to-b from-[#effaf6] to-white p-5 shadow-md ring-4 ring-[#5ecfaa]/15">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="flex items-center gap-2 text-lg font-bold text-[#1b2d4f]">
                 <span className="rounded-md bg-[#1b2d4f] px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-[#5ecfaa]">
@@ -1610,7 +1680,7 @@ export default function Dashboard() {
 
           {/* Lessons past their scheduled time that haven't been marked Done */}
           {!isPractitioner && !loading && overdueLessons.length > 0 && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-5 shadow-sm">
+            <div id="dashboard-status-update" className="scroll-mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-5 shadow-sm">
               <h2 className="mb-3 text-base font-semibold text-amber-800">
                 📝 {overdueLessons.length} {terms.lesson.toLowerCase()}
                 {overdueLessons.length === 1 ? "" : "s"} need
@@ -1641,7 +1711,7 @@ export default function Dashboard() {
           )}
 
           {/* Needs your attention: every unpaid cycle once; overdue ones flagged. Full history lives on the Payments page. */}
-          <section className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <section id="dashboard-needs-attention" className="scroll-mt-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
