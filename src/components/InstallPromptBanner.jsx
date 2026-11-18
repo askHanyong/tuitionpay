@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { isParentFacingPath } from "../lib/parentPaths";
 
 const DISMISS_KEY = "install-prompt-dismissed";
 
@@ -10,6 +12,7 @@ function isStandalone() {
 }
 
 export default function InstallPromptBanner() {
+  const { pathname } = useLocation();
   const [deferredEvent, setDeferredEvent] = useState(null);
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem(DISMISS_KEY) === "1",
@@ -29,7 +32,7 @@ export default function InstallPromptBanner() {
     };
   }, []);
 
-  if (dismissed || !deferredEvent || isStandalone()) return null;
+  if (isParentFacingPath(pathname) || dismissed || !deferredEvent || isStandalone()) return null;
 
   const dismiss = () => {
     localStorage.setItem(DISMISS_KEY, "1");
