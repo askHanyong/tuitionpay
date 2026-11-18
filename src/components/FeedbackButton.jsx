@@ -1,8 +1,12 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
+import { isParentFacingPath } from "../lib/parentPaths";
 import FeedbackModal from "./FeedbackModal";
 
 export default function FeedbackButton() {
   const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
+  if (isParentFacingPath(pathname)) return null;
 
   return (
     <>

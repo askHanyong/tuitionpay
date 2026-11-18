@@ -23,6 +23,7 @@ import Terms from "./pages/Terms";
 import About from "./pages/About";
 import Faq from "./pages/Faq";
 import PaymentSummary from "./pages/PaymentSummary";
+import ParentPortal from "./pages/ParentPortal";
 import AgencyDashboard from "./pages/AgencyDashboard";
 import Availability from "./pages/Availability";
 import BookingPage from "./pages/BookingPage";
@@ -147,6 +148,7 @@ function App() {
               }
             />
             <Route path="/pay/:token" element={<PaymentSummary />} />
+            <Route path="/parent/:token" element={<ParentPortal />} />
             <Route path="/book/:token" element={<BookingPage />} />
             <Route path="/agency/dashboard" element={<AgencyDashboard />} />
             <Route path="/" element={<Landing />} />
