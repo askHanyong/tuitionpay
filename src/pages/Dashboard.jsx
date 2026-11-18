@@ -31,6 +31,7 @@ import { confirmClosedMonthChange, latestUnbilledLessonDate, lessonToggleDates, 
 import { activityMonths, monthName, shiftMonth, sgtTodayKey } from "../lib/monthClose";
 import Onboarding from "../components/Onboarding";
 import GettingStartedChecklist from "../components/GettingStartedChecklist";
+import { buildOwedRows, owedInvariantHolds, sumOwed } from "../lib/owed";
 import MonthlyRecapCard from "../components/MonthlyRecapCard";
 import NotificationPrompt from "../components/NotificationPrompt";
 import LessonDetailModal from "../components/LessonDetailModal";
@@ -182,6 +183,7 @@ export default function Dashboard() {
   const isPractitioner = user?.user_metadata?.user_type === "practitioner";
   const [students, setStudents] = useState([]);
   const [recapStudents, setRecapStudents] = useState([]);
+  const [payees, setPayees] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [recapLessons, setRecapLessons] = useState([]);
   const [paymentCycles, setPaymentCycles] = useState([]);
@@ -296,6 +298,7 @@ export default function Dashboard() {
       { data: todayData },
       { data: scheduledData },
       { data: overdueData },
+      { data: payeesData },
     ] = await Promise.all([
       supabase
         .from("students")
@@ -340,6 +343,7 @@ export default function Dashboard() {
         .lte("lesson_date", todayKey())
         .order("lesson_date", { ascending: true })
         .order("lesson_time", { ascending: true }),
+      supabase.from("payees").select("id, name").eq("tutor_id", user.id),
     ]);
     const nonDeletedStudents = (studentsData ?? []).filter((s) => !s.deleted_at);
     const archivedStudentIds = new Set(
@@ -394,6 +398,7 @@ export default function Dashboard() {
 
     setStudents(nonDeletedStudents.filter((s) => !s.archived));
     setRecapStudents(studentsData ?? []);
+    setPayees(payeesData ?? []);
     setLessons(excludeDeleted(excludeArchived(lessonsData)));
     setRecapLessons(lessonsData ?? []);
     setPaymentCycles(excludeDeleted(excludeArchived(cyclesData)));
@@ -679,46 +684,17 @@ export default function Dashboard() {
   // Compute all outstanding pending using recapPaymentCycles (includes archived
   // and deleted students) so their owed money counts. Both 'pending' and
   // 'overdue' cycles are owed; 'waived' cycles are excluded.
-  const allPendingAmount = (() => {
-    const owedCycles = moneyRecapCycles.filter(
-      (c) => c.status === "pending" || c.status === "overdue",
-    );
-    const owedStudentIds = new Set(owedCycles.map((c) => c.student_id));
-    const fromCycles = owedCycles.reduce(
-      (sum, c) => sum + Number(c.amount_due),
-      0,
-    );
-    const recapLessonsByStudentForPending = new Map();
-    for (const l of moneyRecapLessons) {
-      if (!recapLessonsByStudentForPending.has(l.student_id))
-        recapLessonsByStudentForPending.set(l.student_id, []);
-      recapLessonsByStudentForPending.get(l.student_id).push(l);
-    }
-    const fromMidCycle = moneyStudents
-      .filter(
-        (stu) =>
-          (stu.payment_mode ?? "lessons") === "lessons" &&
-          !owedStudentIds.has(stu.id),
-      )
-      .reduce((sum, stu) => {
-        const openLessons = (recapLessonsByStudentForPending.get(stu.id) ?? []).filter(
-          (l) => !l.payment_cycle_id,
-        );
-        const openCount = openLessons.length;
-        if (openCount === 0) return sum;
-        const cycleCount = stu.payment_cycle_count ?? 4;
-        if (openCount < cycleCount - 1) return sum;
-        const cycleLessons = [...openLessons]
-          .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1))
-          .slice(-cycleCount);
-        const cycleAmount = cycleLessons.reduce(
-          (s, l) => s + lessonAmount(l, stu),
-          0,
-        );
-        return sum + cycleAmount;
-      }, 0);
-    return fromCycles + fromMidCycle;
-  })();
+  const owedRows = buildOwedRows({
+    cycles: moneyRecapCycles,
+    allStudents: recapStudents,
+    activeStudents: moneyStudents,
+    allLessons: moneyRecapLessons,
+    payees,
+  });
+  const allPendingAmount = sumOwed(owedRows);
+  if (import.meta.env.DEV && !owedInvariantHolds(owedRows, allPendingAmount)) {
+    console.error("[owed] owed to tutor + via agency + not yet billed does not equal Pending", allPendingAmount);
+  }
 
   // Pending breakdown rows — computed only when the modal is open.
   const pendingBreakdownRows = (() => {
@@ -736,63 +712,7 @@ export default function Dashboard() {
     const rows = [];
 
     if (isCurrentMonth) {
-      const owedCycles = moneyRecapCycles.filter(
-        (c) => c.status === "pending" || c.status === "overdue",
-      );
-      const owedStudentIds = new Set(owedCycles.map((c) => c.student_id));
-
-      for (const c of owedCycles) {
-        const student = recapStudents.find((s) => s.id === c.student_id) ?? null;
-        rows.push({
-          type: "cycle",
-          studentId: c.student_id,
-          studentName: student?.name ?? c.students?.name ?? "—",
-          amount: Number(c.amount_due),
-          tag: c.status === "overdue" ? "Overdue" : "Pending",
-          archived: student ? !!student.archived : false,
-          deleted: student ? !!student.deleted_at : false,
-          cycleId: c.id,
-          cycleStatus: c.status,
-          cycle: c,
-          student,
-        });
-      }
-
-      const recapLessonsByStudent = new Map();
-      for (const l of moneyRecapLessons) {
-        if (!recapLessonsByStudent.has(l.student_id))
-          recapLessonsByStudent.set(l.student_id, []);
-        recapLessonsByStudent.get(l.student_id).push(l);
-      }
-
-      for (const stu of moneyStudents) {
-        if ((stu.payment_mode ?? "lessons") !== "lessons") continue;
-        if (owedStudentIds.has(stu.id)) continue;
-        const openLessons = (recapLessonsByStudent.get(stu.id) ?? []).filter(
-          (l) => !l.payment_cycle_id,
-        );
-        const openCount = openLessons.length;
-        if (openCount === 0) continue;
-        const cycleCount = stu.payment_cycle_count ?? 4;
-        if (openCount < cycleCount - 1) continue;
-        const cycleLessons = [...openLessons]
-          .sort((a, b) => (a.lesson_date < b.lesson_date ? -1 : 1))
-          .slice(-cycleCount);
-        const amount = cycleLessons.reduce((s, l) => s + lessonAmount(l, stu), 0);
-        rows.push({
-          type: "mid_cycle",
-          studentId: stu.id,
-          studentName: stu.name,
-          amount,
-          tag: "Not yet billed",
-          archived: !!stu.archived,
-          deleted: !!stu.deleted_at,
-          cycleId: null,
-          cycleStatus: null,
-          cycle: null,
-          student: stu,
-        });
-      }
+      return owedRows;
     } else {
       const owedCycles = moneyRecapCycles.filter(
         (c) =>
