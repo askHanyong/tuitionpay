@@ -2,6 +2,8 @@
 // Moved, not rewritten, from Dashboard.jsx (`allPendingAmount` and the
 // current-month branch of `pendingBreakdownRows`). Pure: no Supabase, no clock.
 import { lessonAmount } from "./paymentMode";
+import { cycleOverdueInfo } from "./paymentStatus";
+import { sgtDateKey } from "../utils/sgt";
 
 // The fee goes to an agency, not the tutor: a placement, or a payee that collects.
 // fee_collected_by defaults to 'payee' even with no agency, so payee_id must be set.
@@ -17,7 +19,8 @@ export function isAgencyCollected(student) {
 // Returns rows[] of { type: 'cycle' | 'mid_cycle', studentId, studentName, amount,
 // tag, archived, deleted, cycleId, cycleStatus, cycle, student, collector,
 // collectorName }.
-export function buildOwedRows({ cycles, allStudents, activeStudents, allLessons, payees }) {
+export function buildOwedRows({ cycles, allStudents, activeStudents, allLessons, payees, todayKey }) {
+  const today = todayKey ?? sgtDateKey(new Date());
   const payeeName = new Map((payees ?? []).map((p) => [p.id, p.name]));
   const collectorOf = (student) => {
     const agency = isAgencyCollected(student);
@@ -35,12 +38,16 @@ export function buildOwedRows({ cycles, allStudents, activeStudents, allLessons,
   for (const c of owedCycles) {
     const student = allStudents.find((s) => s.id === c.student_id) ?? null;
     if (isPracticeStudent(student)) continue;
+    // Overdue is decided per cycle (cycleOverdueInfo), never from the status column.
+    const info = cycleOverdueInfo(c, student, today);
     rows.push({
       type: "cycle",
       studentId: c.student_id,
       studentName: student?.name ?? c.students?.name ?? "—",
       amount: Number(c.amount_due),
-      tag: c.status === "overdue" ? "Overdue" : "Pending",
+      tag: info.overdue ? "Overdue" : "Pending",
+      overdue: info.overdue,
+      overdueReason: info.overdue ? info.reason : null,
       archived: student ? !!student.archived : false,
       deleted: student ? !!student.deleted_at : false,
       cycleId: c.id,
@@ -76,6 +83,8 @@ export function buildOwedRows({ cycles, allStudents, activeStudents, allLessons,
       studentName: stu.name,
       amount,
       tag: "Not yet billed",
+      overdue: false,
+      overdueReason: null,
       archived: !!stu.archived,
       deleted: !!stu.deleted_at,
       cycleId: null,

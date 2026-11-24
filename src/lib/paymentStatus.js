@@ -5,6 +5,7 @@ import {
   formatDayMonth,
 } from "../utils/dateFormat";
 import { ordinal, lessonAmount as amountForLesson } from "./paymentMode";
+import { sgtDateKey } from "../utils/sgt";
 
 const TIER_RANK = { red: 0, amber: 1, blue: 2, grey: 2, green: 3 };
 
@@ -51,6 +52,54 @@ function customDueDateFor(year, month0, customDay) {
   return new Date(year, month0, Math.min(customDay ?? 1, lastDay));
 }
 
+// ── Overdue, decided per cycle (one unpaid bill), not per student ───────────
+export const OVERDUE_GRACE_DAYS = 7;
+const ymd = (key) => String(key).slice(0, 10).split("-").map(Number);
+const pad2 = (n) => String(n).padStart(2, "0");
+// Whole days from earlier to later, both "YYYY-MM-DD" (no Date from a bare string).
+function dayDiffKeys(later, earlier) {
+  const [ly, lm, ld] = ymd(later);
+  const [ey, em, ed] = ymd(earlier);
+  return Math.round((Date.UTC(ly, lm - 1, ld) - Date.UTC(ey, em - 1, ed)) / 86400000);
+}
+// Last day of the month of a "YYYY-MM-DD", as "YYYY-MM-DD".
+function monthEndKey(key) {
+  const [y, m] = ymd(key);
+  return `${y}-${pad2(m)}-${pad2(new Date(Date.UTC(y, m, 0)).getUTCDate())}`;
+}
+function customDueKey(key, customDay) {
+  const [y, m] = ymd(key);
+  const d = customDueDateFor(y, m - 1, customDay);
+  return `${y}-${pad2(m)}-${pad2(d.getDate())}`;
+}
+
+// One source of truth for "is this unpaid bill overdue?" (same 7-day grace for all
+// kinds of bill). todaySgtStr is "YYYY-MM-DD" in Singapore time.
+//  - per_lesson / lessons: due on period_end.
+//  - monthly: due on the last day of period_end's month (or the student's custom
+//    due day, if they have one).
+//  - custom_date: due on the custom day of period_end's month.
+// Overdue means MORE than 7 days after the due date. Returns { overdue, reason }.
+export function cycleOverdueInfo(cycle, student, todaySgtStr) {
+  const mode = student?.payment_mode ?? "lessons";
+  const end = cycle.period_end;
+  let due = end;
+  let reason;
+  if (mode === "monthly") {
+    due = student?.payment_custom_day ? customDueKey(end, student.payment_custom_day) : monthEndKey(end);
+    reason = `${formatMonthName(cycle.period_start)} unpaid`;
+  } else if (mode === "custom_date") {
+    due = customDueKey(end, student?.payment_custom_day ?? 1);
+    reason = `payment due ${formatDate(due)} unpaid`;
+  } else if (mode === "per_lesson") {
+    reason = `lesson on ${formatDayMonth(end)} unpaid`;
+  } else {
+    reason = `unpaid since ${formatDayMonth(end)}`;
+  }
+  const overdue = dayDiffKeys(todaySgtStr, due) > OVERDUE_GRACE_DAYS;
+  return { overdue, reason };
+}
+
 function sortByDueAsc(cycles) {
   return [...cycles].sort((a, b) =>
     a.period_end < b.period_end ? -1 : a.period_end > b.period_end ? 1 : 0,
@@ -84,20 +133,21 @@ export function computeStudentPaymentStatus(student, ctx) {
     now,
   } = ctx;
   const mode = student.payment_mode ?? "lessons";
+  const todaySgt = ctx.todaySgtStr ?? sgtDateKey(now);
+  // First overdue cycle (oldest first), or undefined when none is overdue.
+  const firstOverdue = (cycles) =>
+    sortByDueAsc(cycles).find((c) => cycleOverdueInfo(c, student, todaySgt).overdue);
 
   if (mode === "per_lesson") {
     const pending = sortByDueAsc(pendingCycles);
     const amountDue = pending.reduce((sum, c) => sum + Number(c.amount_due), 0);
     if (pending.length > 0) {
       const earliest = pending[0];
-      const lessonDateLabel = formatDayMonth(earliest.period_end);
-      const daysSince = daysUntil(
-        now,
-        new Date(`${earliest.period_end}T00:00:00`),
-      );
+      const overdueCycle = firstOverdue(pending);
+      const lessonDateLabel = formatDayMonth((overdueCycle ?? earliest).period_end);
       const moreSuffix =
         pending.length > 1 ? ` (+${pending.length - 1} more)` : "";
-      if (daysSince > 7) {
+      if (overdueCycle) {
         return {
           tier: "red",
           badge: "🔴 Overdue",
@@ -151,12 +201,23 @@ export function computeStudentPaymentStatus(student, ctx) {
     const monthLabel = formatMonthName(now);
 
     if (pending.length > 0) {
-      const overdueMonthLabel = formatMonthName(pending[0].period_start);
+      const overdueCycle = firstOverdue(pending);
+      if (overdueCycle) {
+        return {
+          tier: "red",
+          badge: "🔴 Overdue",
+          amountDue,
+          label: `🔴 ${formatSGD(amountDue)} overdue — ${formatMonthName(overdueCycle.period_start)} unpaid`,
+          showProgressBar: false,
+          progressFraction: null,
+          collectCycle: pending[0],
+        };
+      }
       return {
-        tier: "red",
-        badge: "🔴 Overdue",
+        tier: "amber",
+        badge: "⚠️ Payment due",
         amountDue,
-        label: `🔴 ${formatSGD(amountDue)} overdue — ${overdueMonthLabel} unpaid`,
+        label: `⚠️ ${formatSGD(amountDue)} due — ${formatMonthName(pending[0].period_start)} unpaid`,
         showProgressBar: false,
         progressFraction: null,
         collectCycle: pending[0],
@@ -229,10 +290,21 @@ export function computeStudentPaymentStatus(student, ctx) {
     const pending = sortByDueAsc(pendingCycles);
     const amountDue = pending.reduce((sum, c) => sum + Number(c.amount_due), 0);
     if (pending.length > 0) {
+      const overdueCycle = firstOverdue(pending);
+      if (overdueCycle) {
+        return {
+          tier: "red",
+          amountDue,
+          label: `🔴 Payment overdue since ${formatDate(overdueCycle.period_end)} — ${formatSGD(amountDue)}`,
+          showProgressBar: false,
+          progressFraction: null,
+          collectCycle: pending[0],
+        };
+      }
       return {
-        tier: "red",
+        tier: "amber",
         amountDue,
-        label: `🔴 Payment overdue since ${formatDate(pending[0].period_end)} — ${formatSGD(amountDue)}`,
+        label: `⚠️ Payment due ${formatDate(pending[0].period_end)} — ${formatSGD(amountDue)}`,
         showProgressBar: false,
         progressFraction: null,
         collectCycle: pending[0],
@@ -317,10 +389,8 @@ export function computeStudentPaymentStatus(student, ctx) {
 
   if (pending.length > 0) {
     const completedDate = pending[0].period_end;
-    // Once a completed-but-unpaid cycle's lessons are billed (payment_cycle_id
-    // assigned), openCount tracks the *next* cycle. If it's already > 0, a
-    // new cycle has started while the previous one still sits unpaid.
-    if (openCount > 0) {
+    // Overdue is decided per cycle: more than 7 days after the bill's period_end.
+    if (firstOverdue(pending)) {
       return {
         tier: "red",
         badge: "🔴 Overdue",

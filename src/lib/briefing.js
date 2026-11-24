@@ -108,7 +108,7 @@ export function buildBriefing({
   const archivedFamilies = new Set(tutorRows.filter((r) => r.archived || r.deleted).map((r) => r.studentId));
   const owedViaAgency = cycleRows.filter((r) => r.collector === "agency").reduce((s, r) => s + r.amount, 0);
   const notYetBilled = owedRows.filter((r) => r.type === "mid_cycle").reduce((s, r) => s + r.amount, 0);
-  const overdueCount = new Set(tutorRows.filter((r) => r.cycleStatus === "overdue").map((r) => r.studentId)).size;
+  const overdueCount = new Set(tutorRows.filter((r) => r.overdue).map((r) => r.studentId)).size;
 
   const f = families.size;
   const owedText = `${f} ${plural(f, "family", "families")} ${plural(f, "owes", "owe")} you ${formatSGD(owedToTutor)}`;

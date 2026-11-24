@@ -12,6 +12,7 @@ import {
 } from "../utils/dateFormat";
 import {
   computeStudentPaymentStatus,
+  cycleOverdueInfo,
   tierRank,
   TIER_BADGE_CLASSES,
 } from "../lib/paymentStatus";
@@ -732,6 +733,7 @@ export default function Dashboard() {
     activeStudents: moneyStudents,
     allLessons: moneyRecapLessons,
     payees,
+    todayKey: sgtDateKey(),
   });
   const allPendingAmount = sumOwed(owedRows);
   if (import.meta.env.DEV && !owedInvariantHolds(owedRows, allPendingAmount)) {
@@ -891,16 +893,16 @@ export default function Dashboard() {
   // that belongs to an overdue student is flagged red with the reason from the
   // student's payment status (e.g. "September unpaid") and sorted first.
   // Practitioners keep their separate overdue card and see no flags here.
+  // Overdue is decided per cycle (cycleOverdueInfo), so two unpaid bills of one
+  // student are each flagged on their own merits.
   const overdueReasonByCycleId = new Map();
   if (!isPractitioner) {
-    for (const st of overdueStudents) {
-      const status = paymentStatusByStudent.get(st.id);
-      if (!status?.collectCycle) continue;
-      const label = status.label ?? "";
-      overdueReasonByCycleId.set(
-        status.collectCycle.id,
-        label.includes(" — ") ? label.split(" — ").slice(1).join(" — ") : label,
-      );
+    const overdueToday = sgtDateKey();
+    for (const c of moneyCycles) {
+      if (c.status !== "pending" && c.status !== "overdue") continue;
+      const stu = recapStudents.find((x) => x.id === c.student_id);
+      const info = cycleOverdueInfo(c, stu, overdueToday);
+      if (info.overdue) overdueReasonByCycleId.set(c.id, info.reason);
     }
   }
   const unpaidCycles = moneyCycles
